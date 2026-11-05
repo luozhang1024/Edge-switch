@@ -1,0 +1,10 @@
+{
+  "two_services_cli_login": true,
+  "same_service_key_reuse": true,
+  "other_service_key_reuse_blocked": true,
+  "failed_reuse_preserves_previous_configuration": true,
+  "official_mode_separate_home_no_api_credentials": true,
+  "return_to_api_retains_credentials": true,
+  "oauth_import_private_permissions_and_refresh_preserved": true,
+  "imported_oauth_recognized_without_inference": false
+}

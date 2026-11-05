@@ -1,0 +1,9 @@
+{
+  "detached_service_survives": true,
+  "reattach_same_process_and_browser_port": true,
+  "changed_project_attach_preserves_original_service": true,
+  "browser_forward_recovered": true,
+  "proxy_recovers_same_port_other_tunnel_unaffected": true,
+  "background_close_survives": true,
+  "explicit_stop": true
+}

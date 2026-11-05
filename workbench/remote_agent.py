@@ -1,0 +1,623 @@
+"""Uploaded over SSH stdin; Python 3.8+, no third-party dependencies."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import shutil
+import signal
+import socket
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+import urllib.error
+import urllib.request
+
+
+PROXIES = ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy')
+
+
+def clean_env(proxy=''):
+    env = os.environ.copy()
+    for name in PROXIES:
+        env.pop(name, None)
+    if proxy:
+        env.update(HTTP_PROXY=proxy, HTTPS_PROXY=proxy, http_proxy=proxy, https_proxy=proxy)
+    env.update(NO_PROXY='localhost,127.0.0.1,::1', no_proxy='localhost,127.0.0.1,::1')
+    return env
+
+
+def private_write(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    tmp = path.with_name(path.name + '.tmp')
+    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w') as stream:
+        stream.write(text)
+    os.chmod(str(tmp), 0o600)
+    os.replace(str(tmp), str(path))
+
+
+def scope(payload):
+    name = payload['scope']
+    if not re.fullmatch(r'[a-f0-9]{32}', name):
+        raise ValueError('Invalid workspace ID')
+    return Path.home() / '.local/share/edge-ssh-ai' / name
+
+
+def command(args, env=None, timeout=25):
+    p = subprocess.Popen(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         universal_newlines=True, start_new_session=True)
+    try:
+        output, _ = p.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGTERM)
+        try:
+            p.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            os.killpg(p.pid, signal.SIGKILL)
+            p.communicate()
+        raise RuntimeError('操作超时；已停止本次任务进程，保留安装阶段目录供排查')
+    if p.returncode:
+        # Tool installers never receive API keys. Bound output for diagnostics.
+        raise RuntimeError(output[-3000:] or 'Command failed')
+    return output.strip()
+
+
+def diagnose(p):
+    root = scope(p)
+    home = Path.home()
+    mem = {}
+    if Path('/proc/meminfo').exists():
+        for line in Path('/proc/meminfo').read_text().splitlines():
+            key, value = line.split(':', 1)
+            if key in ('MemTotal', 'MemAvailable'):
+                mem[key] = int(value.split()[0]) // 1024
+    runtime = root / 'runtime/bin/node'
+    node = str(runtime) if runtime.exists() else shutil.which('node')
+    version = command([node, '--version']) if node else '未安装'
+    return dict(user=command(['id', '-un']), home=str(home), arch=platform.machine(),
+                libc=' '.join(platform.libc_ver()), memory_mb=mem,
+                disk_free_mb=shutil.disk_usage(str(home)).free // 1024**2,
+                node=version, managed_runtime=runtime.exists(),
+                codex=(root / 'tools/codex/current.json').exists(),
+                codex_configured=(root / 'launch.json').exists() and (root / 'codex-home/config.toml').exists(),
+                codex_extension=any((home / '.vscode-server/extensions').glob('openai.chatgpt-*/package.json')),
+                harness=(root / 'tools/harness/current.json').exists(),
+                flock=bool(shutil.which('flock')),
+                vscode_server=(home / '.vscode-server').exists(),
+                inherited_proxy=any(os.environ.get(k) for k in PROXIES),
+                shell_proxy_files=[str(x) for x in [home / '.bashrc', home / '.profile']
+                                   if x.exists() and '127.0.0.1:7890' in x.read_text(errors='replace')],
+                harness_service=service_module().status(root))
+
+
+def service_module():
+    import types
+    module = types.ModuleType('edge_harness_service')
+    exec(compile(SERVICE_SOURCE, 'harness-service', 'exec'), module.__dict__)
+    return module
+
+
+def harness_start(p):
+    return service_module().start(scope(p), p['project'], p.get('proxy', ''),
+                                  p['local_port'], p.get('background', True), SERVICE_SOURCE)
+
+
+def harness_status(p):
+    return service_module().status(scope(p), include_token=p.get('include_token', False))
+
+
+def harness_stop(p):
+    return service_module().stop(scope(p))
+
+
+def api_test(p):
+    if p.get('reuse'):
+        p = reuse_credentials(p)
+    # No environment proxies or redirects; report only bounded, redacted API errors.
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+    proxy = p.get('proxy', '')
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({'http': proxy, 'https': proxy} if proxy else {}), NoRedirect())
+    url = p['base_url'].rstrip('/')
+    headers = {'Authorization': 'Bearer ' + p['key'], 'Content-Type': 'application/json',
+               'Accept': 'application/json', 'User-Agent': 'EdgeSSHAI/0.2'}
+    data = None
+    if p.get('infer'):
+        if p['protocol'] == 'responses':
+            url += '/responses'
+            data = dict(model=p['model'], input='Reply with OK.', max_output_tokens=64)
+        else:
+            url += '/chat/completions'
+            data = dict(model=p['model'], messages=[dict(role='user', content='Reply with OK.')], max_tokens=64)
+        data = json.dumps(data).encode()
+    else:
+        url += '/models'
+    request = urllib.request.Request(url, data=data, headers=headers)
+    try:
+        with opener.open(request, timeout=40) as response:
+            value = json.loads(response.read(2 * 1024 * 1024))
+        if not isinstance(value, dict):
+            raise ValueError('响应不是 JSON 对象')
+        if p.get('infer'):
+            if p['protocol'] == 'responses':
+                output = value.get('output', [])
+                ok = value.get('status') == 'completed' and isinstance(output, list) and any(
+                    isinstance(item, dict) and item.get('type') == 'message' and isinstance(item.get('content'), list) and any(
+                        isinstance(part, dict) and part.get('type') == 'output_text' and bool(part.get('text'))
+                        for part in item['content'])
+                    for item in output)
+            else:
+                choices = value.get('choices', [])
+                message = choices[0].get('message', {}) if isinstance(choices, list) and choices and isinstance(choices[0], dict) else {}
+                ok = isinstance(message, dict) and isinstance(message.get('content'), str) and bool(message['content'].strip())
+            if not ok:
+                return dict(ok=False, message='HTTP 成功，但未得到所选协议的完整文本回答；请检查协议或输出额度')
+            return dict(ok=True, message='最小推理成功；尚未验证流式响应与工具调用')
+        models = value.get('data')
+        if not isinstance(models, list):
+            return dict(ok=False, message='模型列表格式不兼容；可手填模型并测试推理')
+        ids = [str(x['id']) for x in models if isinstance(x, dict) and 'id' in x]
+        return dict(ok=True, message='模型列表读取成功；尚未验证推理', models=ids[:1000], truncated=len(ids) > 1000)
+    except urllib.error.HTTPError as exc:
+        meaning = {401: '凭据无效', 403: '访问被拒绝', 404: '地址或接口不存在',
+                   429: '请求限流或额度不足'}
+        content_type = exc.headers.get('Content-Type', '') if exc.headers else ''
+        detail = ''
+        if 'json' in content_type.lower():
+            try:
+                body = json.loads(exc.read(16384))
+                error = body.get('error', {}) if isinstance(body, dict) else {}
+                if isinstance(error, dict):
+                    detail = error.get('message', '')
+                elif isinstance(error, str):
+                    detail = error
+                if isinstance(detail, str):
+                    detail = detail.replace(p['key'], '[已隐藏]')
+                    detail = re.sub(r'(?i)Bearer\s+\S+|\bsk-[A-Za-z0-9_-]+', '[已隐藏]', detail)
+                    detail = re.sub(r'[\x00-\x1f\x7f]', ' ', detail)[:400]
+                else:
+                    detail = ''
+            except (ValueError, OSError):
+                detail = ''
+        category = 'api'
+        if exc.code == 503:
+            category = 'provider_unavailable'
+            meaning[503] = '供应商服务暂不可用'
+            if '无可用渠道' in detail:
+                meaning[503] = ('供应商没有可用于此模型的渠道；先核对模型 ID 是否与模型列表完全一致。'
+                                '若一致仍失败，请检查供应商分组权限、余额或渠道状态')
+        if exc.code == 403 and 'json' not in content_type.lower():
+            category = 'gateway'
+            meaning[403] = '网关或防护层拒绝请求；不能据此判断 API Key 无效'
+        return dict(ok=False, status=exc.code, category=category,
+                    route='代理' if proxy else '直连',
+                    message='HTTP %s：%s%s' % (exc.code, meaning.get(exc.code, '服务返回错误'),
+                                              ('；服务提示：' + detail) if detail else ''))
+    except (urllib.error.URLError, OSError):
+        return dict(ok=False, message='网络、TLS 或代理连接失败，请先检查线路')
+
+
+def install_runtime(p):
+    root = scope(p)
+    archive = root / 'node.tar.xz'
+    if hashlib.sha256(archive.read_bytes()).hexdigest() != p['sha256']:
+        raise ValueError('Node.js SHA-256 mismatch')
+    stage = root / ('runtime-stage-' + str(time.time_ns()))
+    stage.mkdir(parents=True)
+    with tarfile.open(str(archive)) as tar:
+        members = tar.getmembers()
+        for item in members:
+            # Official archive needs files/directories/symlinks only; reject traversal.
+            target = (stage / item.name).resolve()
+            if os.path.commonpath([str(stage.resolve()), str(target)]) != str(stage.resolve()):
+                raise ValueError('Unsafe archive path')
+            if not (item.isfile() or item.isdir() or item.issym()):
+                raise ValueError('Unsupported archive entry')
+            if item.issym():
+                link = (target.parent / item.linkname).resolve()
+                if os.path.commonpath([str(stage.resolve()), str(link)]) != str(stage.resolve()):
+                    raise ValueError('Unsafe archive link')
+        tar.extractall(str(stage))
+    children = list(stage.iterdir())
+    if len(children) != 1:
+        raise ValueError('Unexpected runtime layout')
+    version = command([str(children[0] / 'bin/node'), '--version'])
+    dest = root / 'runtime'
+    if dest.exists():
+        raise RuntimeError('独立 Node 已存在；不覆盖运行中的版本')
+    children[0].rename(dest)
+    stage.rmdir()
+    archive.unlink()
+    return dict(node=version, path=str(dest))
+
+
+def tool_env(p, root):
+    env = clean_env(p.get('proxy', ''))
+    for name in list(env):
+        if re.search(r'(API_KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)', name, re.I):
+            env.pop(name, None)
+    env['PATH'] = str(root / 'runtime/bin') + os.pathsep + env.get('PATH', '')
+    # Keep npm user configuration/caches scoped to this workbench.
+    env['npm_config_userconfig'] = str(root / 'npmrc')
+    env['npm_config_cache'] = str(root / 'npm-cache')
+    env['npm_config_registry'] = 'https://registry.npmjs.org/'
+    return env
+
+
+def install_tool(p):
+    root = scope(p)
+    tool = p['tool']
+    package = {'codex': '@openai/codex', 'harness': '@deepseek-ai/dsh'}[tool]
+    version = p['version']
+    if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?', version):
+        raise ValueError('需要明确的 npm 版本号，例如 1.2.3')
+    if not (root / 'runtime/bin/node').exists():
+        raise RuntimeError('请先安装独立 Node.js 运行环境')
+    if shutil.disk_usage(str(Path.home())).free < 1536 * 1024**2:
+        raise RuntimeError('可用空间不足 1.5 GB')
+    dest = root / 'tools' / tool / version
+    env = tool_env(p, root)
+    binary_name = 'codex' if tool == 'codex' else 'dsh'
+    if dest.exists():
+        binary = dest / 'node_modules/.bin' / binary_name
+        result = command([str(binary), '--version'], env, timeout=60)
+        private_write(dest.parent / 'current.json', json.dumps(dict(version=version, binary=str(binary))))
+        return dict(tool=tool, version=result, message='复用已安装版本')
+    stage = dest.with_name(version + '.install-' + str(time.time_ns()))
+    stage.mkdir(parents=True, mode=0o700)
+    npm = str(root / 'runtime/bin/npm')
+    command([npm, 'install', '--prefix', str(stage), '--engine-strict', '--no-audit', '--no-fund',
+             '--prefer-offline', '--fetch-retries=1', '--fetch-timeout=60000',
+             package + '@' + version], env, timeout=1800)
+    binary = stage / 'node_modules/.bin' / binary_name
+    result = command([str(binary), '--version'], env, timeout=60)
+    stage.rename(dest)
+    binary = dest / 'node_modules/.bin' / binary_name
+    private_write(dest.parent / 'current.json', json.dumps(dict(version=version, binary=str(binary))))
+    return dict(tool=tool, version=result)
+
+
+def configure(p):
+    root = scope(p)
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if not Path(p['project']).is_dir():
+        raise ValueError('工程目录不存在')
+    if not (root / 'tools/codex/current.json').exists():
+        raise ValueError('请先安装受管 Codex')
+    official = p.get('auth_mode') == 'chatgpt'
+    if official and (root / 'launch.json').exists() and not (root / 'api-launch.json').exists():
+        previous = json.loads((root / 'launch.json').read_text())
+        if previous.get('key'):
+            private_write(root / 'api-launch.json', json.dumps(previous))
+    codex_home = root / ('codex-chatgpt-home' if official else 'codex-home')
+    config = ('forced_login_method = "api"\ncli_auth_credentials_store = "file"\nmodel_provider = "edge"\nmodel = ' + json.dumps(p.get('model', '')) +
+              '\n[model_providers.edge]\nname = "Edge Workbench"\nbase_url = ' +
+              json.dumps(p.get('base_url', '')) + '\nwire_api = "responses"\nenv_key = "OPENAI_API_KEY"\n')
+    if official:
+        config = 'forced_login_method = "chatgpt"\ncli_auth_credentials_store = "file"\n'
+    current = json.loads((root / 'tools/codex/current.json').read_text())
+    # Parse with the installed CLI before committing a profile, without making a model request.
+    with tempfile.TemporaryDirectory(prefix='config-check-', dir=str(root)) as directory:
+        private_write(Path(directory) / 'config.toml', config)
+        env = tool_env(p, root)
+        env.update(CODEX_HOME=directory, OPENAI_API_KEY='configuration-check-only')
+        command([current['binary'], 'features', 'list'], env=env, timeout=25)
+    private_write(codex_home / 'config.toml', config)
+    if not official:
+        private_write(codex_home / 'auth.json', json.dumps({'OPENAI_API_KEY': p['key']}))
+    private_write(root / 'launch.json', json.dumps(dict(project=p['project'], key=p.get('key', '') if not official else '', auth_mode='chatgpt' if official else 'api', proxy=p.get('proxy', ''), service_id=p.get('service_id', ''))))
+    if not official:
+        private_write(root / 'api-launch.json', (root / 'launch.json').read_text())
+    private_write(root / 'run-codex.py', CODEX_LAUNCHER)
+    return dict(path=str(codex_home), message='仅配置独立 Codex 终端；未更改共享 VS Code 插件配置')
+
+
+def reuse_credentials(p):
+    root = scope(p)
+    if p.get('reuse'):
+        saved_path = root / 'api-launch.json'
+        if not saved_path.exists():
+            saved_path = root / 'launch.json'
+        if not saved_path.exists():
+            raise ValueError('此 API 尚未保存到板卡，请编辑填写 API Key 并勾选加密保存')
+        saved = json.loads(saved_path.read_text())
+        if p.get('service_id') and saved.get('service_id') != p['service_id']:
+            if saved.get('service_id') or not p.get('legacy_service'):
+                raise ValueError('此 API 尚未同步密钥；请填写该服务的 API Key，避免复用另一服务的凭据')
+        config = (root / 'codex-home/config.toml').read_text()
+        def setting(name):
+            match = re.search(r'^' + name + r'\s*=\s*("(?:[^"\\]|\\.)*")\s*$', config, re.M)
+            if not match:
+                raise ValueError('已保存的 Codex 配置不完整，请在模型服务重新填写')
+            return json.loads(match.group(1))
+        base_url = setting('base_url')
+        if p.get('base_url', '').rstrip('/') != base_url.rstrip('/'):
+            raise ValueError('API 地址已改变；为避免把旧密钥发给新服务，请重新填写 API Key')
+        p = dict(p, key=saved['key'], model=p.get('model') or setting('model'), base_url=base_url)
+    return p
+
+
+def parse_official_auth(raw):
+    if not isinstance(raw, str) or len(raw.encode('utf-8')) > 256 * 1024:
+        raise ValueError('auth.json 必须为不超过 256 KB 的 JSON 文本')
+    try:
+        auth = json.loads(raw)
+    except (ValueError, TypeError):
+        raise ValueError('auth.json JSON 格式错误；未保存凭据') from None
+    if not isinstance(auth, dict):
+        raise ValueError('auth.json 必须为 JSON 对象')
+    if not auth:
+        return None
+    tokens = auth.get('tokens')
+    if not isinstance(tokens, dict) or not isinstance(tokens.get('access_token'), str) or not tokens['access_token'].strip():
+        raise ValueError('请导入 ChatGPT OAuth 登录的 auth.json（需含 tokens.access_token），不能使用 API Key 配置')
+    if auth.get('auth_mode') not in (None, 'chatgpt') or auth.get('OPENAI_API_KEY'):
+        raise ValueError('官方账号卡片只接受 ChatGPT OAuth 凭据，请使用 API 卡片保存 API Key')
+    for name in ('access_token', 'refresh_token', 'id_token', 'account_id'):
+        value = tokens.get(name)
+        if value is not None and (not isinstance(value, str) or any(ord(c) < 32 for c in value)):
+            raise ValueError('auth.json 登录字段格式无效')
+    return auth
+
+
+def import_official_auth(p):
+    auth = parse_official_auth(p.get('auth_json', ''))
+    if auth is None:
+        return dict(message='沿用板卡已有登录')
+    root = scope(p)
+    serialized = json.dumps(auth, sort_keys=True, separators=(',', ':'))
+    fingerprint = hashlib.sha256(serialized.encode()).hexdigest()
+    marker = root / 'official-import.json'
+    # Codex rotates tokens. Never overwrite refreshed remote tokens with the same old import.
+    if marker.exists():
+        try:
+            previous = json.loads(marker.read_text())
+        except ValueError:
+            previous = {}
+        if previous.get('fingerprint') == fingerprint and (root / 'codex-chatgpt-home/auth.json').exists():
+            return dict(message='保留板卡当前登录（包括 Codex 已刷新的凭据）')
+    private_write(root / 'codex-chatgpt-home/auth.json', serialized)
+    private_write(marker, json.dumps(dict(fingerprint=fingerprint)))
+    return dict(message='官方账号凭据已同步到此工作环境')
+
+
+def official_test(p):
+    root = scope(p)
+    status = codex_auth_status(p)
+    if not p.get('infer'):
+        proxy = p.get('proxy', '')
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({'http': proxy, 'https': proxy} if proxy else {}))
+        request = urllib.request.Request('https://chatgpt.com/codex', headers={'User-Agent': 'Mozilla/5.0'})
+        try:
+            with opener.open(request, timeout=30) as response:
+                response.read(1024)
+        except urllib.error.HTTPError as exc:
+            body = exc.read(16384).decode('utf-8', errors='replace')
+            message = ('官方返回地区限制，请检查所选网络线路' if 'unsupported_country_region_territory' in body
+                       else '官方网页返回 HTTP %d；可能被网关或防护拦截，不能据此判断账号无效' % exc.code)
+            return dict(ok=False, authenticated=status['authenticated'], message=message)
+        except (urllib.error.URLError, OSError):
+            return dict(ok=False, authenticated=status['authenticated'], message='板卡到官方网页的网络、TLS 或代理连接失败')
+        return dict(ok=status['authenticated'], authenticated=status['authenticated'],
+                    message='官方网页可达，CLI 已识别账号凭据；尚未验证推理' if status['authenticated']
+                    else '官方网页可达，但此工作环境尚未登录；请编辑官方卡片导入或登录')
+    if not status['authenticated']:
+        return dict(ok=False, message='尚未登录官方账号，请先编辑官方卡片导入或登录')
+    env = tool_env(p, root)
+    env['CODEX_HOME'] = str(root / 'codex-chatgpt-home')
+    for name in ('OPENAI_API_KEY', 'OPENAI_BASE_URL', 'CODEX_ACCESS_TOKEN'):
+        env.pop(name, None)
+    binary = json.loads((root / 'tools/codex/current.json').read_text())['binary']
+    # An empty temporary project prevents reading the user's source or running project instructions.
+    with tempfile.TemporaryDirectory(prefix='official-check-', dir=str(root)) as directory:
+        try:
+            output = command([binary, 'exec', '--ignore-user-config', '--ignore-rules', '--ephemeral',
+                              '--skip-git-repo-check', '--sandbox', 'read-only', '--json', '-C', directory,
+                              'Reply only OK. Do not use tools or read any files.'], env=env, timeout=75)
+        except RuntimeError as exc:
+            error = str(exc).lower()
+            if 'unsupported_country_region_territory' in error:
+                message = '官方返回地区限制，请检查所选网络线路'
+            elif any(word in error for word in ('401', 'unauthorized', 'refresh_token', 'login')):
+                message = '官方凭据失效或刷新失败，请重新登录或导入最新 auth.json'
+            elif any(word in error for word in ('429', 'quota', 'usage limit', 'rate limit')):
+                message = '官方账号额度不足或请求限流，请在 Codex 中查看账号额度'
+            elif 'unexpected argument' in error:
+                message = '当前 Codex 不支持验证参数，请在 AI 工具升级 Codex'
+            else:
+                message = '官方推理未完成，请检查网络、账号权限或服务状态；未将凭据及原始 CLI 输出写入日志'
+            return dict(ok=False, message=message)
+    reply = False
+    complete = False
+    failed = False
+    for line in output.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        item = event.get('item', {})
+        if event.get('type') == 'item.completed' and isinstance(item, dict) and item.get('type') == 'agent_message':
+            reply = reply or bool(item.get('text', '').strip())
+        complete = complete or event.get('type') == 'turn.completed'
+        failed = failed or event.get('type') in ('turn.failed', 'error')
+    ok = reply and complete and not failed
+    return dict(ok=ok, message='官方账号最小推理成功；尚未验证工具调用' if ok else 'CLI 未返回完整的模型回答，推理尚未通过')
+
+
+def codex_auth_status(p):
+    root = scope(p)
+    env = tool_env(p, root)
+    current = root / 'tools/codex/current.json'
+    if not current.exists() or not (root / 'codex-chatgpt-home/auth.json').exists():
+        return dict(authenticated=False)
+    env.update(CODEX_HOME=str(root / 'codex-chatgpt-home'))
+    for name in ('OPENAI_API_KEY', 'OPENAI_BASE_URL', 'CODEX_ACCESS_TOKEN'):
+        env.pop(name, None)
+    try:
+        binary = json.loads(current.read_text())['binary']
+        status = command([binary, 'login', 'status'], env=env, timeout=25)
+    except RuntimeError:
+        return dict(authenticated=False)
+    return dict(authenticated=('chatgpt' in status.lower()))
+
+
+def configure_ide(p):
+    """Use the extension's own app-server binary through a scoped launcher."""
+    root = scope(p)
+    if p.get('auth_mode') != 'chatgpt':
+        p = reuse_credentials(p)
+    candidates = list((Path.home() / '.vscode-server/extensions').glob('openai.chatgpt-*/bin/*/codex'))
+    arch = {'aarch64': 'linux-aarch64', 'x86_64': 'linux-x86_64'}.get(platform.machine())
+    candidates = [x for x in candidates if x.parent.name == arch and x.is_file()]
+    if not candidates:
+        raise RuntimeError('请先在远程 VS Code 安装 Codex（openai.chatgpt）扩展，再同步配置')
+    binary = max(candidates, key=lambda x: x.stat().st_mtime)
+    configure(p)
+    private_write(root / 'ide-runtime.json', json.dumps({'binary': str(binary)}))
+    private_write(root / 'run-ide-codex', IDE_LAUNCHER)
+    (root / 'run-ide-codex').chmod(0o700)
+    env = tool_env(p, root)
+    if p.get('auth_mode') == 'chatgpt':
+        authenticated = codex_auth_status(p)['authenticated']
+        return dict(cli=str(root / 'run-ide-codex'), auth='ChatGPT',
+                    message='已确认官方 ChatGPT 登录' if authenticated else '已配置官方登录入口，尚未授权；请点击“登录 ChatGPT”完成设备授权')
+    try:
+        status = command([str(root / 'run-ide-codex'), 'login', 'status'], env=env, timeout=25)
+    except RuntimeError:
+        raise RuntimeError('扩展 CLI 未能读取 API 登录；请检查配置后重新同步') from None
+    if 'api key' not in status.lower():
+        raise RuntimeError('扩展 CLI 尚未确认 API 登录；未声明同步成功')
+    return dict(cli=str(root / 'run-ide-codex'), auth='API Key',
+                message='扩展 CLI 已确认 API 登录；请在工作台打开的新 VS Code 窗口使用')
+
+
+IDE_LAUNCHER = '''#!/usr/bin/env python3
+import json,os,sys
+from pathlib import Path
+root=Path(__file__).resolve().parent
+p=json.loads((root/'launch.json').read_text())
+env=os.environ.copy()
+for k in ('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','http_proxy','https_proxy','all_proxy'):
+    env.pop(k,None)
+if p['proxy']:
+    env.update(HTTP_PROXY=p['proxy'],HTTPS_PROXY=p['proxy'],http_proxy=p['proxy'],https_proxy=p['proxy'])
+env.pop('OPENAI_API_KEY',None)
+env.pop('OPENAI_BASE_URL',None)
+env.pop('CODEX_ACCESS_TOKEN',None)
+if p.get('auth_mode') != 'chatgpt':
+    env['OPENAI_API_KEY']=p['key']
+env.update(CODEX_HOME=str(root/('codex-chatgpt-home' if p.get('auth_mode') == 'chatgpt' else 'codex-home')),
+           NO_PROXY='localhost,127.0.0.1,::1',no_proxy='localhost,127.0.0.1,::1')
+env['PATH']=str(root/'runtime/bin')+os.pathsep+env.get('PATH','')
+binary=json.loads((root/'ide-runtime.json').read_text())['binary']
+if not Path(binary).is_file():
+    raise SystemExit('Codex extension updated; sync from Edge SSH AI again.')
+os.execve(binary,[binary]+sys.argv[1:],env)
+'''
+
+
+def harness_prepare(p):
+    root = scope(p)
+    if not Path(p['project']).is_dir():
+        raise ValueError('工程目录不存在')
+    if not (root / 'tools/harness/current.json').exists():
+        raise ValueError('请先安装 DeepSeek Harness')
+    private_write(root / 'harness-launch.json', json.dumps(dict(project=p['project'], proxy=p.get('proxy', ''))))
+    private_write(root / 'run-harness.py', HARNESS_LAUNCHER)
+    with socket.socket() as sock:
+        sock.bind(('127.0.0.1', 0))
+        port = sock.getsockname()[1]
+    return dict(port=port)
+
+
+HARNESS_LAUNCHER = '''import json, os, signal, subprocess, sys, threading, time
+from pathlib import Path
+root = Path(__file__).resolve().parent
+p = json.loads((root / 'harness-launch.json').read_text())
+env = os.environ.copy()
+for k in ('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','http_proxy','https_proxy','all_proxy'):
+    env.pop(k, None)
+if p['proxy']:
+    env.update(HTTP_PROXY=p['proxy'], HTTPS_PROXY=p['proxy'], http_proxy=p['proxy'], https_proxy=p['proxy'])
+env.update(DSH_HOME=str(root / 'harness-home'), DSH_TELEMETRY_MODE='DISABLED',
+           NO_PROXY='localhost,127.0.0.1,::1', no_proxy='localhost,127.0.0.1,::1')
+env['PATH'] = str(root / 'runtime/bin') + os.pathsep + env.get('PATH','')
+os.umask(0o077)
+tool = json.loads((root / 'tools/harness/current.json').read_text())
+child = subprocess.Popen([tool['binary'], 'web', '--host', '127.0.0.1', '--port', sys.argv[1],
+                          '--trusted-host', '127.0.0.1:' + sys.argv[2], '--no-open'],
+                         cwd=p['project'], env=env, start_new_session=True)
+stop = threading.Event()
+def disconnected():
+    sys.stdin.buffer.read()
+    stop.set()
+threading.Thread(target=disconnected, daemon=True).start()
+for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+    signal.signal(sig, lambda *args: stop.set())
+while child.poll() is None and not stop.wait(0.2):
+    pass
+if child.poll() is None:
+    os.killpg(child.pid, signal.SIGTERM)
+    try:
+        child.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        os.killpg(child.pid, signal.SIGKILL)
+        child.wait()
+sys.exit(child.returncode or 0)
+'''
+
+
+CODEX_LAUNCHER = '''import json, os, sys
+from pathlib import Path
+root = Path(__file__).resolve().parent
+p = json.loads((root / 'launch.json').read_text())
+env = os.environ.copy()
+for k in ('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','http_proxy','https_proxy','all_proxy'):
+    env.pop(k, None)
+if p['proxy']:
+    env.update(HTTP_PROXY=p['proxy'], HTTPS_PROXY=p['proxy'], http_proxy=p['proxy'], https_proxy=p['proxy'])
+env.pop('OPENAI_API_KEY', None)
+env.pop('OPENAI_BASE_URL', None)
+env.pop('CODEX_ACCESS_TOKEN', None)
+if p.get('auth_mode') != 'chatgpt':
+    env['OPENAI_API_KEY'] = p['key']
+env.update(CODEX_HOME=str(root / ('codex-chatgpt-home' if p.get('auth_mode') == 'chatgpt' else 'codex-home')),
+           NO_PROXY='localhost,127.0.0.1,::1', no_proxy='localhost,127.0.0.1,::1')
+env['PATH'] = str(root / 'runtime/bin') + os.pathsep + env.get('PATH','')
+tool = json.loads((root / 'tools/codex/current.json').read_text())
+os.chdir(p['project'])
+os.execvpe(tool['binary'], [tool['binary']] + sys.argv[1:], env)
+'''
+
+
+def main():
+    p = json.load(sys.stdin)
+    action = p['action']
+    actions = dict(diagnose=diagnose, api_test=api_test, install_runtime=install_runtime,
+                   install_tool=install_tool, configure=configure, configure_ide=configure_ide, codex_auth_status=codex_auth_status, import_official_auth=import_official_auth, official_test=official_test,
+                   harness_prepare=harness_prepare, harness_start=harness_start,
+                   harness_status=harness_status, harness_stop=harness_stop)
+    if action == 'prepare':
+        root = scope(p)
+        root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        result = dict(path=str(root))
+    else:
+        result = actions[action](p)
+    print(json.dumps(result, ensure_ascii=False))
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as exc:
+        # Payload contains credentials: never print payloads/tracebacks.
+        print(json.dumps(dict(error=str(exc)), ensure_ascii=False))
+        sys.exit(1)

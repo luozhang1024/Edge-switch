@@ -1,0 +1,12 @@
+{
+  "version": "0.15.0",
+  "regression_checks": 75,
+  "unified_actions": true,
+  "delete_disabled": true,
+  "oauth_import_encrypted_locally": true,
+  "unchanged_import_preserves_rotated_tokens": true,
+  "user_confirmation_before_inference": true,
+  "board_import_permissions_0600": true,
+  "real_oauth_login_and_real_inference": "not performed; user authorization required",
+  "cc_switch_reference_commit": "ca58c0313360eae7c851fbd7553c1614c7af03e7"
+}

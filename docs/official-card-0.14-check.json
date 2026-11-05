@@ -1,0 +1,18 @@
+{
+  "version": "0.14.0",
+  "regression_checks": 68,
+  "official_card": true,
+  "tools_login_controls_removed": true,
+  "activation_waits_for_auth": true,
+  "api_credentials_preserved": true,
+  "status_no_inference": true,
+  "board_checks": {
+    "two_services_cli_login": true,
+    "same_service_key_reuse": true,
+    "other_service_key_reuse_blocked": true,
+    "failed_reuse_preserves_previous_configuration": true,
+    "official_mode_separate_home_no_api_credentials": true,
+    "return_to_api_retains_credentials": true
+  },
+  "real_chatgpt_authorization": "not performed; user browser authorization required"
+}
