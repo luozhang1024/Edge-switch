@@ -14,6 +14,7 @@
 [![Target](https://img.shields.io/badge/target-Linux%20ARM64%20%7C%20x86__64-34C759)](#环境要求)
 [![Downloads](https://img.shields.io/github/downloads/luozhang52/Edge-switch/total?label=downloads&color=007AFF)](https://github.com/luozhang52/Edge-switch/releases)
 [![Stars](https://img.shields.io/github/stars/luozhang52/Edge-switch?style=flat&color=F5A623)](https://github.com/luozhang52/Edge-switch/stargazers)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 
 [下载安装](#下载安装) · [快速开始](#快速开始) · [常见问题](#常见问题) · [Star History](#star-history) · [支持项目](#支持项目)
 
@@ -247,6 +248,17 @@ python -m unittest test_official_import.OfficialImportTests
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)：终端与 Web AI 开发工作流。
 - [CC Switch](https://github.com/farion1231/cc-switch)：供应商卡片交互与官方账号配置方式的参考。
 - [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter)、[PyInstaller](https://github.com/pyinstaller/pyinstaller)、[Inno Setup](https://jrsoftware.org/isinfo.php)：桌面界面与 Windows 打包工具。
+
+## 开源协议
+
+Copyright © 2026 luozhang。Edge Switch 的项目原创代码采用 **GNU Affero General Public License v3.0（AGPL-3.0-only）**，完整条款见 [LICENSE](LICENSE)。
+
+- 允许使用、研究、修改和商业使用；AGPL 不禁止商用。
+- 分发受本协议覆盖的软件或修改版时，应保留版权、许可及相关声明，并按协议提供对应源码；分发修改版时应按 AGPL-3.0 授权并标明修改。
+- 如果修改本程序并通过网络向用户提供交互服务，应按协议第 13 条，向这些用户显著提供免费获取该修改版对应源码的途径。
+- 软件按“现状”提供，不附带任何担保，具体免责及责任限制见协议全文。
+
+第三方依赖、上游 AI 工具及其他权利人的素材仍遵循各自的许可和使用条款，本协议不改变其授权。以上为使用说明，具体权利和义务以 LICENSE 全文为准。
 
 ## Star History
 

@@ -5,6 +5,7 @@ AppId={{4E8B46D3-9164-4831-A164-38CB76378A9E}
 AppName=Edge AI
 AppVersion={#AppVersion}
 AppPublisher=luozhang
+LicenseFile=..\LICENSE
 DefaultDirName={localappdata}\Programs\Edge AI
 DefaultGroupName=Edge AI
 PrivilegesRequired=lowest
@@ -30,6 +31,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Files]
 Source: "..\dist\current\EdgeSSHAI-0.15.exe"; DestDir: "{app}"; DestName: "EdgeAI.exe"; Flags: ignoreversion
+Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; DestName: "README.txt"; Flags: ignoreversion
 
 [Icons]
