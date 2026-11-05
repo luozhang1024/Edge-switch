@@ -1,0 +1,8 @@
+{
+  "version": "1.0.1",
+  "regression_checks_passed": 81,
+  "fresh_environment_board_integration": "docs/shared-board-1.0.1-check.json",
+  "sidebar_title_scaling_checked": [1.0, 1.25, 1.5],
+  "real_model_inference_performed": false,
+  "colleague_vscode_failure_root_cause": "Not confirmed without Remote - SSH logs"
+}

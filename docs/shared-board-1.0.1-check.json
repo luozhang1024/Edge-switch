@@ -1,0 +1,6 @@
+{
+  "fresh_environment_sees_board_tools": true,
+  "existing_binaries_validate_and_reuse": true,
+  "no_credentials_or_tasks_copied": true,
+  "vscode_exact_generated_ssh_config_real_login": true
+}

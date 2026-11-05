@@ -10,7 +10,7 @@
 
 Manage SSH environments, proxies, and model services from Windows. Deploy Codex and DeepSeek Harness on your Linux devices and open your remote workspace from one place.
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/luozhang52/Edge-switch/releases)
+[![Version](https://img.shields.io/badge/version-1.0.1-blue)](https://github.com/luozhang52/Edge-switch/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey)](#requirements)
 [![Built with](https://img.shields.io/badge/built%20with-Python%20%2B%20CustomTkinter-3776AB)](#development-and-builds)
 [![Target](https://img.shields.io/badge/target-Linux%20ARM64%20%7C%20x86__64-34C759)](#requirements)
@@ -26,7 +26,7 @@ Manage SSH environments, proxies, and model services from Windows. Deploy Codex 
 
 Edge Switch brings device connections, tool installation, network settings, and model authentication into one desktop application. Create work environments for different devices or projects, switch between an official ChatGPT account and custom APIs, and launch VS Code or the Harness web interface.
 
-The current version is **1.0.0**. The window, tray, and installer use the name **Edge Switch**. The legacy `EdgeSSHAI` configuration directory is retained for upgrade compatibility. The desktop app runs on Windows; AI tools run on the Linux device over SSH. The application UI is currently in Chinese; these documentation pages are available in both languages.
+The current version is **1.0.1**. The window, tray, and installer use the name **Edge Switch**. The legacy `EdgeSSHAI` configuration directory is retained for upgrade compatibility. The desktop app runs on Windows; AI tools run on the Linux device over SSH. The application UI is currently in Chinese; these documentation pages are available in both languages.
 
 ## Features
 
@@ -76,11 +76,11 @@ Check [Releases](https://github.com/luozhang52/Edge-switch/releases) for publish
 
 | Distribution | File | Usage |
 | --- | --- | --- |
-| Installer | `EdgeSwitch-Setup-1.0.0.exe` | Per-user installation with shortcuts and uninstaller |
-| Portable | `EdgeSwitch-1.0.0-Windows-x64.zip` | Extract and run the EXE; includes license and bilingual documentation |
-| Corresponding source | `EdgeSwitch-1.0.0-source.zip` | Source snapshot for this build, including resources and build scripts |
+| Installer | `EdgeSwitch-Setup-1.0.1.exe` | Per-user installation with shortcuts and uninstaller |
+| Portable | `EdgeSwitch-1.0.1-Windows-x64.zip` | Extract and run the EXE; includes license and bilingual documentation |
+| Corresponding source | `EdgeSwitch-1.0.1-source.zip` | Source snapshot for this build, including resources and build scripts |
 
-`SHA256SUMS.txt` contains release file checksums. Versions use `MAJOR.MINOR.PATCH`; the release tag is `v1.0.0`. A version number does not imply every Linux distribution or upstream tool version has been validated.
+`SHA256SUMS.txt` contains release file checksums. Versions use `MAJOR.MINOR.PATCH`; the release tag is `v1.0.1`. A version number does not imply every Linux distribution or upstream tool version has been validated.
 
 Before upgrading, select **退出程序 (Exit)** from the sidebar or tray menu. Closing the window only hides it to the tray. Installers do not include the developer's device settings, API keys, SSH private keys, or account credentials. Each PC needs its own SSH authorization and model authentication.
 
@@ -106,7 +106,7 @@ Browser authentication uses the PC browser's own network route. The device proxy
 
 ### 3. Install tools
 
-Open **AI 工具 (AI tools)**, install the managed Node.js runtime, and select versions for Codex or Harness. Versions load in the background. Open **运行记录 (Activity log)** for results. The managed runtime does not replace the device's system Node.js.
+Open **AI 工具 (AI tools)** and click **检测板卡工具 (Detect board tools)**. If tools already exist under this Linux account, click **使用已有工具 (Use existing tools)** to validate and reuse binaries without copying credentials or tasks. Otherwise install the managed Node.js runtime and select versions for Codex or Harness. Versions load in the background. Open **运行记录 (Activity log)** for results. The managed runtime does not replace the device's system Node.js.
 
 ### 4. Activate a model service
 
@@ -175,7 +175,7 @@ Check the exact model ID, provider group permissions, balance, and upstream chan
 <details>
 <summary><strong>VS Code still appears signed out after switching</strong></summary>
 
-Reopen VS Code from the workbench and run `Developer: Reload Window` in existing windows. Other launch paths do not automatically use these environment-specific settings. Reopen after extension upgrades to synchronize the launcher.
+Reopen VS Code from the workbench and run `Developer: Reload Window` in existing windows. If opening stalls, use **连接诊断 (Connection diagnostics)** on the model services page and check the VS Code login terminal. Other launch paths do not automatically use these environment-specific settings. Reopen after extension upgrades to synchronize the launcher.
 
 </details>
 

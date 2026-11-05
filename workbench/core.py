@@ -276,6 +276,8 @@ class Board:
             raise RuntimeError('目前仅支持 ARM64 / x86_64 Linux')
         if info['managed_runtime']:
             return dict(message='独立 Node 已安装', node=info['node'])
+        if info.get('tool_inventory', {}).get('runtime'):
+            return self.call('reuse_tools', tools=[])
         if info['disk_free_mb'] < 1536:
             raise RuntimeError('板卡可用空间不足 1.5 GB')
         libc = re.search(r'glibc\s+(\d+)\.(\d+)', info['libc'])
@@ -591,7 +593,7 @@ class PersistentHarness:
             self.board.call('harness_stop', timeout=25)
 
 
-def open_vscode(board, data_dir, api=None, proxy=''):
+def open_vscode(board, data_dir, api=None, proxy='', progress=None):
     # Separate local VS Code settings: no changes to user's global SSH config.
     from repair import find_code
     p = board.profile
@@ -599,12 +601,15 @@ def open_vscode(board, data_dir, api=None, proxy=''):
     data_dir.mkdir(parents=True, exist_ok=True)
     config = data_dir / 'ssh_config'
     alias = 'edge-' + board.scope
+    progress = progress or (lambda message: None)
     def quoted(value):
         value = str(value)
         if any(c in value for c in '\r\n"'):
             raise ValueError('SSH 配置路径含无效字符')
         return '"' + value.replace('\\', '/') + '"'
-    text = ('Host %s\n  HostName %s\n  User %s\n  Port %d\n  StrictHostKeyChecking yes\n' %
+    text = ('Host %s\n  HostName %s\n  User %s\n  Port %d\n  StrictHostKeyChecking yes\n'
+            '  ConnectTimeout 15\n  ServerAliveInterval 15\n  ServerAliveCountMax 3\n'
+            '  BatchMode yes\n  RequestTTY no\n' %
             (alias, p.host, p.user, p.port))
     if p.identity:
         text += '  IdentityFile %s\n  IdentitiesOnly yes\n' % quoted(p.identity)
@@ -613,6 +618,7 @@ def open_vscode(board, data_dir, api=None, proxy=''):
     settings.parent.mkdir(parents=True, exist_ok=True)
     from jsonc_utils import patch_jsonc
     value = settings.read_text(encoding='utf-8-sig') if settings.exists() else '{}'
+    progress('VS Code：正在检查 SSH 与板卡运行条件…')
     info = board.call('diagnose')
     if p.codex_auth == 'chatgpt':
         api = dict(auth_mode='chatgpt', proxy=proxy)
@@ -621,11 +627,21 @@ def open_vscode(board, data_dir, api=None, proxy=''):
                    service_id=p.active_api, legacy_service=(p.active_api == p.id or not p.active_api))
     changes = {
         'remote.SSH.configFile': str(config), 'remote.SSH.localServerDownload': 'always',
-        'remote.SSH.path': board.ssh()[0], 'remote.SSH.useFlock': info['flock']
+        'remote.SSH.path': board.ssh()[0], 'remote.SSH.useFlock': info['flock'],
+        'remote.SSH.remotePlatform': {alias: 'linux'},
+        'remote.SSH.useLocalServer': False, 'remote.SSH.useExecServer': False,
+        'remote.SSH.showLoginTerminal': True, 'remote.SSH.connectTimeout': 30
     }
     settings.write_text(patch_jsonc(value, changes), encoding='utf-8')
+    progress('VS Code：正在使用专用 SSH 配置验证登录…')
+    probe = subprocess.run([board.ssh()[0], '-F', str(config), '-T', alias, 'true'],
+                           capture_output=True, timeout=25, creationflags=CREATE_NO_WINDOW)
+    if probe.returncode:
+        raise RuntimeError('VS Code 专用 SSH 配置登录失败，请重新配置 SSH 登录或检查密钥、主机指纹和网络；'
+                           '工作台没有把打开窗口当作连接成功。')
     exe, cli, env, _ = find_code()
     args = [str(exe), str(cli), '--user-data-dir', str(data_dir)]
+    progress('VS Code：正在检查本机 Remote SSH 扩展（首次安装需访问扩展市场）…')
     # Reusing an installed extension avoids a needless Marketplace network request.
     installed = subprocess.run([*args, '--list-extensions'], env=env, capture_output=True,
                                timeout=30, creationflags=CREATE_NO_WINDOW)
@@ -636,6 +652,7 @@ def open_vscode(board, data_dir, api=None, proxy=''):
         if result.returncode:
             raise RuntimeError('Remote SSH 扩展下载/安装失败，请检查电脑到 VS Code 扩展市场的网络；板卡 SSH 与模型 API 是独立线路')
     if api:
+        progress('VS Code：正在准备远程 Codex 扩展与当前环境认证…')
         if p.codex_auth != 'chatgpt' and p.protocol != 'responses':
             raise ValueError('Codex 插件需要 Responses 协议')
         # Install on the remote extension host; preserve the extension's bundled CLI version.
@@ -650,11 +667,47 @@ def open_vscode(board, data_dir, api=None, proxy=''):
                         'chatgpt.localeOverride': 'zh-CN'})
         value = settings.read_text(encoding='utf-8-sig')
         settings.write_text(patch_jsonc(value, changes), encoding='utf-8')
+    progress('VS Code：已设置远程平台 Linux、专用私钥和登录终端，正在发送打开请求…')
     subprocess.run([*args, '--reuse-window', '--remote', 'ssh-remote+' + alias, p.project],
                    env=env, check=True, timeout=30, creationflags=CREATE_NO_WINDOW)
     return ('已发送 VS Code Remote SSH 打开/切换请求；' +
             ((ide.get('message', 'Codex 扩展 CLI 已确认 API 登录') + '；') if api else '') +
             '连接状态请查看 VS Code。目标工程：' + p.project)
+
+
+def vscode_connection_report(data_dir):
+    """Summarize connection stages without exposing raw logs, tokens, or server output."""
+    data_dir = Path(data_dir)
+    logs = list((data_dir / 'logs').glob('*/window*/exthost/output_logging_*/*Remote*SSH*.log'))
+    if not logs:
+        return dict(message='尚未找到此环境的 Remote - SSH 日志。若已打开 VS Code，请点击左下角远程连接状态；'
+                    '若出现工作区信任或登录终端，请先完成提示。首次安装还需电脑可访问 VS Code 扩展市场。')
+    latest = max(logs, key=lambda path: path.stat().st_mtime)
+    with latest.open('rb') as source:
+        source.seek(max(0, latest.stat().st_size - 128 * 1024))
+        content = source.read().decode('utf-8', errors='replace').lower()
+    attempt = content.rfind('ssh resolver called for')
+    if attempt >= 0:
+        content = content[attempt:]
+    connections = list(re.finditer(r'resolved .* to port|tunneled port .* to local port', content))
+    connected_at = connections[-1].start() if connections else -1
+    rules = [
+        (('permission denied',), 'SSH 身份验证失败；请重新配置此电脑的 SSH 登录。'),
+        (('host key verification failed', 'remote host identification has changed'), 'SSH 主机指纹不匹配或未确认，请核验板卡身份。'),
+        (('administratively prohibited', 'tcp forwarding is disabled'), 'SSH 登录成功但端口转发被服务端禁止，请检查 sshd 转发权限。'),
+        (('could not resolve hostname',), 'SSH 主机名无法解析，请检查当前环境地址与专用 SSH 配置。'),
+        (('connection timed out', 'banner exchange'), 'SSH 网络连接或握手超时，请检查局域网、SSH 服务及板卡负载。'),
+        (('failed to download', 'download failed', 'getaddrinfo', 'xhr failed'), 'VS Code Server 或扩展下载失败，请检查电脑下载线路；模型代理不控制扩展市场。'),
+        (('failed to parse remote port',), '已进入 SSH 启动流程，但 VS Code Server 未返回有效端口；请检查登录终端和服务端启动条件。'),
+        (('waiting for server log', 'waiting for server to start'), 'SSH 已进入服务端启动阶段，正在等待 VS Code Server；检查板卡负载、磁盘和启动日志。'),
+    ]
+    for markers, message in rules:
+        if any(content.rfind(marker) > connected_at for marker in markers):
+            return dict(message=message, log_file=str(latest), updated=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(latest.stat().st_mtime)))
+    connected = connected_at >= 0
+    return dict(message='此日志包含远程连接建立记录；若页面仍在加载，请检查远程扩展或工作区负载。' if connected else
+                '已生成 Remote - SSH 日志，但未检测到连接完成。请在 VS Code 输出面板选择 Remote - SSH 查看本次末尾错误。',
+                log_file=str(latest), updated=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(latest.stat().st_mtime)))
 
 
 class HarnessSession:

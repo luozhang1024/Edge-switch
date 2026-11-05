@@ -66,6 +66,73 @@ def command(args, env=None, timeout=25):
     return output.strip()
 
 
+def discover_tools(root):
+    """Read executable metadata only; never inspect another environment's credentials."""
+    shared = root.parent
+    runtime = root / 'runtime'
+    if not (runtime / 'bin/node').is_file():
+        runtime = next((x for x in sorted(shared.glob('*/runtime'))
+                        if (x / 'bin/node').is_file()), None)
+    tools = {}
+    for tool, executable in (('codex', 'codex'), ('harness', 'dsh')):
+        candidates = [root / 'tools' / tool / 'current.json']
+        candidates += sorted(shared.glob('*/tools/' + tool + '/current.json'))
+        found = None
+        for path in dict.fromkeys(candidates):
+            try:
+                value = json.loads(path.read_text())
+                binary = Path(value['binary'])
+                if not binary.is_absolute() or not binary.is_file() or not os.access(str(binary), os.X_OK):
+                    continue
+                found = dict(binary=str(binary), version=str(value.get('version', '?')),
+                             source='current' if path == candidates[0] else 'other_environment')
+                break
+            except (OSError, ValueError, KeyError, TypeError):
+                continue
+        if found is None:
+            binary = shutil.which(executable)
+            if binary:
+                found = dict(binary=binary, version='待验证', source='PATH')
+        tools[tool] = found
+    return dict(runtime=str(runtime) if runtime else '', tools=tools)
+
+
+def reuse_tools(p):
+    """Reference validated program installations, retaining all environment state locally."""
+    root = scope(p)
+    inventory = discover_tools(root)
+    required = p.get('tools', ['codex', 'harness'])
+    if any(t not in ('codex', 'harness') for t in required):
+        raise ValueError('无效的工具名称')
+    if not (root / 'runtime/bin/node').is_file():
+        if not inventory['runtime']:
+            raise ValueError('未发现可复用的受管 Node.js，请先安装运行环境')
+        runtime = Path(inventory['runtime']).resolve()
+        version = command([str(runtime / 'bin/node'), '--version'])
+        if not re.match(r'^v(?:2[4-9]|[3-9]\d)\.', version):
+            raise ValueError('已有受管 Node.js 版本不足，请安装运行环境')
+        root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        destination = root / 'runtime'
+        if destination.exists() or destination.is_symlink():
+            raise ValueError('当前环境运行目录不完整，请检查后重新安装')
+        destination.symlink_to(runtime, target_is_directory=True)
+    result = {}
+    for tool in required:
+        found = inventory['tools'][tool]
+        if not found:
+            raise ValueError('板卡未发现可复用的 ' + tool + '，请在 AI 工具安装')
+        env = tool_env(p, root)
+        env.update(CODEX_HOME=str(root / 'codex-home'), DSH_HOME=str(root / 'harness-home'),
+                   DSH_TELEMETRY_MODE='DISABLED')
+        version = command([found['binary'], '--version'], env=env, timeout=30)
+        metadata = root / 'tools' / tool / 'current.json'
+        if not metadata.is_file():
+            private_write(metadata, json.dumps(dict(version=found['version'], binary=found['binary'],
+                                                   reused=True)))
+        result[tool] = dict(version=version, source=found['source'])
+    return dict(message='已有程序已验证并接入当前环境；账号和任务未共享', tools=result)
+
+
 def diagnose(p):
     root = scope(p)
     home = Path.home()
@@ -75,17 +142,22 @@ def diagnose(p):
             key, value = line.split(':', 1)
             if key in ('MemTotal', 'MemAvailable'):
                 mem[key] = int(value.split()[0]) // 1024
+    inventory = discover_tools(root)
     runtime = root / 'runtime/bin/node'
-    node = str(runtime) if runtime.exists() else shutil.which('node')
+    node = str(runtime) if runtime.exists() else (
+        str(Path(inventory['runtime']) / 'bin/node') if inventory['runtime'] else shutil.which('node'))
     version = command([node, '--version']) if node else '未安装'
     return dict(user=command(['id', '-un']), home=str(home), arch=platform.machine(),
                 libc=' '.join(platform.libc_ver()), memory_mb=mem,
                 disk_free_mb=shutil.disk_usage(str(home)).free // 1024**2,
                 node=version, managed_runtime=runtime.exists(),
-                codex=(root / 'tools/codex/current.json').exists(),
+                codex=bool(inventory['tools']['codex']),
+                tool_inventory=inventory,
+                scoped_codex=(root / 'tools/codex/current.json').exists(),
+                scoped_harness=(root / 'tools/harness/current.json').exists(),
                 codex_configured=(root / 'launch.json').exists() and (root / 'codex-home/config.toml').exists(),
                 codex_extension=any((home / '.vscode-server/extensions').glob('openai.chatgpt-*/package.json')),
-                harness=(root / 'tools/harness/current.json').exists(),
+                harness=bool(inventory['tools']['harness']),
                 flock=bool(shutil.which('flock')),
                 vscode_server=(home / '.vscode-server').exists(),
                 inherited_proxy=any(os.environ.get(k) for k in PROXIES),
@@ -102,6 +174,8 @@ def service_module():
 
 
 def harness_start(p):
+    if not (scope(p) / 'tools/harness/current.json').is_file():
+        reuse_tools(dict(p, tools=['harness']))
     return service_module().start(scope(p), p['project'], p.get('proxy', ''),
                                   p['local_port'], p.get('background', True), SERVICE_SOURCE)
 
@@ -126,7 +200,7 @@ def api_test(p):
         urllib.request.ProxyHandler({'http': proxy, 'https': proxy} if proxy else {}), NoRedirect())
     url = p['base_url'].rstrip('/')
     headers = {'Authorization': 'Bearer ' + p['key'], 'Content-Type': 'application/json',
-               'Accept': 'application/json', 'User-Agent': 'EdgeSwitch/1.0.0'}
+               'Accept': 'application/json', 'User-Agent': 'EdgeSwitch/1.0.1'}
     data = None
     if p.get('infer'):
         if p['protocol'] == 'responses':
@@ -257,6 +331,9 @@ def install_tool(p):
     version = p['version']
     if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?', version):
         raise ValueError('需要明确的 npm 版本号，例如 1.2.3')
+    found = discover_tools(root)['tools'][tool]
+    if not (root / 'tools' / tool / 'current.json').is_file() and found and found['version'] == version:
+        return reuse_tools(dict(p, tools=[tool]))
     if not (root / 'runtime/bin/node').exists():
         raise RuntimeError('请先安装独立 Node.js 运行环境')
     if shutil.disk_usage(str(Path.home())).free < 1536 * 1024**2:
@@ -289,7 +366,7 @@ def configure(p):
     if not Path(p['project']).is_dir():
         raise ValueError('工程目录不存在')
     if not (root / 'tools/codex/current.json').exists():
-        raise ValueError('请先安装受管 Codex')
+        reuse_tools(dict(p, tools=['codex']))
     official = p.get('auth_mode') == 'chatgpt'
     if official and (root / 'launch.json').exists() and not (root / 'api-launch.json').exists():
         previous = json.loads((root / 'launch.json').read_text())
@@ -526,6 +603,8 @@ os.execve(binary,[binary]+sys.argv[1:],env)
 
 def harness_prepare(p):
     root = scope(p)
+    if not (root / 'tools/harness/current.json').is_file():
+        reuse_tools(dict(p, tools=['harness']))
     if not Path(p['project']).is_dir():
         raise ValueError('工程目录不存在')
     if not (root / 'tools/harness/current.json').exists():
@@ -601,7 +680,7 @@ os.execvpe(tool['binary'], [tool['binary']] + sys.argv[1:], env)
 def main():
     p = json.load(sys.stdin)
     action = p['action']
-    actions = dict(diagnose=diagnose, api_test=api_test, install_runtime=install_runtime,
+    actions = dict(diagnose=diagnose, reuse_tools=reuse_tools, api_test=api_test, install_runtime=install_runtime,
                    install_tool=install_tool, configure=configure, configure_ide=configure_ide, codex_auth_status=codex_auth_status, import_official_auth=import_official_auth, official_test=official_test,
                    harness_prepare=harness_prepare, harness_start=harness_start,
                    harness_status=harness_status, harness_stop=harness_stop)

@@ -10,7 +10,7 @@ import webbrowser
 import uuid
 import customtkinter as ctk
 
-from workbench.core import Board, DATA, PersistentHarness, Profile, Store, connect_proxy, open_vscode, protect, validate_model_selection
+from workbench.core import Board, DATA, PersistentHarness, Profile, Store, connect_proxy, open_vscode, protect, validate_model_selection, vscode_connection_report
 from workbench.layout import Layout
 from workbench.api_ui import ApiManagement
 from workbench.official_ui import OfficialManagement
@@ -56,6 +56,8 @@ class App(EnvironmentManagement, OfficialManagement, ApiManagement, Layout):
             except queue.Empty:
                 break
             if kind == 'log':
+                if self.busy and value.startswith('VS Code：'):
+                    self.task_label = value
                 self.logbox.configure(state='normal')
                 self.logbox.insert('end', self.redact(value) + '\n')
                 self.logbox.see('end')
@@ -262,7 +264,12 @@ class App(EnvironmentManagement, OfficialManagement, ApiManagement, Layout):
         def done(info):
             self.overview_vars['device'].set('%s@%s · %s / %s' % (board.profile.user, board.profile.host, info['arch'], info['libc']))
             self.overview_vars['resources'].set('可用内存 %s MB / %s MB · 磁盘剩余 %s MB' % (info['memory_mb'].get('MemAvailable', '?'), info['memory_mb'].get('MemTotal', '?'), info['disk_free_mb']))
-            self.overview_vars['tools'].set('Codex %s · Harness %s · API %s' % ('已安装' if info['codex'] else '未安装', '已安装' if info['harness'] else '未安装', '已配置' if info.get('codex_configured') else '未配置'))
+            def tool_label(tool):
+                found = info.get('tool_inventory', {}).get('tools', {}).get(tool)
+                if not found:
+                    return '已安装' if info[tool] else '未发现'
+                return '%s（%s）' % (found['version'], '当前环境' if found['source'] == 'current' else '板卡已有，可复用')
+            self.overview_vars['tools'].set('Codex %s · Harness %s · API %s' % (tool_label('codex'), tool_label('harness'), '已配置' if info.get('codex_configured') else '未配置'))
             service = info.get('harness_service', {})
             self.overview_vars['harness'].set(('后台运行' if service.get('background') else '随工作台运行') + (' · 网页已就绪' if service.get('ready') else ' · 启动中') if service.get('running') else '未运行')
             self.overview_vars['network'].set('Codex：%s / Harness：%s' % tuple('电脑代理' if board.profile.uses_proxy(t) else '板卡直连' for t in ('codex', 'harness')))
@@ -271,8 +278,7 @@ class App(EnvironmentManagement, OfficialManagement, ApiManagement, Layout):
                      (info['arch'], info['libc'], info['memory_mb'].get('MemAvailable', '?'), info['disk_free_mb']))
             if info['shell_proxy_files']:
                 self.log('发现原有 Shell 中的 7890 代理配置；独立工具会覆盖自己的网络环境，原配置保持不变。')
-            self.log('独立工具：Codex %s，Harness %s。' %
-                     ('已安装' if info['codex'] else '未安装', '已安装' if info['harness'] else '未安装'))
+            self.log('板卡工具：Codex %s，Harness %s。' % (tool_label('codex'), tool_label('harness')))
         self.run('只读诊断', lambda: board.call('diagnose'), done)
 
     def ssh_console(self):
@@ -293,7 +299,23 @@ class App(EnvironmentManagement, OfficialManagement, ApiManagement, Layout):
         else:
             self.log('未填写新密钥；若板卡保存了此环境的 Codex 配置，将复用密钥同步插件。')
         self.run('同步并打开 VS Code' if api else '打开 VS Code',
-                 lambda: open_vscode(board, DATA / 'vscode' / board.scope, api=self.routed(board, api) if api else None, proxy=self.proxy_url(board)))
+                 lambda: open_vscode(board, DATA / 'vscode' / board.scope, api=self.routed(board, api) if api else None, proxy=self.proxy_url(board), progress=self.log))
+
+    def vscode_diagnostics(self):
+        board = self.board()
+        self.run('VS Code 连接诊断', lambda: vscode_connection_report(DATA / 'vscode' / board.scope),
+                 lambda result: messagebox.showinfo('VS Code 连接诊断', result['message'] +
+                    ('\n\n日志时间：' + result['updated'] + '\n日志位置：' + result['log_file'] if result.get('log_file') else '')))
+
+    def reuse_board_tools(self):
+        board = self.board()
+        def task():
+            info = board.call('diagnose')
+            available = [tool for tool in ('codex', 'harness') if info.get(tool)]
+            if not available:
+                raise ValueError('板卡未发现已有 Codex / Harness，请从版本下拉列表选择并安装')
+            return board.call('reuse_tools', tools=available, timeout=100)
+        self.run('接入板卡已有工具', task)
 
     def sync_api(self):
         board = self.board()

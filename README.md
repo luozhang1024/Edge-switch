@@ -10,7 +10,7 @@
 
 在 Windows 上管理 SSH 工作环境、网络代理与模型服务，让 Codex、DeepSeek Harness 更容易部署和使用。
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/luozhang52/Edge-switch/releases)
+[![Version](https://img.shields.io/badge/version-1.0.1-blue)](https://github.com/luozhang52/Edge-switch/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey)](#环境要求)
 [![Built with](https://img.shields.io/badge/built%20with-Python%20%2B%20CustomTkinter-3776AB)](#开发与构建)
 [![Target](https://img.shields.io/badge/target-Linux%20ARM64%20%7C%20x86__64-34C759)](#环境要求)
@@ -26,7 +26,7 @@
 
 Edge Switch 将板卡 AI 开发中分散的连接、安装、代理和认证操作集中到一个桌面界面。为不同设备或工程创建工作环境，切换官方 ChatGPT 账号与自定义 API，再从工作台打开 VS Code 或 Harness 网页。
 
-程序窗口、托盘和安装包统一使用 **Edge Switch**，当前版本 **1.0.0**。为兼容旧版，本机配置目录保留 `EdgeSSHAI`。桌面端运行于 Windows，AI 工具运行于通过 SSH 连接的 Linux 设备。中英文文档可从首页顶部切换，当前程序界面为中文。
+程序窗口、托盘和安装包统一使用 **Edge Switch**，当前版本 **1.0.1**。为兼容旧版，本机配置目录保留 `EdgeSSHAI`。桌面端运行于 Windows，AI 工具运行于通过 SSH 连接的 Linux 设备。中英文文档可从首页顶部切换，当前程序界面为中文。
 
 ## 功能亮点
 
@@ -76,14 +76,14 @@ Edge Switch 将板卡 AI 开发中分散的连接、安装、代理和认证操�
 
 | 方式 | 当前构建产物 | 说明 |
 | --- | --- | --- |
-| 安装版 | `EdgeSwitch-Setup-1.0.0.exe` | 安装到当前 Windows 用户，支持快捷方式与卸载 |
-| 便携版 | `EdgeSwitch-1.0.0-Windows-x64.zip` | 解压后运行 EXE，附带许可与中英文说明 |
-| 对应源码 | `EdgeSwitch-1.0.0-source.zip` | 本次构建的源码快照，含构建脚本与资源 |
+| 安装版 | `EdgeSwitch-Setup-1.0.1.exe` | 安装到当前 Windows 用户，支持快捷方式与卸载 |
+| 便携版 | `EdgeSwitch-1.0.1-Windows-x64.zip` | 解压后运行 EXE，附带许可与中英文说明 |
+| 对应源码 | `EdgeSwitch-1.0.1-source.zip` | 本次构建的源码快照，含构建脚本与资源 |
 | 源码运行 | `Start-Workbench.cmd` / `start_workbench.py` | 需要 Python 与项目依赖 |
 
 升级前，请从侧栏或托盘菜单选择 **退出程序**，再安装新版。安装包不携带开发者的设备配置、API Key、SSH 私钥或官方账号凭据。给同事使用时，每台电脑分别完成 SSH 授权和模型认证。
 
-发布附件另提供 `SHA256SUMS.txt` 校验文件。版本号遵循 `主版本.次版本.修订版本`，本次发布标签为 `v1.0.0`。版本号不表示所有 Linux 设备或上游工具版本均已验证。
+发布附件另提供 `SHA256SUMS.txt` 校验文件。版本号遵循 `主版本.次版本.修订版本`，本次发布标签为 `v1.0.1`。版本号不表示所有 Linux 设备或上游工具版本均已验证。
 
 > 仅点击窗口右上角关闭按钮会缩至托盘，程序仍在运行。
 
@@ -109,7 +109,7 @@ Edge Switch 将板卡 AI 开发中分散的连接、安装、代理和认证操�
 
 ### 3. 安装 AI 工具
 
-进入 **AI 工具**，先安装受管 Node.js，再选择版本安装 Codex 或 Harness。版本列表在后台获取，操作结果可在底部 **运行记录** 查看。独立运行环境不替换板卡系统 Node.js。
+进入 **AI 工具**，先点击 **检测板卡工具**。同一 Linux 账号已安装工具时可点击 **使用已有工具**，版本验证通过后复用程序，无需重复下载；账号与任务仍独立。未发现已有安装时，先安装受管 Node.js，再选择版本安装 Codex 或 Harness。版本列表在后台获取，操作结果可在底部 **运行记录** 查看。独立运行环境不替换板卡系统 Node.js。
 
 ### 4. 启用模型服务
 
@@ -178,7 +178,7 @@ API Key 在勾选保存后通过 Windows DPAPI 加密，绑定当前 Windows 用
 <details>
 <summary><strong>VS Code 中仍显示未登录，或切换后没有生效</strong></summary>
 
-从工作台重新打开 VS Code，并在已有窗口执行 `Developer: Reload Window`。确认使用的是当前工作环境的窗口，其他入口打开的 VS Code 不会自动采用工作台专属配置。扩展升级后可重新打开以同步启动器。
+从工作台重新打开 VS Code，并在已有窗口执行 `Developer: Reload Window`。若一直停留在“正在打开”，点击模型服务页的 **连接诊断** 查看本环境的 Remote - SSH 结果；首次连接检查 VS Code 登录终端提示。确认使用的是当前工作环境的窗口，其他入口打开的 VS Code 不会自动采用工作台专属配置。扩展升级后可重新打开以同步启动器。
 
 </details>
 
