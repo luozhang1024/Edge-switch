@@ -1,5 +1,9 @@
 @echo off
 cd /d "%~dp0"
+if exist "%~dp0dist\current\EdgeSwitch-1.0.0.exe" (
+    start "" "%~dp0dist\current\EdgeSwitch-1.0.0.exe"
+    exit /b
+)
 if exist "%~dp0dist\current\EdgeSSHAI-0.15.exe" (
     start "" "%~dp0dist\current\EdgeSSHAI-0.15.exe"
     exit /b

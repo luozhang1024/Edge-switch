@@ -9,7 +9,7 @@ if __name__ == '__main__':
         from workbench.core import DATA, ROOT, protect
         root = tk.Tk()
         root.withdraw()
-        report = dict(tk=True, remote_agent=(ROOT / 'workbench/remote_agent.py').is_file(),
+        report = dict(license=(ROOT / 'LICENSE').is_file(), tk=True, remote_agent=(ROOT / 'workbench/remote_agent.py').is_file(),
                       harness_service=(ROOT / 'workbench/harness_service.py').is_file(),
                       ssh=bool(shutil.which('ssh.exe')),
                       credentials=protect(protect('self-check'), decrypt=True) == 'self-check')

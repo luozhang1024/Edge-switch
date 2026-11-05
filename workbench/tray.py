@@ -10,7 +10,7 @@ class Tray:
         with Image.open(ROOT / 'image/EdgeAI.ico') as source:
             bitmap = source.convert('RGBA')
         self.ready = threading.Event()
-        self.icon = pystray.Icon('EdgeAI', bitmap, 'Edge AI · 后台运行', menu=pystray.Menu(
+        self.icon = pystray.Icon('EdgeSwitch', bitmap, 'Edge Switch · 后台运行', menu=pystray.Menu(
             pystray.MenuItem('打开工作台', lambda *args: events.put(('tray', 'show')), default=True),
             pystray.MenuItem('退出程序', lambda *args: events.put(('tray', 'quit')))))
         def setup(icon):

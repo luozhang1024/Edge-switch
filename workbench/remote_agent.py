@@ -126,7 +126,7 @@ def api_test(p):
         urllib.request.ProxyHandler({'http': proxy, 'https': proxy} if proxy else {}), NoRedirect())
     url = p['base_url'].rstrip('/')
     headers = {'Authorization': 'Bearer ' + p['key'], 'Content-Type': 'application/json',
-               'Accept': 'application/json', 'User-Agent': 'EdgeSSHAI/0.2'}
+               'Accept': 'application/json', 'User-Agent': 'EdgeSwitch/1.0.0'}
     data = None
     if p.get('infer'):
         if p['protocol'] == 'responses':
@@ -519,7 +519,7 @@ env.update(CODEX_HOME=str(root/('codex-chatgpt-home' if p.get('auth_mode') == 'c
 env['PATH']=str(root/'runtime/bin')+os.pathsep+env.get('PATH','')
 binary=json.loads((root/'ide-runtime.json').read_text())['binary']
 if not Path(binary).is_file():
-    raise SystemExit('Codex extension updated; sync from Edge SSH AI again.')
+    raise SystemExit('Codex extension updated; sync from Edge Switch again.')
 os.execve(binary,[binary]+sys.argv[1:],env)
 '''
 

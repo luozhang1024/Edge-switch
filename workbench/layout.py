@@ -5,6 +5,7 @@ from PIL import Image, ImageTk, ImageOps
 import customtkinter as ctk
 
 from workbench.core import ROOT, Store
+from workbench.release import APP_NAME, VERSION
 from workbench.ui import BG, BLUE, INK, MUTED, Navigation, image_asset, navigation_icon, title, card, note, configure_theme, set_window_icon
 
 
@@ -17,7 +18,7 @@ class Layout:
         self.busy = False
         self.tunnels, self.sessions, self.catalogs = {}, {}, {}
         self.buttons, self.vars = [], {}
-        root.title('Edge AI · 板卡工作台')
+        root.title(APP_NAME + ' · 板卡工作台')
         root.geometry('1040x700')
         root.minsize(980, 640)
         configure_theme(root)
@@ -40,7 +41,7 @@ class Layout:
         brand = ctk.CTkFrame(sidebar, fg_color='transparent')
         brand.pack(fill='x', padx=18, pady=(22, 16))
         ctk.CTkLabel(brand, image=self.images['Edge_AI'], text='').pack(side='left')
-        ctk.CTkLabel(brand, text='Edge AI', text_color=INK, font=('Segoe UI', 22, 'bold')).pack(side='left', padx=10)
+        ctk.CTkLabel(brand, text=APP_NAME, text_color=INK, font=('Segoe UI', 20, 'bold')).pack(side='left', padx=10)
         ctk.CTkLabel(sidebar, text='板卡工作台', text_color=MUTED, anchor='w', font=('Microsoft YaHei UI', 11)).pack(fill='x', padx=24, pady=(0, 24))
         nav_area = ctk.CTkFrame(sidebar, fg_color='transparent')
         nav_area.pack(fill='x')
@@ -49,7 +50,7 @@ class Layout:
         self.env_status = tk.StringVar()
         footer = ctk.CTkFrame(sidebar, fg_color='transparent')
         footer.pack(side='bottom', pady=18)
-        ctk.CTkLabel(footer, text='EDGE SSH AI   /   0.15', text_color=MUTED, font=('Segoe UI', 10)).pack()
+        ctk.CTkLabel(footer, text='EDGE SWITCH   /   ' + VERSION, text_color=MUTED, font=('Segoe UI', 10)).pack()
         ctk.CTkLabel(footer, text='luozhang', text_color=MUTED, font=('Segoe UI', 10)).pack(pady=(2, 0))
         self.button(footer, '退出程序', self.quit_app).pack(pady=(10, 0))
         right = ctk.CTkFrame(shell, fg_color=BG, corner_radius=0)

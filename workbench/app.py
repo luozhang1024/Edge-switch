@@ -598,7 +598,7 @@ def main():
         msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
     except OSError:
         root.withdraw()
-        messagebox.showinfo('工作台已运行', '请在任务栏右侧系统托盘（含隐藏图标区域）双击 Edge AI，或右键选择“打开工作台”。')
+        messagebox.showinfo('工作台已运行', '请在任务栏右侧系统托盘（含隐藏图标区域）双击 Edge Switch，或右键选择“打开工作台”。')
         root.destroy()
         lock.close()
         return

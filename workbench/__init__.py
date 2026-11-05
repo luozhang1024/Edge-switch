@@ -1,1 +1,1 @@
-"""Edge SSH AI workbench."""
+"""Edge Switch remote AI workbench."""

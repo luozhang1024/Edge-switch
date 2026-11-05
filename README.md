@@ -1,5 +1,7 @@
 <div align="center">
 
+**简体中文** | [English](README.en.md)
+
 <img src="image/EdgeAI.png" alt="Edge Switch" width="96" />
 
 # Edge Switch
@@ -8,7 +10,7 @@
 
 在 Windows 上管理 SSH 工作环境、网络代理与模型服务，让 Codex、DeepSeek Harness 更容易部署和使用。
 
-[![Version](https://img.shields.io/badge/version-0.15.0-blue)](https://github.com/luozhang52/Edge-switch/releases)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/luozhang52/Edge-switch/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey)](#环境要求)
 [![Built with](https://img.shields.io/badge/built%20with-Python%20%2B%20CustomTkinter-3776AB)](#开发与构建)
 [![Target](https://img.shields.io/badge/target-Linux%20ARM64%20%7C%20x86__64-34C759)](#环境要求)
@@ -24,7 +26,7 @@
 
 Edge Switch 将板卡 AI 开发中分散的连接、安装、代理和认证操作集中到一个桌面界面。为不同设备或工程创建工作环境，切换官方 ChatGPT 账号与自定义 API，再从工作台打开 VS Code 或 Harness 网页。
 
-当前程序窗口与安装包显示名称为 **Edge AI**，历史文件名保留 `EdgeSSHAI`。桌面端运行于 Windows，AI 工具运行于通过 SSH 连接的 Linux 设备。
+程序窗口、托盘和安装包统一使用 **Edge Switch**，当前版本 **1.0.0**。为兼容旧版，本机配置目录保留 `EdgeSSHAI`。桌面端运行于 Windows，AI 工具运行于通过 SSH 连接的 Linux 设备。中英文文档可从首页顶部切换，当前程序界面为中文。
 
 ## 功能亮点
 
@@ -74,11 +76,14 @@ Edge Switch 将板卡 AI 开发中分散的连接、安装、代理和认证操�
 
 | 方式 | 当前构建产物 | 说明 |
 | --- | --- | --- |
-| 安装版 | `dist/installer/EdgeAI-Setup-0.15.0.exe` | 安装到当前 Windows 用户，支持快捷方式与卸载 |
-| 便携版 | `dist/current/EdgeSSHAI-0.15.exe` | 直接运行，无需安装 Python |
+| 安装版 | `EdgeSwitch-Setup-1.0.0.exe` | 安装到当前 Windows 用户，支持快捷方式与卸载 |
+| 便携版 | `EdgeSwitch-1.0.0-Windows-x64.zip` | 解压后运行 EXE，附带许可与中英文说明 |
+| 对应源码 | `EdgeSwitch-1.0.0-source.zip` | 本次构建的源码快照，含构建脚本与资源 |
 | 源码运行 | `Start-Workbench.cmd` / `start_workbench.py` | 需要 Python 与项目依赖 |
 
 升级前，请从侧栏或托盘菜单选择 **退出程序**，再安装新版。安装包不携带开发者的设备配置、API Key、SSH 私钥或官方账号凭据。给同事使用时，每台电脑分别完成 SSH 授权和模型认证。
+
+发布附件另提供 `SHA256SUMS.txt` 校验文件。版本号遵循 `主版本.次版本.修订版本`，本次发布标签为 `v1.0.0`。版本号不表示所有 Linux 设备或上游工具版本均已验证。
 
 > 仅点击窗口右上角关闭按钮会缩至托盘，程序仍在运行。
 
@@ -134,7 +139,7 @@ Edge Switch 将板卡 AI 开发中分散的连接、安装、代理和认证操�
 | 位置 | 内容 |
 | --- | --- |
 | `%LOCALAPPDATA%\EdgeSSHAI` | 本机环境配置、加密凭据、SSH 密钥、缓存与专属 VS Code 设置 |
-| `%LOCALAPPDATA%\Programs\Edge AI` | 安装版程序 |
+| `%LOCALAPPDATA%\Programs\Edge Switch` | 全新安装路径；升级旧版时沿用原安装位置 |
 | `~/.local/share/edge-ssh-ai/<环境标识>/` | 板卡运行环境、工具、模型配置和后台服务状态 |
 
 API Key 在勾选保存后通过 Windows DPAPI 加密，绑定当前 Windows 用户。导入的官方凭据也在本机加密保存；同步到板卡时通过 SSH 传递，认证文件权限为 `0600`。官方账号与 API 使用独立配置目录，切换后保留各自凭据。同一导入快照不会反复覆盖 Codex 已刷新的令牌。
