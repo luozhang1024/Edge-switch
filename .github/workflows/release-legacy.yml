@@ -1,0 +1,50 @@
+name: Release Python desktop
+
+on:
+  push:
+    tags: ['v1.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install build dependencies
+        run: python -m pip install -r requirements.txt pytest pyinstaller
+      - name: Verify tag and run regression tests
+        shell: pwsh
+        run: |
+          $version = python -c "from workbench.release import VERSION; print(VERSION)"
+          if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag does not match source version' }
+          python -m pytest -q
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build portable executable
+        shell: cmd
+        run: Build-Workbench.cmd
+      - name: Ensure installer compiler
+        shell: pwsh
+        run: |
+          if (!(Test-Path 'C:/Program Files (x86)/Inno Setup 6/ISCC.exe')) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+      - name: Build installer
+        shell: cmd
+        run: Build-Installer.cmd
+      - name: Assemble and checksum release assets
+        run: python Package-Release.py
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $assets = Get-ChildItem "dist/release/$tag" -File | ForEach-Object { $_.FullName }
+          gh release create $tag @assets --verify-tag --title "Edge Switch $tag" --notes-file "docs/releases/$tag.md"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
