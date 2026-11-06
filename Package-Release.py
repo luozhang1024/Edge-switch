@@ -42,7 +42,9 @@ def main():
             if not name:
                 continue
             path = Path(name)
-            if len(path.parts) > 1 and path.parts[0] not in allowed_roots:
+            workflow = (len(path.parts) == 3 and path.parts[:2] == ('.github', 'workflows')
+                        and path.suffix in ('.yml', '.yaml'))
+            if len(path.parts) > 1 and path.parts[0] not in allowed_roots and not workflow:
                 raise ValueError('Review unexpected source directory: ' + name)
             if path.name.lower() in ('profiles.json', 'auth.json', '.env') or path.suffix in ('.key', '.pem'):
                 raise ValueError('Credential-like file found in source inputs: ' + name)
