@@ -200,7 +200,7 @@ def api_test(p):
         urllib.request.ProxyHandler({'http': proxy, 'https': proxy} if proxy else {}), NoRedirect())
     url = p['base_url'].rstrip('/')
     headers = {'Authorization': 'Bearer ' + p['key'], 'Content-Type': 'application/json',
-               'Accept': 'application/json', 'User-Agent': 'EdgeSwitch/1.0.1'}
+               'Accept': 'application/json', 'User-Agent': 'EdgeSwitch/1.1.0'}
     data = None
     if p.get('infer'):
         if p['protocol'] == 'responses':
@@ -546,12 +546,108 @@ def codex_auth_status(p):
     return dict(authenticated=('chatgpt' in status.lower()))
 
 
+def vscode_server(p):
+    """Prepare a private VS Code agent folder without touching shared running servers."""
+    commit = p.get('commit', '')
+    if not re.fullmatch('[0-9a-f]{40}', commit):
+        raise ValueError('Invalid VS Code commit')
+    root = scope(p) / 'vscode-server'
+    dest = root / 'bin' / commit
+    required = ('node', 'bin/code-server', 'out/server-main.js', 'product.json')
+    def complete(path):
+        try:
+            if not all((path / name).is_file() for name in required):
+                return False
+            if json.loads((path / 'product.json').read_text()).get('commit') != commit:
+                return False
+            command([str(path / 'node'), '--version'], env=clean_env(), timeout=10)
+            return True
+        except (OSError, ValueError, RuntimeError):
+            return False
+    dest.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    # Serialize this environment only. Never remove VS Code's own installation locks.
+    import fcntl
+    with (root / 'edge-install.lock').open('a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError('此环境正在准备 VS Code Server，请等待本次任务完成')
+        proxy = p.get('proxy', '')
+        if proxy and not re.fullmatch(r'http://127\.0\.0\.1:[0-9]{1,5}', proxy):
+            raise ValueError('Invalid VS Code proxy tunnel')
+        setup = '#!/bin/sh\n' + '\n'.join('unset ' + name for name in PROXIES) + '\n'
+        if proxy:
+            setup += '\n'.join('export %s="%s"' % (name, proxy) for name in ('HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy')) + '\n'
+        private_write(root / 'server-env-setup', setup)
+        ready = complete(dest)
+        reused = False
+        if not ready and not dest.exists() and not dest.is_symlink():
+            sources = [Path.home() / '.vscode-server/bin' / commit]
+            sources += sorted(root.parent.parent.glob('*/vscode-server/bin/' + commit))
+            for source in sources:
+                if source == dest or not complete(source):
+                    continue
+                stage = Path(tempfile.mkdtemp(prefix='reuse-', dir=str(root)))
+                try:
+                    # Copy immutable executable files into a private directory.
+                    # Do not adopt the source's data, extensions, credentials or locks.
+                    shutil.copytree(str(source), str(stage / 'server'),
+                                    ignore=shutil.ignore_patterns('vscode-remote-lock.*', '*.tar.gz', '*.done'))
+                    if not complete(stage / 'server'):
+                        raise RuntimeError('板卡已有服务端复制后校验失败，源目录未修改')
+                    (stage / 'server').rename(dest)
+                    ready = reused = True
+                finally:
+                    shutil.rmtree(str(stage))
+                break
+        if p.get('install') and not ready:
+            if not re.fullmatch('[a-f0-9]{32}', p['upload_id']):
+                raise ValueError('Invalid upload ID')
+            archive = root / (commit + '-' + p['upload_id'] + '.tar.gz')
+            digest = hashlib.sha256()
+            with archive.open('rb') as source:
+                for block in iter(lambda: source.read(1024 * 1024), b''):
+                    digest.update(block)
+            if digest.hexdigest() != p['sha256']:
+                raise RuntimeError('VS Code Server 远程 SHA-256 校验失败')
+            if dest.exists() or dest.is_symlink():
+                raise RuntimeError('此环境服务端目录不完整；已保留目录，请关闭该环境远程窗口后检查，未覆盖或终止进程')
+            stage = Path(tempfile.mkdtemp(prefix='install-', dir=str(root)))
+            try:
+                with tarfile.open(str(archive)) as tar:
+                    members = tar.getmembers()
+                    base = stage.resolve()
+                    for member in members:
+                        target = (stage / member.name).resolve()
+                        if (target != base and base not in target.parents) or member.isdev() or member.isfifo():
+                            raise ValueError('Unsafe VS Code archive member')
+                        if member.issym() or member.islnk():
+                            link = (target.parent / member.linkname if member.issym() else stage / member.linkname).resolve()
+                            if base not in link.parents:
+                                raise ValueError('Unsafe VS Code archive link')
+                    tar.extractall(str(stage))
+                children = list(stage.iterdir())
+                package = stage if (stage / 'node').is_file() else children[0] if len(children) == 1 else stage
+                if not complete(package):
+                    raise RuntimeError('VS Code Server 内容、版本或 Node 运行检查失败')
+                package.rename(dest)
+                ready = True
+                archive.unlink()
+            finally:
+                if stage.exists():
+                    shutil.rmtree(str(stage))
+        return dict(ready=ready, reused=reused, path=str(root), arch=platform.machine(),
+                    free_bytes=shutil.disk_usage(str(root)).free,
+                    codex_extension=any((root / 'extensions').glob('openai.chatgpt-*/package.json')))
+
+
 def configure_ide(p):
     """Use the extension's own app-server binary through a scoped launcher."""
     root = scope(p)
     if p.get('auth_mode') != 'chatgpt':
         p = reuse_credentials(p)
-    candidates = list((Path.home() / '.vscode-server/extensions').glob('openai.chatgpt-*/bin/*/codex'))
+    extension_root = root / 'vscode-server/extensions' if p.get('private_server') else Path.home() / '.vscode-server/extensions'
+    candidates = list(extension_root.glob('openai.chatgpt-*/bin/*/codex'))
     arch = {'aarch64': 'linux-aarch64', 'x86_64': 'linux-x86_64'}.get(platform.machine())
     candidates = [x for x in candidates if x.parent.name == arch and x.is_file()]
     if not candidates:
@@ -680,7 +776,7 @@ os.execvpe(tool['binary'], [tool['binary']] + sys.argv[1:], env)
 def main():
     p = json.load(sys.stdin)
     action = p['action']
-    actions = dict(diagnose=diagnose, reuse_tools=reuse_tools, api_test=api_test, install_runtime=install_runtime,
+    actions = dict(diagnose=diagnose, vscode_server=vscode_server, reuse_tools=reuse_tools, api_test=api_test, install_runtime=install_runtime,
                    install_tool=install_tool, configure=configure, configure_ide=configure_ide, codex_auth_status=codex_auth_status, import_official_auth=import_official_auth, official_test=official_test,
                    harness_prepare=harness_prepare, harness_start=harness_start,
                    harness_status=harness_status, harness_stop=harness_stop)

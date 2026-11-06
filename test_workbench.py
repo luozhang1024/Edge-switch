@@ -28,7 +28,7 @@ class ProfileTests(unittest.TestCase):
                     log.parent.mkdir(parents=True)
                     log.write_text('Resolved "ssh-remote+edge-' + board.scope + '" to port')
                 return subprocess.CompletedProcess(args, 0, b'ms-vscode-remote.remote-ssh\n', b'')
-            with patch('repair.find_code', return_value=('Code.exe', 'cli.js', {}, 'a' * 40)), \
+            with patch('workbench.vscode_server.prepare_server', return_value=dict(path='/private/server', ready=True)), patch('workbench.editor_runtime.editor_for', return_value=('Code.exe', 'cli.js', {}, 'a' * 40)), \
                     patch.object(core.subprocess, 'run', side_effect=run):
                 result = core.open_vscode(board, directory)
             self.assertFalse(any('--install-extension' in args for args in calls))
@@ -52,7 +52,7 @@ class ProfileTests(unittest.TestCase):
                     log.parent.mkdir(parents=True)
                     log.write_text('Resolved "ssh-remote+edge-' + board.scope + '" to port')
                 return subprocess.CompletedProcess(args, 0, b'', b'')
-            with patch('repair.find_code', return_value=('Code.exe', 'cli.js', {}, 'a' * 40)), \
+            with patch('workbench.vscode_server.prepare_server', return_value=dict(path='/private/server', ready=True)), patch('workbench.editor_runtime.editor_for', return_value=('Code.exe', 'cli.js', {}, 'a' * 40)), \
                     patch.object(core.subprocess, 'run', side_effect=run):
                 result = core.open_vscode(board, directory, api=dict(key='test-private-key', model='gpt-6.1-sol'))
             settings = json.loads((Path(directory) / 'User/settings.json').read_text())
@@ -267,7 +267,7 @@ class RemoteTests(unittest.TestCase):
         with patch.object(remote_agent.urllib.request, 'build_opener', return_value=opener):
             remote_agent.api_test(dict(base_url='https://test', key='key'))
         request = opener.open.call_args.args[0]
-        self.assertEqual(request.get_header('User-agent'), 'EdgeSwitch/1.0.1')
+        self.assertEqual(request.get_header('User-agent'), 'EdgeSwitch/1.1.0')
         self.assertEqual(request.get_header('Accept'), 'application/json')
 
     def test_gateway_403_is_distinguished_from_authentication(self):

@@ -36,7 +36,8 @@ def main():
                 if args[0] == 'Code.exe':
                     return subprocess.CompletedProcess(args, 0, b'ms-vscode-remote.remote-ssh\n', b'')
                 return run(args, **kwargs)
-            with patch('repair.find_code', return_value=('Code.exe', 'cli.js', {}, 'test')), \
+            with patch('workbench.editor_runtime.editor_for', return_value=('Code.exe', 'cli.js', {}, 'test')), \
+                 patch('workbench.vscode_server.prepare_server', return_value=dict(path='/private/test-server', ready=True)), \
                  patch('workbench.core.subprocess.run', side_effect=dispatch):
                 open_vscode(board, folder)
             settings = json.loads((Path(folder) / 'User/settings.json').read_text())

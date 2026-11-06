@@ -10,7 +10,7 @@
 
 Manage SSH environments, proxies, and model services from Windows. Deploy Codex and DeepSeek Harness on your Linux devices and open your remote workspace from one place.
 
-[![Version](https://img.shields.io/badge/version-1.0.1-blue)](https://github.com/luozhang52/Edge-switch/releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue)](https://github.com/luozhang52/Edge-switch/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey)](#requirements)
 [![Built with](https://img.shields.io/badge/built%20with-Python%20%2B%20CustomTkinter-3776AB)](#development-and-builds)
 [![Target](https://img.shields.io/badge/target-Linux%20ARM64%20%7C%20x86__64-34C759)](#requirements)
@@ -26,7 +26,7 @@ Manage SSH environments, proxies, and model services from Windows. Deploy Codex 
 
 Edge Switch brings device connections, tool installation, network settings, and model authentication into one desktop application. Create work environments for different devices or projects, switch between an official ChatGPT account and custom APIs, and launch VS Code or the Harness web interface.
 
-The current version is **1.0.1**. The window, tray, and installer use the name **Edge Switch**. The legacy `EdgeSSHAI` configuration directory is retained for upgrade compatibility. The desktop app runs on Windows; AI tools run on the Linux device over SSH. The application UI is currently in Chinese; these documentation pages are available in both languages.
+The current version is **1.1.0**. The window, tray, and installer use the name **Edge Switch**. The legacy `EdgeSSHAI` configuration directory is retained for upgrade compatibility. The desktop app runs on Windows; AI tools run on the Linux device over SSH. The application UI is currently in Chinese; these documentation pages are available in both languages.
 
 ## Features
 
@@ -76,11 +76,11 @@ Check [Releases](https://github.com/luozhang52/Edge-switch/releases) for publish
 
 | Distribution | File | Usage |
 | --- | --- | --- |
-| Installer | `EdgeSwitch-Setup-1.0.1.exe` | Per-user installation with shortcuts and uninstaller |
-| Portable | `EdgeSwitch-1.0.1-Windows-x64.zip` | Extract and run the EXE; includes license and bilingual documentation |
-| Corresponding source | `EdgeSwitch-1.0.1-source.zip` | Source snapshot for this build, including resources and build scripts |
+| Installer | `EdgeSwitch-Setup-1.1.0.exe` | Per-user installation with shortcuts and uninstaller |
+| Portable | `EdgeSwitch-1.1.0-Windows-x64.zip` | Extract and run the EXE; includes license and bilingual documentation |
+| Corresponding source | `EdgeSwitch-1.1.0-source.zip` | Source snapshot for this build, including resources and build scripts |
 
-`SHA256SUMS.txt` contains release file checksums. Versions use `MAJOR.MINOR.PATCH`; the release tag is `v1.0.1`. A version number does not imply every Linux distribution or upstream tool version has been validated.
+`SHA256SUMS.txt` contains release file checksums. Versions use `MAJOR.MINOR.PATCH`; the release tag is `v1.1.0`. A version number does not imply every Linux distribution or upstream tool version has been validated.
 
 Before upgrading, select **退出程序 (Exit)** from the sidebar or tray menu. Closing the window only hides it to the tray. Installers do not include the developer's device settings, API keys, SSH private keys, or account credentials. Each PC needs its own SSH authorization and model authentication.
 
@@ -147,9 +147,25 @@ Uninstalling preserves local user settings and device data. Verify the environme
 
 Each PC creates a distinct environment identity for its settings, launchers, and connections. The workbench does not modify shared `~/.codex`, `.bashrc`, or `.profile`, automatically restart shared VS Code Server, or stop other users' tasks by process name.
 
-This provides configuration management, **not security isolation**. Users sharing one Linux account can access each other's files and share CPU, memory, disk, and VS Code Server. Do not copy an entire local profile to another PC and run both simultaneously: they may reuse the same environment identity.
+This provides configuration management, **not security isolation**. Users sharing one Linux account can access each other's files and share CPU, memory, and disk. Since v1.1.0, each environment uses a separate VS Code Server directory. Do not copy an entire local profile to another PC and run both simultaneously: they may reuse the same environment identity.
 
 ## FAQ
+
+<details>
+<summary><strong>Can system VS Code updates stop triggering repeated server downloads?</strong></summary>
+
+Since v1.1.0, the workbench copies the installed Windows editor into its own directory on first use and keeps that version. Dedicated windows disable automatic editor and extension updates; Remote SSH extensions also use a private directory. Use **AI 工具 → 编辑器版本 (Editor version)** to explicitly select the current system version or another installed `Code.exe`. Save and close workbench remote windows before switching. A new version may require matching server files and extensions. The copy uses extra local disk space; schedule manual upgrades for fixes and compatibility.
+
+If a runnable server with the exact same commit already exists on the board, its executable files are copied into the environment without downloading. Credentials, extensions and locks are excluded. First deployment still needs matching files when neither side has them. Codex terminal and Harness do not require VS Code Server.
+
+</details>
+
+<details>
+<summary><strong>Does every reboot or remote connection download VS Code Server again?</strong></summary>
+
+No. A server matching the PC's VS Code commit starts directly and survives reboots. Since v1.1.0, verified archives are also stored in `%LOCALAPPDATA%\EdgeSSHAI\downloads\vscode` for installation into new environments. Completed download chunks are retained after failure for retry. A VS Code update, first installation into an environment, or deleted files may require preparation. Server caching does not replace network access to model APIs.
+
+</details>
 
 <details>
 <summary><strong>VS Code reports Permission denied (publickey,password)</strong></summary>

@@ -10,7 +10,7 @@
 
 在 Windows 上管理 SSH 工作环境、网络代理与模型服务，让 Codex、DeepSeek Harness 更容易部署和使用。
 
-[![Version](https://img.shields.io/badge/version-1.0.1-blue)](https://github.com/luozhang52/Edge-switch/releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue)](https://github.com/luozhang52/Edge-switch/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey)](#环境要求)
 [![Built with](https://img.shields.io/badge/built%20with-Python%20%2B%20CustomTkinter-3776AB)](#开发与构建)
 [![Target](https://img.shields.io/badge/target-Linux%20ARM64%20%7C%20x86__64-34C759)](#环境要求)
@@ -26,7 +26,7 @@
 
 Edge Switch 将板卡 AI 开发中分散的连接、安装、代理和认证操作集中到一个桌面界面。为不同设备或工程创建工作环境，切换官方 ChatGPT 账号与自定义 API，再从工作台打开 VS Code 或 Harness 网页。
 
-程序窗口、托盘和安装包统一使用 **Edge Switch**，当前版本 **1.0.1**。为兼容旧版，本机配置目录保留 `EdgeSSHAI`。桌面端运行于 Windows，AI 工具运行于通过 SSH 连接的 Linux 设备。中英文文档可从首页顶部切换，当前程序界面为中文。
+程序窗口、托盘和安装包统一使用 **Edge Switch**，当前版本 **1.1.0**。为兼容旧版，本机配置目录保留 `EdgeSSHAI`。桌面端运行于 Windows，AI 工具运行于通过 SSH 连接的 Linux 设备。中英文文档可从首页顶部切换，当前程序界面为中文。
 
 ## 功能亮点
 
@@ -76,14 +76,14 @@ Edge Switch 将板卡 AI 开发中分散的连接、安装、代理和认证操�
 
 | 方式 | 当前构建产物 | 说明 |
 | --- | --- | --- |
-| 安装版 | `EdgeSwitch-Setup-1.0.1.exe` | 安装到当前 Windows 用户，支持快捷方式与卸载 |
-| 便携版 | `EdgeSwitch-1.0.1-Windows-x64.zip` | 解压后运行 EXE，附带许可与中英文说明 |
-| 对应源码 | `EdgeSwitch-1.0.1-source.zip` | 本次构建的源码快照，含构建脚本与资源 |
+| 安装版 | `EdgeSwitch-Setup-1.1.0.exe` | 安装到当前 Windows 用户，支持快捷方式与卸载 |
+| 便携版 | `EdgeSwitch-1.1.0-Windows-x64.zip` | 解压后运行 EXE，附带许可与中英文说明 |
+| 对应源码 | `EdgeSwitch-1.1.0-source.zip` | 本次构建的源码快照，含构建脚本与资源 |
 | 源码运行 | `Start-Workbench.cmd` / `start_workbench.py` | 需要 Python 与项目依赖 |
 
 升级前，请从侧栏或托盘菜单选择 **退出程序**，再安装新版。安装包不携带开发者的设备配置、API Key、SSH 私钥或官方账号凭据。给同事使用时，每台电脑分别完成 SSH 授权和模型认证。
 
-发布附件另提供 `SHA256SUMS.txt` 校验文件。版本号遵循 `主版本.次版本.修订版本`，本次发布标签为 `v1.0.1`。版本号不表示所有 Linux 设备或上游工具版本均已验证。
+发布附件另提供 `SHA256SUMS.txt` 校验文件。版本号遵循 `主版本.次版本.修订版本`，本次发布标签为 `v1.1.0`。版本号不表示所有 Linux 设备或上游工具版本均已验证。
 
 > 仅点击窗口右上角关闭按钮会缩至托盘，程序仍在运行。
 
@@ -150,9 +150,25 @@ API Key 在勾选保存后通过 Windows DPAPI 加密，绑定当前 Windows 用
 
 每台电脑为每个工作环境生成独立标识，分别管理配置、启动器和连接。工作台不修改共享 `~/.codex`、`.bashrc` / `.profile`，不自动重启共享 VS Code Server，也不按进程名批量停止其他人的任务。
 
-这是配置和连接管理，**不是用户权限隔离**：同一 Linux 账号仍可访问彼此文件，并共享 CPU、内存、磁盘和 VS Code Server。不要将本机环境配置整体复制到另一台电脑后同时使用，否则可能复用同一环境身份。
+这是配置和连接管理，**不是用户权限隔离**：同一 Linux 账号仍可访问彼此文件，并共享 CPU、内存和磁盘。v1.1.0 起，工作台为各环境准备独立 VS Code Server 目录。不要将本机环境配置整体复制到另一台电脑后同时使用，否则可能复用同一环境身份。
 
 ## 常见问题
+
+<details>
+<summary><strong>能避免系统 VS Code 更新导致板卡反复下载吗？</strong></summary>
+
+可以。v1.1.0 起，首次打开会从电脑现有 VS Code 创建独立副本；之后固定使用该副本，不跟随系统 VS Code 更新。专属窗口关闭编辑器和扩展自动更新，本机 Remote SSH 扩展也使用独立目录。想升级时，在 **AI 工具 → 编辑器版本** 主动切换为系统当前版本或选择另一套已有的 `Code.exe`。切换前保存并关闭工作台打开的远程窗口；新版本可能需要匹配服务端和扩展。固定版本会额外占用本机磁盘，需自行安排后续升级以获得修复和兼容性更新。
+
+板卡已有同一 commit 的可运行服务端时，工作台复制其程序文件到当前环境，无需联网下载；凭据、扩展和安装锁不复制。电脑和板卡缺少匹配文件的首次部署仍需要安装一次。Codex 终端与 Harness 不依赖 VS Code Server。
+
+</details>
+
+<details>
+<summary><strong>每次开机或远程连接，都要重新下载 VS Code Server 吗？</strong></summary>
+
+不需要。板卡已安装与电脑 VS Code commit 匹配的服务端时，直接启动；电脑和板卡重启都不会清除它。v1.1.0 起，电脑还在 `%LOCALAPPDATA%\EdgeSSHAI\downloads\vscode` 保存校验过的安装包，新环境可从缓存上传，无需重复访问下载站。下载失败会保留完成的分块，重试可复用。电脑 VS Code 更新、新环境首次安装或文件被清除时，才需要准备相应版本。服务端缓存不代替模型 API 网络连接。
+
+</details>
 
 <details>
 <summary><strong>同事打开 VS Code 提示 Permission denied (publickey,password)</strong></summary>

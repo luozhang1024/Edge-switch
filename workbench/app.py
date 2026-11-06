@@ -307,6 +307,67 @@ class App(EnvironmentManagement, OfficialManagement, ApiManagement, Layout):
                  lambda result: messagebox.showinfo('VS Code 连接诊断', result['message'] +
                     ('\n\n日志时间：' + result['updated'] + '\n日志位置：' + result['log_file'] if result.get('log_file') else '')))
 
+    def import_vscode_server(self):
+        path = filedialog.askopenfilename(parent=self.root, title='选择微软官方 VS Code Server 安装包',
+                                         filetypes=[('VS Code Server', '*.tar.gz')])
+        if not path:
+            return
+        board = self.board()
+        def task():
+            from pathlib import Path
+            import shutil
+            from workbench.editor_runtime import editor_for
+            from workbench.vscode_server import digest
+            commit = editor_for(DATA / 'editor', self.log)[3]
+            arch = {'aarch64': 'arm64', 'arm64': 'arm64', 'x86_64': 'x64'}.get(board.call('diagnose')['arch'])
+            if not arch:
+                raise ValueError('此设备架构尚不支持 VS Code Server')
+            cache = DATA / 'downloads/vscode'
+            cache.mkdir(parents=True, exist_ok=True)
+            target = cache / (commit + '-' + arch + '.tar.gz')
+            source = Path(path)
+            if source.resolve() != target.resolve():
+                if target.exists() and digest(source) != digest(target):
+                    raise ValueError('缓存中已有不同内容的同版本安装包，未覆盖。请先检查缓存文件。')
+                temp = cache / (uuid.uuid4().hex + '.importing')
+                try:
+                    shutil.copy2(source, temp)
+                    os.replace(temp, target)
+                finally:
+                    temp.unlink(missing_ok=True)
+            return ('安装包已复制到缓存，尚未验证；点击“打开 VS Code”时将与官方 SHA-256 比对，通过后才安装。\n'
+                    '此版本官方下载地址：https://update.code.visualstudio.com/commit:' + commit + '/server-linux-' + arch + '/stable')
+        self.run('导入 VS Code 服务端', task)
+
+    def editor_version(self):
+        from pathlib import Path
+        selected = DATA / 'editor/selected.json'
+        current = '首次打开时从电脑现有 VS Code 创建副本'
+        if selected.exists():
+            try:
+                current = '固定版本：' + json.loads(selected.read_text(encoding='utf-8'))['commit'][:10]
+            except (ValueError, KeyError):
+                current = '固定版本配置需重新选择'
+        choose = messagebox.askyesnocancel('编辑器版本', current +
+            '\n\n工作台使用独立副本，系统 VS Code 更新不会改变它。'
+            '\n切换版本会影响本机所有环境的下次连接，可能需要对应服务端和扩展。'
+            '\n\n“是”：固定为电脑当前 VS Code 版本'
+            '\n“否”：选择另一套已有 VS Code 的 Code.exe'
+            '\n“取消”：保持现有版本', parent=self.root)
+        if choose is None:
+            return
+        executable = None
+        if not choose:
+            executable = filedialog.askopenfilename(parent=self.root, title='选择已有 VS Code 的 Code.exe',
+                                                  filetypes=[('VS Code', 'Code.exe')])
+            if not executable:
+                return
+        def task():
+            from workbench.editor_runtime import pin_editor
+            result = pin_editor(DATA / 'editor', self.log, executable=executable)
+            return '已固定编辑器版本：' + result[3] + '；未下载或重启板卡服务。'
+        self.run('设置固定编辑器', task)
+
     def reuse_board_tools(self):
         board = self.board()
         def task():

@@ -29,7 +29,7 @@ class AuthTests(unittest.TestCase):
             board.scope = 'b' * 32
             board.ssh.return_value = ['ssh']
             board.call.side_effect = [dict(flock=True, codex_extension=True), dict(cli='/private/launcher', message='等待账号授权')]
-            with patch('repair.find_code', return_value=('Code.exe', 'cli.js', {}, 'a' * 40)), patch('workbench.core.subprocess.run', return_value=subprocess.CompletedProcess([], 0, b'ms-vscode-remote.remote-ssh\n', b'')):
+            with patch('workbench.vscode_server.prepare_server', return_value=dict(path='/private/server', ready=True, codex_extension=True)), patch('workbench.editor_runtime.editor_for', return_value=('Code.exe', 'cli.js', {}, 'a' * 40)), patch('workbench.core.subprocess.run', return_value=subprocess.CompletedProcess([], 0, b'ms-vscode-remote.remote-ssh\n', b'')):
                 result = open_vscode(board, folder, api=dict(key='must-not-forward'))
             payload = board.call.call_args.kwargs
             self.assertEqual(payload['auth_mode'], 'chatgpt')

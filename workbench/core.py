@@ -595,7 +595,7 @@ class PersistentHarness:
 
 def open_vscode(board, data_dir, api=None, proxy='', progress=None):
     # Separate local VS Code settings: no changes to user's global SSH config.
-    from repair import find_code
+    from workbench.editor_runtime import editor_for
     p = board.profile
     data_dir = Path(data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -639,8 +639,23 @@ def open_vscode(board, data_dir, api=None, proxy='', progress=None):
     if probe.returncode:
         raise RuntimeError('VS Code 专用 SSH 配置登录失败，请重新配置 SSH 登录或检查密钥、主机指纹和网络；'
                            '工作台没有把打开窗口当作连接成功。')
-    exe, cli, env, _ = find_code()
-    args = [str(exe), str(cli), '--user-data-dir', str(data_dir)]
+    exe, cli, env, commit = editor_for(DATA / 'editor', progress)
+    # Settings belong to Edge Switch's user-data directory only.
+    changes.update({'update.mode': 'none', 'extensions.autoUpdate': False,
+                    'extensions.autoCheckUpdates': False})
+    args = [str(exe), str(cli), '--user-data-dir', str(data_dir),
+            '--extensions-dir', str(DATA / 'editor' / commit / 'managed-extensions')]
+    from workbench.vscode_server import prepare_server
+    progress('VS Code：正在准备此环境独立的服务端目录…')
+    server = prepare_server(board, commit, DATA / 'downloads/vscode', progress, proxy=proxy)
+    local_proxy = 'http://127.0.0.1:' + str(p.proxy_port) if p.proxy else ''
+    changes.update({'remote.SSH.serverInstallPath': {alias: server['path']},
+                    'remote.SSH.localServerDownload': 'auto',
+                    'http.proxy': local_proxy,
+                    'remote.SSH.httpProxy': {alias: proxy},
+                    'remote.SSH.httpsProxy': {alias: proxy}})
+    value = settings.read_text(encoding='utf-8-sig')
+    settings.write_text(patch_jsonc(value, changes), encoding='utf-8')
     progress('VS Code：正在检查本机 Remote SSH 扩展（首次安装需访问扩展市场）…')
     # Reusing an installed extension avoids a needless Marketplace network request.
     installed = subprocess.run([*args, '--list-extensions'], env=env, capture_output=True,
@@ -651,25 +666,27 @@ def open_vscode(board, data_dir, api=None, proxy='', progress=None):
                                 capture_output=True, timeout=180, creationflags=CREATE_NO_WINDOW)
         if result.returncode:
             raise RuntimeError('Remote SSH 扩展下载/安装失败，请检查电脑到 VS Code 扩展市场的网络；板卡 SSH 与模型 API 是独立线路')
+    # Open a visible window before remote extension setup can wait on a connection.
+    progress('VS Code：服务端已准备，正在打开远程窗口…')
+    subprocess.run([*args, '--reuse-window', '--remote', 'ssh-remote+' + alias, p.project],
+                   env=env, check=True, timeout=30, creationflags=CREATE_NO_WINDOW)
     if api:
         progress('VS Code：正在准备远程 Codex 扩展与当前环境认证…')
         if p.codex_auth != 'chatgpt' and p.protocol != 'responses':
             raise ValueError('Codex 插件需要 Responses 协议')
         # Install on the remote extension host; preserve the extension's bundled CLI version.
-        if not info.get('codex_extension'):
+        if not server.get('codex_extension'):
             result = subprocess.run([*args, '--remote', 'ssh-remote+' + alias,
                                      '--install-extension', 'openai.chatgpt'], env=env,
                                     capture_output=True, timeout=180, creationflags=CREATE_NO_WINDOW)
             if result.returncode:
                 raise RuntimeError('远程 Codex 扩展安装失败，请在远程扩展面板安装后重试')
-        ide = board.call('configure_ide', project=p.project, **api)
+        ide = board.call('configure_ide', project=p.project, private_server=True, **api)
         changes.update({'chatgpt.cliExecutable': ide['cli'], 'chatgpt.openOnStartup': True,
                         'chatgpt.localeOverride': 'zh-CN'})
         value = settings.read_text(encoding='utf-8-sig')
         settings.write_text(patch_jsonc(value, changes), encoding='utf-8')
-    progress('VS Code：已设置远程平台 Linux、专用私钥和登录终端，正在发送打开请求…')
-    subprocess.run([*args, '--reuse-window', '--remote', 'ssh-remote+' + alias, p.project],
-                   env=env, check=True, timeout=30, creationflags=CREATE_NO_WINDOW)
+    progress('VS Code：打开请求已发送，实际连接状态可点击“连接诊断”查看。')
     return ('已发送 VS Code Remote SSH 打开/切换请求；' +
             ((ide.get('message', 'Codex 扩展 CLI 已确认 API 登录') + '；') if api else '') +
             '连接状态请查看 VS Code。目标工程：' + p.project)
@@ -697,7 +714,8 @@ def vscode_connection_report(data_dir):
         (('administratively prohibited', 'tcp forwarding is disabled'), 'SSH 登录成功但端口转发被服务端禁止，请检查 sshd 转发权限。'),
         (('could not resolve hostname',), 'SSH 主机名无法解析，请检查当前环境地址与专用 SSH 配置。'),
         (('connection timed out', 'banner exchange'), 'SSH 网络连接或握手超时，请检查局域网、SSH 服务及板卡负载。'),
-        (('failed to download', 'download failed', 'getaddrinfo', 'xhr failed'), 'VS Code Server 或扩展下载失败，请检查电脑下载线路；模型代理不控制扩展市场。'),
+        (('failed to download', 'download failed', 'localdownloadfailed', 'failed to fetch', 'getaddrinfo', 'xhr failed'), '电脑下载 VS Code Server 或扩展失败；SSH 登录与 API Key 无需重配。请启用电脑代理、确认 FlClash 正在运行，再用新版工作台重新打开。'),
+        (('downloading vs code server locally', 'waiting for client to transfer server archive'), 'SSH 已登录；正在等待电脑下载 / 上传 VS Code Server，尚未建立编辑器连接。请检查电脑下载线路与代理；新版工作台会显示下载进度并复用已校验缓存。'),
         (('failed to parse remote port',), '已进入 SSH 启动流程，但 VS Code Server 未返回有效端口；请检查登录终端和服务端启动条件。'),
         (('waiting for server log', 'waiting for server to start'), 'SSH 已进入服务端启动阶段，正在等待 VS Code Server；检查板卡负载、磁盘和启动日志。'),
     ]
