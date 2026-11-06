@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-from workbench.core import Board, Profile, open_vscode, vscode_connection_report
+from workbench.core import Board, Profile, open_vscode, vscode_connection_report, vscode_data_dir, DATA
 from workbench.remote_agent import vscode_server
 from workbench.vscode_server import download_server
 
@@ -15,6 +15,11 @@ COMMIT = 'a' * 40
 
 
 class ServerTests(unittest.TestCase):
+    def test_layout_migration_uses_distinct_editor_process_and_log_directory(self):
+        scope = 'a' * 32
+        self.assertNotEqual(vscode_data_dir(scope), DATA / 'vscode' / scope)
+        self.assertEqual(vscode_data_dir(scope), DATA / 'vscode' / (scope + '-layout2'))
+
     def archive(self, root, malicious=False):
         upload_id = 'b' * 32
         archive = root / (COMMIT + '-' + upload_id + '.tar.gz')

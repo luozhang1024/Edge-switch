@@ -76,11 +76,11 @@ Check [Releases](https://github.com/luozhang52/Edge-switch/releases) for publish
 
 | Distribution | File | Usage |
 | --- | --- | --- |
-| Installer | `EdgeSwitch-Setup-1.1.2.exe` | Per-user installation with shortcuts and uninstaller |
-| Portable | `EdgeSwitch-1.1.2-Windows-x64.zip` | Extract and run the EXE; includes license and bilingual documentation |
-| Corresponding source | `EdgeSwitch-1.1.2-source.zip` | Source snapshot for this build, including resources and build scripts |
+| Installer | `EdgeSwitch-Setup-1.1.3.exe` | Per-user installation with shortcuts and uninstaller |
+| Portable | `EdgeSwitch-1.1.3-Windows-x64.zip` | Extract and run the EXE; includes license and bilingual documentation |
+| Corresponding source | `EdgeSwitch-1.1.3-source.zip` | Source snapshot for this build, including resources and build scripts |
 
-`SHA256SUMS.txt` contains release file checksums. Versions use `MAJOR.MINOR.PATCH`; the release tag is `v1.1.2`. A version number does not imply every Linux distribution or upstream tool version has been validated.
+`SHA256SUMS.txt` contains release file checksums. Versions use `MAJOR.MINOR.PATCH`; the release tag is `v1.1.3`. A version number does not imply every Linux distribution or upstream tool version has been validated.
 
 Before upgrading, select **退出程序 (Exit)** from the sidebar or tray menu. Closing the window only hides it to the tray. Installers do not include the developer's device settings, API keys, SSH private keys, or account credentials. Each PC needs its own SSH authorization and model authentication.
 

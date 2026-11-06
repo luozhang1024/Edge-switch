@@ -10,7 +10,7 @@ import webbrowser
 import uuid
 import customtkinter as ctk
 
-from workbench.core import Board, DATA, PersistentHarness, Profile, Store, connect_proxy, open_vscode, protect, validate_model_selection, vscode_connection_report
+from workbench.core import Board, DATA, PersistentHarness, Profile, Store, connect_proxy, open_vscode, protect, validate_model_selection, vscode_connection_report, vscode_data_dir
 from workbench.layout import Layout
 from workbench.api_ui import ApiManagement
 from workbench.official_ui import OfficialManagement
@@ -299,11 +299,11 @@ class App(EnvironmentManagement, OfficialManagement, ApiManagement, Layout):
         else:
             self.log('未填写新密钥；若板卡保存了此环境的 Codex 配置，将复用密钥同步插件。')
         self.run('同步并打开 VS Code' if api else '打开 VS Code',
-                 lambda: open_vscode(board, DATA / 'vscode' / board.scope, api=self.routed(board, api) if api else None, proxy=self.proxy_url(board), progress=self.log))
+                 lambda: open_vscode(board, vscode_data_dir(board.scope), api=self.routed(board, api) if api else None, proxy=self.proxy_url(board), progress=self.log))
 
     def vscode_diagnostics(self):
         board = self.board()
-        self.run('VS Code 连接诊断', lambda: vscode_connection_report(DATA / 'vscode' / board.scope),
+        self.run('VS Code 连接诊断', lambda: vscode_connection_report(vscode_data_dir(board.scope)),
                  lambda result: messagebox.showinfo('VS Code 连接诊断', result['message'] +
                     ('\n\n日志时间：' + result['updated'] + '\n日志位置：' + result['log_file'] if result.get('log_file') else '')))
 

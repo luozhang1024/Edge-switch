@@ -26,6 +26,12 @@ NODE_VERSION = '24.11.0'
 CREATE_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 
+def vscode_data_dir(scope):
+    # A distinct user-data directory forces a new editor process to read the
+    # corrected server layout; --reuse-window otherwise keeps the old resolver.
+    return DATA / 'vscode' / (scope + '-layout2')
+
+
 def validate_url(value):
     if any(ord(c) < 32 for c in value):
         raise ValueError('API 地址不能含换行或控制字符')

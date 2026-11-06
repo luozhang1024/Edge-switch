@@ -200,7 +200,7 @@ def api_test(p):
         urllib.request.ProxyHandler({'http': proxy, 'https': proxy} if proxy else {}), NoRedirect())
     url = p['base_url'].rstrip('/')
     headers = {'Authorization': 'Bearer ' + p['key'], 'Content-Type': 'application/json',
-               'Accept': 'application/json', 'User-Agent': 'EdgeSwitch/1.1.2'}
+               'Accept': 'application/json', 'User-Agent': 'EdgeSwitch/1.1.3'}
     data = None
     if p.get('infer'):
         if p['protocol'] == 'responses':
