@@ -3,6 +3,20 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { confirm, open } from "@tauri-apps/plugin-dialog";
 import logo from "../image/EdgeAI.png";
+import environmentIcon from "../image/配置环境.png";
+import modelIcon from "../image/chatgpt-ui.png";
+import proxyIcon from "../image/Flclash.png";
+import toolsIcon from "../image/Tool.png";
+import vscodeIcon from "../image/Vscode.png";
+import deepseekIcon from "../image/deepseek-ui.png";
+import addIcon from "../image/加.png";
+import editIcon from "../image/编辑.png";
+import deleteIcon from "../image/删除.png";
+import activateIcon from "../image/启用.png";
+import testIcon from "../image/测试.png";
+import verifyIcon from "../image/验证.png";
+import connectIcon from "../image/connect.png";
+
 import {
   Connection,
   emptyProfile,
@@ -14,6 +28,74 @@ import {
   Snapshot,
 } from "./types";
 import "./style.css";
+
+const navigation = [
+  {
+    id: "overview",
+    label: "总览与任务",
+    icon: logo,
+    description: "设备、服务与任务，一目了然。",
+  },
+  {
+    id: "connect",
+    label: "工作环境",
+    icon: environmentIcon,
+    description: "为每一台设备，留一个专属工作空间。",
+  },
+  {
+    id: "models",
+    label: "模型服务",
+    icon: modelIcon,
+    description: "管理 API 与官方账号，随时切换所需模型。",
+  },
+  {
+    id: "proxy",
+    label: "代理网络",
+    icon: proxyIcon,
+    description: "让电脑与板卡之间的连接井然有序。",
+  },
+  {
+    id: "tools",
+    label: "AI 工具",
+    icon: toolsIcon,
+    description: "从安装到启动，你的开发工具都在这里。",
+  },
+];
+const actionIcons: Record<string, string> = {
+  diagnose: verifyIcon,
+  setup_ssh: environmentIcon,
+  ssh_console: connectIcon,
+  proxy_start: proxyIcon,
+  disconnect: connectIcon,
+  codex: modelIcon,
+  harness: deepseekIcon,
+  harness_stop: deepseekIcon,
+  vscode: vscodeIcon,
+  api_test: testIcon,
+  official_test: testIcon,
+  sync_api: activateIcon,
+  versions: toolsIcon,
+  install_runtime: toolsIcon,
+  reuse_tools: toolsIcon,
+  vscode_diagnostics: verifyIcon,
+};
+function AssetIcon({
+  src,
+  className = "",
+}: {
+  src: string;
+  className?: string;
+}) {
+  return (
+    <img
+      className={`asset-icon ${src === deepseekIcon ? "wordmark" : ""} ${className}`}
+      src={src}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+    />
+  );
+}
 
 export function App() {
   const [data, setData] = useState<Snapshot | null>(null);
@@ -121,6 +203,7 @@ export function App() {
   }
   const button = (label: string, action: string, payload = {}) => (
     <button disabled={busy} onClick={() => void run(action, payload)}>
+      {actionIcons[action] && <AssetIcon src={actionIcons[action]} />}
       {label}
     </button>
   );
@@ -150,25 +233,24 @@ export function App() {
     <div className="app">
       <aside>
         <div className="brand">
-          <img src={logo} alt="" />
+          <img src={logo} alt="Edge Switch" />
           <b>Edge Switch</b>
         </div>
         <div className="sub">板卡 AI 工作台</div>
-        {[
-          ["overview", "总览与任务"],
-          ["connect", "工作环境"],
-          ["models", "模型服务"],
-          ["proxy", "代理网络"],
-          ["tools", "AI 工具"],
-        ].map(([id, label]) => (
-          <button
-            key={id}
-            className={tab === id ? "nav active" : "nav"}
-            onClick={() => setTab(id)}
-          >
-            {label}
-          </button>
-        ))}
+        <div className="nav-caption">工作空间</div>
+        <nav aria-label="主导航">
+          {navigation.map(({ id, label, icon }) => (
+            <button
+              key={id}
+              className={tab === id ? "nav active" : "nav"}
+              aria-current={tab === id ? "page" : undefined}
+              onClick={() => setTab(id)}
+            >
+              <AssetIcon src={icon} />
+              {label}
+            </button>
+          ))}
+        </nav>
         <div className="sidefoot">
           v{data.version}
           <span>关闭窗口后保留在托盘</span>
@@ -201,18 +283,35 @@ export function App() {
             {current.user}@{current.host}:{current.port}
           </span>
         </header>
-        <div role="status" className="notice">
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">EDGE SWITCH / WORKSPACE</div>
+            <h1>{navigation.find((item) => item.id === tab)?.label}</h1>
+            <p>{navigation.find((item) => item.id === tab)?.description}</p>
+          </div>
+          <span className="environment-badge">{current.name}</span>
+        </div>
+        <div
+          role="status"
+          className={message === "就绪" ? "notice quiet" : "notice"}
+        >
           {message}
         </div>
         {tab === "overview" && (
           <section>
             <div className="hero">
               <div>
-                <div className="eyebrow">REMOTE AI WORKBENCH</div>
-                <h1>连接板卡，开始工作。</h1>
+                <div className="eyebrow">你的远程 AI 工作台</div>
+                <h2>连接板卡，开始工作。</h2>
                 <p>选择环境 → 检查 SSH → 安装工具 → 配置模型</p>
               </div>
               {button("刷新设备", "diagnose")}
+            </div>
+            <div className="quick-launch" aria-label="快速启动">
+              {button("打开 VS Code", "vscode")}
+              {button("打开 Codex", "codex")}
+              {button("打开 Harness 网页", "harness")}
+              {button("打开 SSH 终端", "ssh_console")}
             </div>
             <div className="grid">
               <Card
@@ -245,6 +344,7 @@ export function App() {
             <div className="panelhead">
               <h2>工作环境</h2>
               <button onClick={() => setEditing(emptyProfile())}>
+                <AssetIcon src={addIcon} />
                 添加环境
               </button>
             </div>
@@ -265,6 +365,7 @@ export function App() {
                     disabled={pending || p.id === current.id}
                     onClick={() => void command("select_profile", { id: p.id })}
                   >
+                    <AssetIcon src={activateIcon} />
                     使用
                   </button>
                   <button
@@ -273,6 +374,7 @@ export function App() {
                     )}
                     onClick={() => setEditing({ ...p })}
                   >
+                    <AssetIcon src={editIcon} />
                     编辑
                   </button>
                   <button
@@ -285,6 +387,7 @@ export function App() {
                       )
                     }
                   >
+                    <AssetIcon src={deleteIcon} />
                     删除
                   </button>
                 </div>
@@ -316,6 +419,7 @@ export function App() {
                     });
                   }}
                 >
+                  <AssetIcon src={addIcon} />
                   添加服务
                 </button>
               </div>
@@ -348,6 +452,7 @@ export function App() {
                         })
                       }
                     >
+                      <AssetIcon src={activateIcon} />
                       使用
                     </button>
                     <button
@@ -358,6 +463,7 @@ export function App() {
                         setRemember(data.saved_keys.includes(s.id));
                       }}
                     >
+                      <AssetIcon src={editIcon} />
                       编辑
                     </button>
                     <button
@@ -370,6 +476,7 @@ export function App() {
                         )
                       }
                     >
+                      <AssetIcon src={deleteIcon} />
                       删除
                     </button>
                   </div>
@@ -382,7 +489,7 @@ export function App() {
             </div>
             <div className="panel">
               <h2>
-                OpenAI Official{" "}
+                <AssetIcon src={modelIcon} /> OpenAI Official{" "}
                 {current.codex_auth === "chatgpt" && "· 当前使用"}
               </h2>
               <p>
@@ -402,6 +509,7 @@ export function App() {
                     })
                   }
                 >
+                  <AssetIcon src={modelIcon} />
                   使用官方账号
                 </button>
                 <button
@@ -414,12 +522,14 @@ export function App() {
                     });
                   }}
                 >
+                  <AssetIcon src={editIcon} />
                   编辑 / 导入 auth.json
                 </button>
                 <button
                   disabled={busy || current.codex_auth !== "chatgpt"}
                   onClick={() => void run("login")}
                 >
+                  <AssetIcon src={modelIcon} />
                   设备码登录
                 </button>
                 <button
@@ -432,6 +542,7 @@ export function App() {
                     )
                   }
                 >
+                  <AssetIcon src={deleteIcon} />
                   删除本机账号信息
                 </button>
               </div>
@@ -487,6 +598,7 @@ export function App() {
                 disabled={busy}
                 onClick={() => setEditing({ ...current })}
               >
+                <AssetIcon src={editIcon} />
                 编辑网络设置
               </button>
               {button("连接代理", "proxy_start")}
@@ -553,12 +665,14 @@ export function App() {
                   disabled={busy}
                   onClick={() => void choose("editor_pin")}
                 >
+                  <AssetIcon src={vscodeIcon} />
                   选择并固定 Code.exe
                 </button>
                 <button
                   disabled={busy}
                   onClick={() => void choose("import_server")}
                 >
+                  <AssetIcon src={vscodeIcon} />
                   导入 Server 安装包
                 </button>
                 {button("读取连接诊断", "vscode_diagnostics")}
@@ -924,7 +1038,10 @@ function ToolInstaller({
     <div className="form">
       {["codex", "harness"].map((tool) => (
         <label key={tool}>
-          {tool === "codex" ? "Codex" : "DeepSeek Harness"} 版本
+          <span className="tool-label">
+            <AssetIcon src={tool === "codex" ? modelIcon : deepseekIcon} />
+            {tool === "codex" ? "Codex" : "DeepSeek Harness"} 版本
+          </span>
           <select
             disabled={disabled}
             value={selected[`${profileId}:${tool}`] || ""}
@@ -992,7 +1109,18 @@ function Card({
 }) {
   return (
     <div className="card">
-      <small>{title}</small>
+      <small className="card-label">
+        <AssetIcon
+          src={
+            title === "工程目录"
+              ? environmentIcon
+              : title === "模型服务"
+                ? modelIcon
+                : connectIcon
+          }
+        />
+        {title}
+      </small>
       <strong>{value}</strong>
       <span title={detail}>{detail}</span>
     </div>

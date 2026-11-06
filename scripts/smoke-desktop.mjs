@@ -75,6 +75,26 @@ try {
   expect(
     await page.locator(".brand img").evaluate((img) => img.naturalWidth),
   ).toBeGreaterThan(0);
+  async function checkVisuals(name) {
+    await page.locator("img").evaluateAll(async (images) => {
+      await Promise.all(images.map((img) => img.decode()));
+    });
+    expect(await page.locator("nav .asset-icon").count()).toBe(5);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: join(output, `${name}.png`),
+      fullPage: true,
+    });
+  }
+  await checkVisuals("overview-initial");
+  const originalViewport = page.viewportSize();
+  await page.setViewportSize({ width: 980, height: 660 });
+  await checkVisuals("overview-compact");
+  await page.setViewportSize(originalViewport || { width: 1180, height: 790 });
   let snapshot = await ipc("snapshot");
   const profile = {
     ...snapshot.profiles[0],
@@ -88,7 +108,9 @@ try {
   await expect(
     page.locator(".profile b").filter({ hasText: "桌面冒烟环境" }),
   ).toBeVisible();
+  await checkVisuals("environments");
   await page.getByRole("button", { name: "编辑", exact: true }).click();
+  await checkVisuals("environment-dialog");
   await page.getByLabel("SSH 端口", { exact: true }).fill("2222");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -151,7 +173,7 @@ try {
   });
   expect((await ipc("snapshot")).profiles[0].model).toBe("updated-smoke-model");
   await page.getByRole("button", { name: "刷新", exact: true }).click();
-  await page.screenshot({ path: join(output, "models.png"), fullPage: true });
+  await checkVisuals("models");
   await ipc("delete_service", { profileId: profile.id, serviceId: service.id });
   expect((await ipc("snapshot")).saved_keys).not.toContain(service.id);
   await ipc("save_official", {
@@ -167,14 +189,14 @@ try {
   await expect(
     page.getByRole("button", { name: "打开 VS Code", exact: true }),
   ).toBeVisible();
-  await page.screenshot({ path: join(output, "tools.png"), fullPage: true });
+  await checkVisuals("tools");
   await page.getByRole("button", { name: "代理网络", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "连接代理", exact: true }),
   ).toBeVisible();
-  await page.screenshot({ path: join(output, "proxy.png"), fullPage: true });
+  await checkVisuals("proxy");
   await page.getByRole("button", { name: "总览与任务", exact: true }).click();
-  await page.screenshot({ path: join(output, "overview.png"), fullPage: true });
+  await checkVisuals("overview");
   expect(errors).toEqual([]);
   const stored = JSON.parse(
     await readFile(join(output, "EdgeSSHAI/profiles.json"), "utf8"),
@@ -188,7 +210,8 @@ try {
         ok: true,
         checks: [
           "native startup",
-          "bundled logo",
+          "bundled logo and restored navigation/action icons",
+          "all page images decode and compact layout has no horizontal overflow",
           "environment edit",
           "API CRUD and DPAPI",
           "active API synchronization",
