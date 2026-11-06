@@ -10,7 +10,7 @@
 
 Manage SSH environments, proxies, and model services from Windows. Deploy Codex and DeepSeek Harness on your Linux devices and open your remote workspace from one place.
 
-[![Version](https://img.shields.io/badge/version-2.0.0--alpha.1-blue)](https://github.com/luozhang52/Edge-switch/releases)
+[![Version](https://img.shields.io/badge/version-2.0.0--alpha.2-blue)](https://github.com/luozhang52/Edge-switch/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey)](#requirements)
 [![Built with](https://img.shields.io/badge/built%20with-Tauri%202%20%2B%20Rust%20%2B%20React-3776AB)](#tauri-development-and-builds)
 [![Target](https://img.shields.io/badge/target-Linux%20ARM64%20%7C%20x86__64-34C759)](#requirements)
@@ -22,7 +22,7 @@ Manage SSH environments, proxies, and model services from Windows. Deploy Codex 
 
 </div>
 
-> The main branch is migrating to Tauri 2, Rust, React and TypeScript (2.0.0-alpha.1). The stable release remains [v1.1.3](https://github.com/luozhang52/Edge-switch/releases/tag/v1.1.3). The new desktop has not completed real-board acceptance and has no published Release. See [migration and development notes (Chinese)](docs/tauri-migration.md). Historical screenshots and Python instructions below refer to the legacy desktop.
+> The main branch is migrating to Tauri 2, Rust, React and TypeScript (2.0.0-alpha.2). The stable release remains [v1.1.3](https://github.com/luozhang52/Edge-switch/releases/tag/v1.1.3). The new desktop has not completed real-board acceptance and has no published Release. See [migration and development notes (Chinese)](docs/tauri-migration.md). Historical screenshots and Python instructions below refer to the legacy desktop.
 
 Configure provider APIs separately for Codex, Claude Code, DeepSeek Harness, Gemini CLI, and OpenCode. See [model services](docs/model-services.md) (Chinese).
 
@@ -30,7 +30,7 @@ Configure provider APIs separately for Codex, Claude Code, DeepSeek Harness, Gem
 
 Edge Switch brings device connections, tool installation, network settings, and model authentication into one desktop application. Create work environments for different devices or projects, switch between an official ChatGPT account and custom APIs, and launch VS Code or the Harness web interface.
 
-The current source version is **2.0.0-alpha.1**. The window, tray, and installer use the name **Edge Switch**. The legacy `EdgeSSHAI` configuration directory is retained for upgrade compatibility. The desktop app runs on Windows; AI tools run on the Linux device over SSH. The application UI is currently in Chinese; these documentation pages are available in both languages.
+The current source version is **2.0.0-alpha.2**. The window, tray, and installer use the name **Edge Switch**. The legacy `EdgeSSHAI` configuration directory is retained for upgrade compatibility. The desktop app runs on Windows; AI tools run on the Linux device over SSH. The application UI is currently in Chinese; these documentation pages are available in both languages.
 
 ## Features
 

@@ -8,6 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { App } from "./App";
+import { version } from "../package.json";
 import { emptyProfile, Snapshot } from "./types";
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
@@ -49,7 +50,7 @@ beforeEach(() => {
     official: {},
     saved_keys: [],
     tasks: [],
-    version: "2.0.0-alpha.1",
+    version,
   };
   mocks.invoke.mockImplementation(async (name: string) =>
     name === "snapshot"

@@ -3,6 +3,10 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Push-Location $repo
 try {
     $version = (Get-Content -Raw package.json | ConvertFrom-Json).version
+    $binary = Get-Item -LiteralPath 'src-tauri/target/release/edge-switch.exe'
+    if ($binary.VersionInfo.ProductVersion -ne $version) {
+        throw "Executable version $($binary.VersionInfo.ProductVersion) does not match $version; rebuild before packaging"
+    }
     $output = Join-Path $repo 'dist/tauri'
     $portable = Join-Path $repo ('build/tauri/portable-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force $output | Out-Null
@@ -23,7 +27,9 @@ try {
         Write-Output "Running portable EXE retained; new executable: $standalone"
     }
     Copy-Item -LiteralPath 'image/providers/LICENSE' -Destination (Join-Path $output 'LobeHub-Icons-LICENSE.txt') -Force
-    Get-ChildItem -LiteralPath 'src-tauri/target/release/bundle/nsis' -Filter '*.exe' -File | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $output -Force }
+    $installer = Join-Path $repo "src-tauri/target/release/bundle/nsis/Edge Switch_${version}_x64-setup.exe"
+    if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) { throw "Current-version installer not found: $installer" }
+    Copy-Item -LiteralPath $installer -Destination $output -Force
     $zip = Join-Path $output "EdgeSwitch-$version-Windows-x64.zip"
     for ($attempt = 0; $attempt -lt 8; $attempt++) {
         try {

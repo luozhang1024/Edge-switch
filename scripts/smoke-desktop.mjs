@@ -10,6 +10,9 @@ if (process.platform !== "win32")
 const exe = resolve(
   process.argv[2] || "src-tauri/target/release/edge-switch.exe",
 );
+const { version: expectedVersion } = JSON.parse(
+  await readFile(resolve("package.json"), "utf8"),
+);
 const output = resolve("build/migration", `desktop-${Date.now()}`);
 await mkdir(output, { recursive: true });
 const server = createServer();
@@ -96,6 +99,8 @@ try {
   await checkVisuals("overview-compact");
   await page.setViewportSize(originalViewport || { width: 1180, height: 790 });
   let snapshot = await ipc("snapshot");
+  expect(snapshot.version).toBe(expectedVersion);
+  await expect(page.locator(".sidefoot")).toContainText(`v${expectedVersion}`);
   const profile = {
     ...snapshot.profiles[0],
     name: "桌面冒烟环境",
@@ -265,6 +270,7 @@ try {
     JSON.stringify(
       {
         ok: true,
+        version: expectedVersion,
         checks: [
           "native startup",
           "bundled logo and restored navigation/action icons",
