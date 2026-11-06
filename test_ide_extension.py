@@ -12,7 +12,7 @@ from workbench import remote_agent
 class ExtensionTests(unittest.TestCase):
     def fixture(self, home):
         p = dict(scope='b' * 32, commit='a' * 40)
-        root = home / '.local/share/edge-ssh-ai' / p['scope'] / 'vscode-server'
+        root = home / '.local/share/edge-ssh-ai' / p['scope'] / '.vscode-server'
         server = root / 'bin' / p['commit'] / 'bin/code-server'
         server.parent.mkdir(parents=True)
         server.touch()

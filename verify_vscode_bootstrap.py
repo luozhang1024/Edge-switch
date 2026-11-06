@@ -19,7 +19,7 @@ with tempfile.TemporaryDirectory(prefix='edge-bootstrap-check-') as folder:
     root.mkdir()
     ns['scope']=lambda p: root
     ns['command']=lambda *a,**k: 'node-test'
-    agent=root/'vscode-server'
+    agent=root/'.vscode-server'
     agent.mkdir()
     def archive(bad=False):
         path=agent/(commit+'-'+upload+'.tar.gz')
@@ -43,15 +43,15 @@ with tempfile.TemporaryDirectory(prefix='edge-bootstrap-check-') as folder:
     assert ns['vscode_server'](payload)['ready']
     assert ns['vscode_server'](dict(commit=commit))['ready']
     assert not (root/'escape').exists()
-    server=root/'vscode-server/bin'/commit
+    server=root/'.vscode-server/bin'/commit
     (server/'vscode-remote-lock.owner').write_text('preserve')
-    (root/'vscode-server/auth.json').write_text('do-not-copy')
+    (root/'.vscode-server/auth.json').write_text('do-not-copy')
     colleague=Path(folder)/'colleague'
     ns['scope']=lambda p: colleague
     reused=ns['vscode_server'](dict(commit=commit))
     assert reused['ready'] and reused['reused']
-    assert not (colleague/'vscode-server/auth.json').exists()
-    assert not (colleague/'vscode-server/bin'/commit/'vscode-remote-lock.owner').exists()
+    assert not (colleague/'.vscode-server/auth.json').exists()
+    assert not (colleague/'.vscode-server/bin'/commit/'vscode-remote-lock.owner').exists()
     assert (server/'vscode-remote-lock.owner').read_text()=='preserve'
 print(json.dumps(dict(private_install=True,ready_reuse=True,traversal_rejected=True,bad_hash_rejected=True,existing_board_server_reused_without_auth_or_locks=True)))
 '''.replace('SOURCE', repr(base64.b64encode(source).decode()))

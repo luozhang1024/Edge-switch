@@ -200,7 +200,7 @@ def api_test(p):
         urllib.request.ProxyHandler({'http': proxy, 'https': proxy} if proxy else {}), NoRedirect())
     url = p['base_url'].rstrip('/')
     headers = {'Authorization': 'Bearer ' + p['key'], 'Content-Type': 'application/json',
-               'Accept': 'application/json', 'User-Agent': 'EdgeSwitch/1.1.1'}
+               'Accept': 'application/json', 'User-Agent': 'EdgeSwitch/1.1.2'}
     data = None
     if p.get('infer'):
         if p['protocol'] == 'responses':
@@ -551,7 +551,7 @@ def vscode_server(p):
     commit = p.get('commit', '')
     if not re.fullmatch('[0-9a-f]{40}', commit):
         raise ValueError('Invalid VS Code commit')
-    root = scope(p) / 'vscode-server'
+    root = scope(p) / '.vscode-server'
     dest = root / 'bin' / commit
     required = ('node', 'bin/code-server', 'out/server-main.js', 'product.json')
     def complete(path):
@@ -584,6 +584,7 @@ def vscode_server(p):
         if not ready and not dest.exists() and not dest.is_symlink():
             sources = [Path.home() / '.vscode-server/bin' / commit]
             sources += sorted(root.parent.parent.glob('*/vscode-server/bin/' + commit))
+            sources += sorted(root.parent.parent.glob('*/.vscode-server/bin/' + commit))
             for source in sources:
                 if source == dest or not complete(source):
                     continue
@@ -664,7 +665,7 @@ def prepare_ide(p):
     commit = p.get('commit', '')
     if not re.fullmatch('[a-f0-9]{40}', commit):
         raise ValueError('Invalid VS Code commit')
-    root = scope(p) / 'vscode-server'
+    root = scope(p) / '.vscode-server'
     server = root / 'bin' / commit / 'bin/code-server'
     if not server.is_file():
         raise RuntimeError('此环境 VS Code Server 尚未准备好，无法安装远程扩展')
@@ -684,6 +685,7 @@ def prepare_ide(p):
         if not candidates:
             sources = [Path.home() / '.vscode-server/extensions']
             sources += sorted(root.parent.parent.glob('*/vscode-server/extensions'))
+            sources += sorted(root.parent.parent.glob('*/.vscode-server/extensions'))
             for source in sources:
                 if source == extensions:
                     continue
@@ -733,7 +735,7 @@ def configure_ide(p):
     root = scope(p)
     if p.get('auth_mode') != 'chatgpt':
         p = reuse_credentials(p)
-    extension_root = root / 'vscode-server/extensions' if p.get('private_server') else Path.home() / '.vscode-server/extensions'
+    extension_root = root / '.vscode-server/extensions' if p.get('private_server') else Path.home() / '.vscode-server/extensions'
     candidates = [item[1] for item in ide_candidates(extension_root)]
     if not candidates:
         raise RuntimeError('请先在远程 VS Code 安装 Codex（openai.chatgpt）扩展，再同步配置')

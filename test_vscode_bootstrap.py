@@ -35,7 +35,7 @@ class ServerTests(unittest.TestCase):
     def test_private_install_and_reuse_do_not_touch_shared_server(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            payload = self.archive(root / 'vscode-server')
+            payload = self.archive(root / '.vscode-server')
             with patch('workbench.remote_agent.scope', return_value=root), patch('workbench.remote_agent.command'):
                 self.assertTrue(vscode_server(payload)['ready'])
                 self.assertTrue(vscode_server(dict(commit=COMMIT))['ready'])
@@ -44,7 +44,7 @@ class ServerTests(unittest.TestCase):
     def test_archive_traversal_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            payload = self.archive(root / 'vscode-server', malicious=True)
+            payload = self.archive(root / '.vscode-server', malicious=True)
             with patch('workbench.remote_agent.scope', return_value=root), patch('workbench.remote_agent.command'):
                 with self.assertRaisesRegex(ValueError, 'Unsafe'):
                     vscode_server(payload)
@@ -152,7 +152,7 @@ class ServerTests(unittest.TestCase):
             self.assertTrue(any('--reuse-window' in args for args in calls))
             self.assertFalse(any('openai.chatgpt' in args for args in calls))
             settings = json.loads((Path(folder) / 'User/settings.json').read_text())
-            self.assertEqual(settings['remote.SSH.serverInstallPath'], {'edge-' + 'b' * 32: '/private/server'})
+            self.assertEqual(settings['remote.SSH.serverInstallPath'], {'edge-' + 'b' * 32: '/private'})
             self.assertNotIn('private-key', json.dumps(settings))
 
     def test_unverified_extension_does_not_sync_or_open_window(self):

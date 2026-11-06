@@ -270,7 +270,7 @@ class RemoteTests(unittest.TestCase):
         with patch.object(remote_agent.urllib.request, 'build_opener', return_value=opener):
             remote_agent.api_test(dict(base_url='https://test', key='key'))
         request = opener.open.call_args.args[0]
-        self.assertEqual(request.get_header('User-agent'), 'EdgeSwitch/1.1.1')
+        self.assertEqual(request.get_header('User-agent'), 'EdgeSwitch/1.1.2')
         self.assertEqual(request.get_header('Accept'), 'application/json')
 
     def test_gateway_403_is_distinguished_from_authentication(self):

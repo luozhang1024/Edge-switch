@@ -649,7 +649,8 @@ def open_vscode(board, data_dir, api=None, proxy='', progress=None):
     progress('VS Code：正在准备此环境独立的服务端目录…')
     server = prepare_server(board, commit, DATA / 'downloads/vscode', progress, proxy=proxy)
     local_proxy = 'http://127.0.0.1:' + str(p.proxy_port) if p.proxy else ''
-    changes.update({'remote.SSH.serverInstallPath': {alias: server['path']},
+    # Remote SSH appends '.vscode-server' to this base directory.
+    changes.update({'remote.SSH.serverInstallPath': {alias: str(Path(server['path']).parent).replace('\\', '/')},
                     'remote.SSH.localServerDownload': 'auto',
                     'http.proxy': local_proxy,
                     'remote.SSH.httpProxy': {alias: proxy},
