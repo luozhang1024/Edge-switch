@@ -255,8 +255,23 @@ fn save_service_inner(
         return Err("服务 ID 或名称无效".into());
     }
     store::validate_url(entry["base_url"].as_str().unwrap_or(""))?;
-    if !["responses", "chat"].contains(&entry["protocol"].as_str().unwrap_or("")) {
-        return Err("协议无效".into());
+    let tool = entry["tool"].as_str().unwrap_or("codex");
+    let protocol = entry["protocol"].as_str().unwrap_or("");
+    // Legacy chat records remain editable; activation still enforces Codex Responses.
+    if !(tool == "codex" && protocol == "chat") {
+        store::validate_tool_protocol(tool, protocol)?;
+    }
+    let provider = entry["provider"].as_str().unwrap_or("custom");
+    if !["openai", "deepseek", "anthropic", "google", "custom"].contains(&provider) {
+        return Err("供应商无效".into());
+    }
+    if s.data["services"][&profile_id]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|e| e["id"] == id && e["tool"].as_str().unwrap_or("codex") != tool)
+    {
+        return Err("不能更改已有服务所属工具，请在目标工具下添加服务".into());
     }
     if s.data["services"]
         .as_object()
@@ -270,6 +285,15 @@ fn save_service_inner(
         })
     {
         return Err("服务 ID 已被其他环境使用".into());
+    }
+    if key.as_deref().is_none_or(str::is_empty)
+        && s.data["services"][&profile_id]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|old| old["id"] == id && old["base_url"] != entry["base_url"])
+    {
+        return Err("API 地址已更改，请重新填写该地址对应的 API Key".into());
     }
     let effective_key = match key.filter(|v| !v.is_empty()) {
         Some(key) => Some(key),
@@ -286,7 +310,7 @@ fn save_service_inner(
     } else {
         None
     };
-    let clean = json!({"id":id,"name":entry["name"],"base_url":entry["base_url"],"model":entry["model"],"protocol":entry["protocol"]});
+    let clean = json!({"id":id,"name":entry["name"],"base_url":entry["base_url"],"model":entry["model"],"protocol":entry["protocol"],"tool":tool,"provider":provider});
     let entries = s.data["services"][&profile_id]
         .as_array_mut()
         .ok_or("服务列表损坏")?;
@@ -324,6 +348,7 @@ async fn activate_service(
     state: tauri::State<'_, State>,
     profile_id: String,
     service_id: String,
+    tool: Option<String>,
 ) -> Result<Value, String> {
     let _mutation = state.0.mutation.lock().await;
     if state.0.active.lock().unwrap().contains_key(&profile_id) {
@@ -334,7 +359,14 @@ async fn activate_service(
         let mut live = core.store.lock().unwrap();
         let mut s = live.clone();
         let mut p = s.profile(&profile_id)?;
+        let tool = tool.as_deref().unwrap_or("codex");
+        if !store::TOOLS.contains(&tool) {
+            return Err("工具无效".into());
+        }
         if service_id == "official" {
+            if tool != "codex" {
+                return Err("ChatGPT 官方账号登录仅用于 Codex；其他工具请使用 API Key".into());
+            }
             p.codex_auth = "chatgpt".into();
         } else {
             let entry = s.data["services"][&profile_id]
@@ -343,6 +375,16 @@ async fn activate_service(
                 .iter()
                 .find(|v| v["id"] == service_id)
                 .ok_or("服务不存在")?;
+            if entry["tool"].as_str().unwrap_or("codex") != tool {
+                return Err("服务不属于当前工具".into());
+            }
+            store::validate_tool_protocol(tool, entry["protocol"].as_str().unwrap_or(""))?;
+            if tool != "codex" {
+                p.tool_services.insert(tool.into(), service_id);
+                s.save_profile(p)?;
+                *live = s;
+                return Ok(live.snapshot());
+            }
             p.active_api = service_id;
             p.base_url = entry["base_url"].as_str().unwrap_or("").into();
             p.model = entry["model"].as_str().unwrap_or("").into();
@@ -391,12 +433,13 @@ fn delete_service_inner(
         .as_object_mut()
         .unwrap()
         .remove(&service_id);
+    p.tool_services.retain(|_, id| id != &service_id);
     if p.active_api == service_id {
         p.active_api = String::new();
         p.model = String::new();
         s.save_profile(p)?;
     } else {
-        s.save()?;
+        s.save_profile(p)?;
     }
     core.volatile_keys.lock().unwrap().remove(&service_id);
     *live = s;
@@ -774,5 +817,54 @@ mod tests {
         assert!(status.success());
         drop(lock);
         fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn tool_metadata_and_active_bindings_survive_reload_and_delete() {
+        let core = core();
+        let (pid, codex) = {
+            let s = core.store.lock().unwrap();
+            let pid = s.data["profiles"][0]["id"].as_str().unwrap().to_string();
+            let p = s.profile(&pid).unwrap();
+            (pid, p.active_api)
+        };
+        let sid = store::new_id();
+        let entry = json!({"id":sid,"tool":"harness","provider":"openai","name":"Harness OpenAI","base_url":"https://api.openai.com/v1","model":"test-model","protocol":"responses"});
+        save_service_inner(
+            &core,
+            pid.clone(),
+            entry.clone(),
+            Some("private".into()),
+            false,
+        )
+        .unwrap();
+        {
+            let mut s = core.store.lock().unwrap();
+            let mut p = s.profile(&pid).unwrap();
+            p.tool_services.insert("harness".into(), sid.clone());
+            s.save_profile(p).unwrap();
+            let loaded = store::Store::load(s.directory.clone()).unwrap();
+            assert_eq!(loaded.profile(&pid).unwrap().tool_services["harness"], sid);
+            assert_eq!(
+                loaded.data["services"][&pid]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|e| e["id"] == sid)
+                    .unwrap()["provider"],
+                "openai"
+            );
+        }
+        let mut invalid = entry.clone();
+        invalid["tool"] = json!("claude");
+        assert!(save_service_inner(&core, pid.clone(), invalid, None, false).is_err());
+        let mut new_url = entry;
+        new_url["base_url"] = json!("https://different.example/v1");
+        assert!(save_service_inner(&core, pid.clone(), new_url, None, false).is_err());
+        delete_service_inner(&core, pid.clone(), sid.clone()).unwrap();
+        let s = core.store.lock().unwrap();
+        let p = s.profile(&pid).unwrap();
+        assert!(!p.tool_services.contains_key("harness"));
+        assert_eq!(p.active_api, codex);
+        assert!(!core.volatile_keys.lock().unwrap().contains_key(&sid));
     }
 }

@@ -61,6 +61,9 @@ pub async fn start_task(
         "codex" => "打开 Codex",
         "login" => "登录官方账号",
         "harness" => "打开 Harness",
+        "claude" => "打开 Claude Code",
+        "gemini" => "打开 Gemini CLI",
+        "opencode" => "打开 OpenCode",
         "harness_stop" => "停止 Harness",
         "proxy_start" => "连接代理",
         "disconnect" => "断开本地连接",
@@ -171,6 +174,18 @@ fn redact(core: &Core, p: &Profile, text: &str) -> String {
             result = result.replace(&key, "[已隐藏]");
         }
     }
+    for encrypted in s.data["secrets"]
+        .as_object()
+        .unwrap()
+        .values()
+        .filter_map(Value::as_str)
+    {
+        if let Ok(key) = crate::secrets::unprotect(encrypted) {
+            if !key.is_empty() {
+                result = result.replace(&key, "[已隐藏]");
+            }
+        }
+    }
     for key in core.volatile_keys.lock().unwrap().values() {
         if !key.is_empty() {
             result = result.replace(key, "[已隐藏]");
@@ -226,6 +241,53 @@ pub fn cancel_task(state: tauri::State<'_, State>, task_id: String) -> Result<()
         .ok_or("任务已结束")?;
     stop.send(true).map_err(|_| "任务已结束".into())
 }
+fn tool_profile(core: &Core, p: &Profile, tool: &str) -> Result<Profile, String> {
+    if tool == "codex" {
+        return Ok(p.clone());
+    }
+    if !store::TOOLS.contains(&tool) {
+        return Err("工具无效".into());
+    }
+    let id = p
+        .tool_services
+        .get(tool)
+        .ok_or("请先为当前工具选择模型服务")?;
+    let s = core.store.lock().unwrap();
+    let entry = s.data["services"][&p.id]
+        .as_array()
+        .ok_or("服务列表损坏")?
+        .iter()
+        .find(|e| e["id"] == *id && e["tool"].as_str() == Some(tool))
+        .ok_or("工具的模型服务不存在")?;
+    let mut selected = p.clone();
+    selected.active_api = id.clone();
+    selected.base_url = entry["base_url"].as_str().unwrap_or("").into();
+    selected.model = entry["model"].as_str().unwrap_or("").into();
+    selected.protocol = entry["protocol"].as_str().unwrap_or("").into();
+    selected.codex_auth = "api".into();
+    Ok(selected)
+}
+async fn configure_tool(
+    core: &Core,
+    p: &Profile,
+    scope: &str,
+    tool: &str,
+) -> Result<Value, String> {
+    let selected = tool_profile(core, p, tool)?;
+    if tool == "codex" {
+        return configure(core, &selected, scope, true).await;
+    }
+    store::validate_tool_protocol(tool, &selected.protocol)?;
+    if selected.model.trim().is_empty() {
+        return Err("请填写模型 ID".into());
+    }
+    let mut payload = api(core, &selected).await?;
+    payload["tool"] = json!(tool);
+    payload["project"] = json!(p.project);
+    payload["proxy"] = json!(core.route(p, tool).await?);
+    core.call(p, scope, "configure_tool", payload, 120).await
+}
+
 pub async fn api(core: &Core, p: &Profile) -> Result<Value, String> {
     if p.codex_auth == "chatgpt" {
         return Ok(json!({"auth_mode":"chatgpt"}));
@@ -301,7 +363,7 @@ async fn execute(
         "install_runtime" => crate::editor::install_runtime(&core, app, id, p, scope).await,
         "install_tool" => {
             let tool = v["tool"].as_str().ok_or("请选择工具")?;
-            if !["codex", "harness"].contains(&tool) {
+            if !store::TOOLS.contains(&tool) {
                 return Err("工具无效".into());
             }
             let version = v["version"].as_str().ok_or("请选择版本")?;
@@ -317,7 +379,7 @@ async fn execute(
         }
         "reuse_tools" => {
             let info = core.call(p, scope, "diagnose", json!({}), 60).await?;
-            let tools: Vec<_> = ["codex", "harness"]
+            let tools: Vec<_> = store::TOOLS
                 .into_iter()
                 .filter(|t| {
                     info.get(*t)
@@ -327,14 +389,17 @@ async fn execute(
             core.call(p, scope, "reuse_tools", json!({"tools":tools}), 100)
                 .await
         }
-        "sync_api" => configure(&core, p, scope, true).await,
+        "sync_api" => configure_tool(&core, p, scope, v["tool"].as_str().unwrap_or("codex")).await,
         "api_test" => {
-            let mut api = api(&core, p).await?;
+            let tool = v["tool"].as_str().unwrap_or("codex");
+            let selected = tool_profile(&core, p, tool)?;
+            let mut api = api(&core, &selected).await?;
+            api["tool"] = json!(tool);
             if api["key"].as_str().unwrap_or("").is_empty() {
                 return Err("请先保存此 API 的密钥".into());
             }
             api["infer"] = json!(v["infer"] == true);
-            api["proxy"] = json!(core.route(p, "codex").await?);
+            api["proxy"] = json!(core.route(p, tool).await?);
             core.call(p, scope, "api_test", api, 100).await
         }
         "official_test" => {
@@ -352,6 +417,12 @@ async fn execute(
         "ssh_console" => {
             console(p, None, false).await?;
             Ok(json!({"message":"已打开 SSH 终端"}))
+        }
+        "claude" | "gemini" | "opencode" => {
+            configure_tool(&core, p, scope, action).await?;
+            let command = format!("python3 ~/.local/share/edge-ssh-ai/{scope}/run-{action}.py");
+            console(p, Some(command), false).await?;
+            Ok(json!({"message":"已打开板卡工具终端"}))
         }
         "codex" | "login" => {
             configure(&core, p, scope, false).await?;
@@ -466,6 +537,9 @@ async fn harness(
     p: &Profile,
     scope: &str,
 ) -> Result<Value, String> {
+    if p.tool_services.contains_key("harness") {
+        configure_tool(core, p, scope, "harness").await?;
+    }
     let mut info = core
         .call(
             p,
@@ -607,5 +681,43 @@ mod tests {
         assert!(!text.contains("session-secret"));
         assert!(!text.contains("token-value"));
         assert!(!text.contains("api-value"));
+    }
+    #[test]
+    fn selected_tool_uses_its_own_service_and_key() {
+        let core = crate::tests::core();
+        let (p, sid) = {
+            let mut s = core.store.lock().unwrap();
+            let mut p = s
+                .profile(s.data["profiles"][0]["id"].as_str().unwrap())
+                .unwrap();
+            let sid = store::new_id();
+            s.data["services"][&p.id].as_array_mut().unwrap().push(json!({"id":sid,"tool":"harness","base_url":"https://api.openai.com/v1","model":"harness-model","protocol":"chat"}));
+            p.tool_services.insert("harness".into(), sid.clone());
+            s.save_profile(p.clone()).unwrap();
+            (p, sid)
+        };
+        let selected = tool_profile(&core, &p, "harness").unwrap();
+        assert_eq!(selected.active_api, sid);
+        assert_eq!(selected.model, "harness-model");
+        assert_eq!(selected.protocol, "chat");
+        assert_ne!(selected.active_api, p.active_api);
+        assert_eq!(tool_profile(&core, &p, "codex").unwrap().model, p.model);
+        assert!(tool_profile(&core, &p, "claude").is_err());
+        let mut foreign = p.clone();
+        foreign.tool_services.insert("claude".into(), sid);
+        assert!(tool_profile(&core, &foreign, "claude").is_err());
+    }
+    #[cfg(windows)]
+    #[test]
+    fn saved_other_tool_key_is_redacted_without_being_loaded() {
+        let core = crate::tests::core();
+        let p = {
+            let mut s = core.store.lock().unwrap();
+            s.data["secrets"][store::new_id()] =
+                json!(crate::secrets::protect("other-tool-secret").unwrap());
+            s.profile(s.data["profiles"][0]["id"].as_str().unwrap())
+                .unwrap()
+        };
+        assert!(!redact(&core, &p, "failure other-tool-secret").contains("other-tool-secret"));
     }
 }

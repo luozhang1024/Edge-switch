@@ -111,7 +111,7 @@ describe("桌面工作流", () => {
       expect(mocks.invoke).toHaveBeenCalledWith("start_task", {
         profileId: data.selected_profile,
         action: "api_test",
-        payload: { infer: true },
+        payload: { infer: true, tool: "codex" },
       }),
     );
     await waitFor(() =>
@@ -124,7 +124,7 @@ describe("桌面工作流", () => {
     await waitFor(() =>
       expect(mocks.invoke).toHaveBeenCalledWith(
         "start_task",
-        expect.objectContaining({ payload: { infer: false } }),
+        expect.objectContaining({ payload: { infer: false, tool: "codex" } }),
       ),
     );
     expect(mocks.confirm).not.toHaveBeenCalled();
@@ -174,5 +174,86 @@ describe("桌面工作流", () => {
         taskId: "task-1",
       }),
     );
+  });
+  it("工具标签隔离 API 列表，Harness 同步携带工具标识", async () => {
+    const id = "c".repeat(32);
+    data.services[data.selected_profile].push({
+      id,
+      tool: "harness",
+      provider: "openai",
+      name: "Harness OpenAI",
+      base_url: "https://api.openai.com/v1",
+      model: "test-harness-model",
+      protocol: "responses",
+    });
+    data.profiles[0].tool_services = { harness: id };
+    await models();
+    expect(screen.getAllByRole("tab")).toHaveLength(5);
+    expect(screen.queryByText("Harness OpenAI", { selector: "b" })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "DeepSeek Harness" }));
+    expect(screen.getByText("Harness OpenAI", { selector: "b" })).toBeTruthy();
+    expect(screen.queryByText("测试 API", { selector: "b" })).toBeNull();
+    expect(screen.queryByText("使用官方账号")).toBeNull();
+    fireEvent.click(screen.getByText("同步到板卡", { selector: "button" }));
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith("start_task", {
+        profileId: data.selected_profile,
+        action: "sync_api",
+        payload: { tool: "harness" },
+      }),
+    );
+  });
+  it("Codex 选择 DeepSeek 时要求 Responses 网关，不预填不兼容原生接口", async () => {
+    await models();
+    fireEvent.click(screen.getByText("添加服务", { selector: "button" }));
+    fireEvent.change(screen.getByLabelText("模型供应商"), {
+      target: { value: "deepseek" },
+    });
+    expect(
+      (screen.getByLabelText("HTTPS API 地址") as HTMLInputElement).value,
+    ).toBe("");
+    expect((screen.getByLabelText("协议") as HTMLSelectElement).value).toBe(
+      "responses",
+    );
+    expect(screen.getByText(/所选供应商的原生协议不兼容/)).toBeTruthy();
+  });
+  it("Harness 可保存 OpenAI API，记录工具与供应商", async () => {
+    await models();
+    fireEvent.click(screen.getByRole("tab", { name: "DeepSeek Harness" }));
+    fireEvent.click(screen.getByText("添加服务", { selector: "button" }));
+    fireEvent.change(screen.getByLabelText("模型供应商"), {
+      target: { value: "openai" },
+    });
+    fireEvent.change(screen.getByLabelText("模型 ID"), {
+      target: { value: "test-model" },
+    });
+    fireEvent.submit(screen.getByText("保存服务").closest("form")!);
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith(
+        "save_service",
+        expect.objectContaining({
+          entry: expect.objectContaining({
+            tool: "harness",
+            provider: "openai",
+            protocol: "responses",
+            base_url: "https://api.openai.com/v1",
+          }),
+        }),
+      ),
+    );
+  });
+  it("Claude 和 Gemini 添加服务使用各自的原生协议", async () => {
+    await models();
+    for (const [name, protocol] of [
+      ["Claude Code", "anthropic"],
+      ["Gemini CLI", "gemini"],
+    ]) {
+      fireEvent.click(screen.getByRole("tab", { name }));
+      fireEvent.click(screen.getByText("添加服务", { selector: "button" }));
+      expect((screen.getByLabelText("协议") as HTMLSelectElement).value).toBe(
+        protocol,
+      );
+      fireEvent.click(screen.getByText("取消", { selector: "button" }));
+    }
   });
 });

@@ -28,6 +28,15 @@ import {
   Snapshot,
 } from "./types";
 import "./style.css";
+import { ModelServices } from "./ModelServices";
+import {
+  providers,
+  protocolNames,
+  serviceTemplate,
+  tools,
+  detectProvider,
+} from "./catalog";
+import { ToolId } from "./types";
 
 const navigation = [
   {
@@ -103,6 +112,7 @@ export function App() {
     {},
   );
   const [tab, setTab] = useState("overview");
+  const [modelTool, setModelTool] = useState<ToolId>("codex");
   const [editing, setEditing] = useState<Profile | null>(null);
   const [service, setService] = useState<Service | null>(null);
   const [official, setOfficial] = useState<Official | null>(null);
@@ -401,179 +411,25 @@ export function App() {
           </section>
         )}
         {tab === "models" && (
-          <section>
-            <div className="panel">
-              <div className="panelhead">
-                <h2>API 服务</h2>
-                <button
-                  disabled={busy}
-                  onClick={() => {
-                    setKey("");
-                    setRemember(false);
-                    setService({
-                      id: newId(),
-                      name: "",
-                      base_url: "https://api.openai.com/v1",
-                      model: "",
-                      protocol: "responses",
-                    });
-                  }}
-                >
-                  <AssetIcon src={addIcon} />
-                  添加服务
-                </button>
-              </div>
-              {(data.services[current.id] || []).map((s) => (
-                <div className="profile" key={s.id}>
-                  <div>
-                    <b>
-                      {s.name}{" "}
-                      {current.codex_auth === "api" &&
-                        current.active_api === s.id &&
-                        "· 当前使用"}
-                    </b>
-                    <p>
-                      {s.model || "未设置模型"} · {s.protocol}
-                    </p>
-                    <small>
-                      {s.base_url} ·{" "}
-                      {data.saved_keys.includes(s.id)
-                        ? "已加密保存密钥"
-                        : "未持久保存密钥"}
-                    </small>
-                  </div>
-                  <div className="buttons">
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void command("activate_service", {
-                          profileId: current.id,
-                          serviceId: s.id,
-                        })
-                      }
-                    >
-                      <AssetIcon src={activateIcon} />
-                      使用
-                    </button>
-                    <button
-                      disabled={busy}
-                      onClick={() => {
-                        setService({ ...s });
-                        setKey("");
-                        setRemember(data.saved_keys.includes(s.id));
-                      }}
-                    >
-                      <AssetIcon src={editIcon} />
-                      编辑
-                    </button>
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void remove(
-                          "delete_service",
-                          { profileId: current.id, serviceId: s.id },
-                          `删除服务「${s.name}」及其本地密钥？`,
-                        )
-                      }
-                    >
-                      <AssetIcon src={deleteIcon} />
-                      删除
-                    </button>
-                  </div>
-                </div>
-              ))}
-              <p>
-                密钥留空保留已有值。取消加密保存后仅在本次进程中使用。Codex 需要
-                Responses 协议和模型 ID。
-              </p>
-            </div>
-            <div className="panel">
-              <h2>
-                <AssetIcon src={modelIcon} /> OpenAI Official{" "}
-                {current.codex_auth === "chatgpt" && "· 当前使用"}
-              </h2>
-              <p>
-                {data.official[current.id]?.name || "官方 ChatGPT 账号"} ·{" "}
-                {data.official[current.id]?.has_credentials
-                  ? "已保存导入凭据"
-                  : "可在板卡终端登录"}
-              </p>
-              <p>{data.official[current.id]?.note}</p>
-              <div className="buttons">
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void command("activate_service", {
-                      profileId: current.id,
-                      serviceId: "official",
-                    })
-                  }
-                >
-                  <AssetIcon src={modelIcon} />
-                  使用官方账号
-                </button>
-                <button
-                  disabled={busy}
-                  onClick={() => {
-                    setAuthPath("");
-                    setOfficial({
-                      name: "OpenAI Official",
-                      ...data.official[current.id],
-                    });
-                  }}
-                >
-                  <AssetIcon src={editIcon} />
-                  编辑 / 导入 auth.json
-                </button>
-                <button
-                  disabled={busy || current.codex_auth !== "chatgpt"}
-                  onClick={() => void run("login")}
-                >
-                  <AssetIcon src={modelIcon} />
-                  设备码登录
-                </button>
-                <button
-                  disabled={busy || !data.official[current.id]}
-                  onClick={() =>
-                    void remove(
-                      "delete_official",
-                      { profileId: current.id },
-                      "删除本机保存的官方账号信息和导入凭据？板卡上已有登录状态保留。",
-                    )
-                  }
-                >
-                  <AssetIcon src={deleteIcon} />
-                  删除本机账号信息
-                </button>
-              </div>
-            </div>
-            <div className="panel">
-              <h2>验证当前服务</h2>
-              <p>
-                保存和切换仅更新本地配置，点击同步才写入板卡。当前：
-                {current.codex_auth === "chatgpt"
-                  ? "OpenAI Official"
-                  : current.model || "未配置模型"}
-              </p>
-              <div className="buttons">
-                {button("同步到板卡", "sync_api")}
-                {button(
-                  "连通性检查",
-                  current.codex_auth === "chatgpt"
-                    ? "official_test"
-                    : "api_test",
-                  { infer: false },
-                )}
-                {button(
-                  "推理验证（消耗额度）",
-                  current.codex_auth === "chatgpt"
-                    ? "official_test"
-                    : "api_test",
-                  { infer: true },
-                )}
-              </div>
-            </div>
-          </section>
+          <ModelServices
+            data={data}
+            current={current}
+            tool={modelTool}
+            busy={busy}
+            onTool={setModelTool}
+            command={command}
+            run={run}
+            remove={remove}
+            onEdit={(entry) => {
+              setService(entry);
+              setKey("");
+              setRemember(data.saved_keys.includes(entry.id));
+            }}
+            onOfficial={(entry) => {
+              setAuthPath("");
+              setOfficial(entry);
+            }}
+          />
         )}
         {tab === "proxy" && (
           <section className="panel">
@@ -884,6 +740,36 @@ export function App() {
             }}
           >
             <div className="form">
+              <label className="wide">
+                模型供应商
+                <select
+                  aria-label="模型供应商"
+                  value={detectProvider(service).id}
+                  onChange={(e) => {
+                    const preset = serviceTemplate(
+                      service.tool || "codex",
+                      e.target.value as NonNullable<Service["provider"]>,
+                    );
+                    setService({ ...preset, id: service.id });
+                  }}
+                >
+                  {providers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="wide provider-help">
+                此服务用于{" "}
+                {tools.find((t) => t.id === (service.tool || "codex"))?.name}。
+                {tools.find((t) => t.id === (service.tool || "codex"))?.hint}
+                {service.provider !== "custom" &&
+                  !service.base_url &&
+                  "所选供应商的原生协议不兼容，请填写兼容网关地址。"}
+                API Key 留空保留已有值；更换供应商时请填写对应密钥。
+              </p>
+
               {(["name", "base_url", "model"] as const).map((field, i) => (
                 <label key={field}>
                   {["服务名称", "HTTPS API 地址", "模型 ID"][i]}
@@ -904,8 +790,20 @@ export function App() {
                     setService({ ...service, protocol: e.target.value })
                   }
                 >
-                  <option value="responses">Responses</option>
-                  <option value="chat">Chat Completions</option>
+                  {(
+                    tools.find((t) => t.id === (service.tool || "codex"))
+                      ?.protocols || []
+                  ).map((protocol) => (
+                    <option key={protocol} value={protocol}>
+                      {protocolNames[protocol]}
+                    </option>
+                  ))}
+                  {(service.tool || "codex") === "codex" &&
+                    service.protocol === "chat" && (
+                      <option value="chat">
+                        Chat Completions（旧配置，请改用 Responses 网关）
+                      </option>
+                    )}
                 </select>
               </label>
               <label className="wide">
@@ -1036,11 +934,11 @@ function ToolInstaller({
     Record<string, { versions: string[] }> | undefined;
   return (
     <div className="form">
-      {["codex", "harness"].map((tool) => (
+      {tools.map(({ id: tool, name, icon }) => (
         <label key={tool}>
           <span className="tool-label">
-            <AssetIcon src={tool === "codex" ? modelIcon : deepseekIcon} />
-            {tool === "codex" ? "Codex" : "DeepSeek Harness"} 版本
+            <AssetIcon src={icon} />
+            {name} 版本
           </span>
           <select
             disabled={disabled}

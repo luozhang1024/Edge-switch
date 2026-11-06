@@ -185,6 +185,63 @@ try {
   expect((await ipc("snapshot")).official[profile.id].name).toBe("冒烟账号");
   await ipc("delete_official", { profileId: profile.id });
   expect((await ipc("snapshot")).official[profile.id]).toBeUndefined();
+  const codexBefore = (await ipc("snapshot")).profiles[0];
+  const toolServices = [];
+  for (const [tool, name, provider] of [
+    ["claude", "Claude Code", "anthropic"],
+    ["harness", "DeepSeek Harness", "openai"],
+    ["gemini", "Gemini CLI", "google"],
+    ["opencode", "OpenCode", "deepseek"],
+  ]) {
+    await page.getByRole("tab", { name, exact: true }).click();
+    await page.getByRole("button", { name: "添加服务", exact: true }).click();
+    await page.getByLabel("模型供应商", { exact: true }).selectOption(provider);
+    await page.getByLabel("服务名称", { exact: true }).fill(`smoke-${tool}`);
+    await page.getByLabel("模型 ID", { exact: true }).fill(`model-${tool}`);
+    await page
+      .getByLabel("API Key（留空保留已有值）")
+      .fill("smoke-only-not-a-real-key");
+    await page.getByLabel("使用 Windows DPAPI 加密保存").check();
+    await page.getByRole("button", { name: "保存服务", exact: true }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.locator(".service-info b")).toHaveText([`smoke-${tool}`]);
+    await page.getByRole("button", { name: "使用", exact: true }).click();
+    await expect(page.locator(".service-card .active-badge")).toHaveText(
+      "当前使用",
+    );
+    const state = await ipc("snapshot");
+    const entry = state.services[profile.id].find(
+      (s) => s.name === `smoke-${tool}`,
+    );
+    expect(entry.tool).toBe(tool);
+    expect(entry.provider).toBe(provider);
+    expect(state.profiles[0].tool_services[tool]).toBe(entry.id);
+    expect(state.profiles[0].active_api).toBe(codexBefore.active_api);
+    expect(state.profiles[0].codex_auth).toBe(codexBefore.codex_auth);
+    expect(JSON.stringify(state)).not.toContain("smoke-only-not-a-real-key");
+    toolServices.push(entry);
+    await checkVisuals(`models-${tool}`);
+  }
+  await page.setViewportSize({ width: 980, height: 660 });
+  await checkVisuals("models-compact");
+  await page.setViewportSize({ width: 1180, height: 790 });
+  await page.reload();
+  await page.getByRole("button", { name: "模型服务", exact: true }).click();
+  await page
+    .getByRole("tab", { name: "DeepSeek Harness", exact: true })
+    .click();
+  await expect(page.locator(".service-info b")).toHaveText(["smoke-harness"]);
+  await expect(page.locator(".service-card .active-badge")).toHaveText(
+    "当前使用",
+  );
+  const deletedTool = toolServices.find((s) => s.tool === "opencode");
+  await ipc("delete_service", {
+    profileId: profile.id,
+    serviceId: deletedTool.id,
+  });
+  expect(
+    (await ipc("snapshot")).profiles[0].tool_services.opencode,
+  ).toBeUndefined();
   await page.getByRole("button", { name: "AI 工具", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "打开 VS Code", exact: true }),
@@ -218,6 +275,7 @@ try {
           "busy mutation rejected",
           "task cancellation",
           "tools and proxy pages",
+          "five tool tabs, isolated service activation, provider metadata and persistent bindings",
         ],
         javascriptErrors: errors,
       },

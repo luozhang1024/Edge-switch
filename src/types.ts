@@ -10,6 +10,7 @@
   model: string;
   protocol: string;
   codex_auth: string;
+  tool_services?: Partial<Record<ToolId, string>>;
   proxy: boolean;
   codex_proxy: boolean | null;
   harness_proxy: boolean | null;
@@ -19,7 +20,12 @@
   codex_version: string;
   harness_version: string;
 };
+export type ToolId = "codex" | "claude" | "harness" | "gemini" | "opencode";
+export type ProviderId =
+  "openai" | "deepseek" | "anthropic" | "google" | "custom";
 export type Service = {
+  tool?: ToolId;
+  provider?: ProviderId;
   id: string;
   name: string;
   base_url: string;

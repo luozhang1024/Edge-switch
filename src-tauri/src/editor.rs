@@ -126,6 +126,9 @@ pub async fn versions(p: &Profile) -> Result<Value, String> {
     for (tool, package) in [
         ("codex", "@openai%2Fcodex"),
         ("harness", "@deepseek-ai%2Fdsh"),
+        ("claude", "@anthropic-ai%2Fclaude-code"),
+        ("gemini", "@google%2Fgemini-cli"),
+        ("opencode", "opencode-ai"),
     ] {
         let data: Value = c
             .get(format!("https://registry.npmjs.org/{package}"))

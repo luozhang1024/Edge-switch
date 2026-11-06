@@ -138,7 +138,17 @@ def serve(root):
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *args: stopped.set())
     try:
-        child = subprocess.Popen([binary, 'web', '--host', '127.0.0.1', '--port', str(config['port']),
+        args = [binary]
+        model_path = root / 'harness-api.json'
+        if model_path.is_file():
+            model = json.loads(model_path.read_text())
+            for name in list(env):
+                if any(part in name.upper() for part in ('API_KEY', 'ACCESS_TOKEN', 'AUTH_TOKEN')):
+                    env.pop(name, None)
+            env['EDGE_MODEL_API_KEY'] = model['key']
+            args += ['--patch', str(root / 'harness-provider.patch.yml')]
+        env['DSH_TELEMETRY_DISABLED'] = '1'
+        child = subprocess.Popen(args + ['web', '--host', '127.0.0.1', '--port', str(config['port']),
                                   '--trusted-host', '127.0.0.1:' + str(config['local_port']), '--no-open'],
                                  env=env, cwd=config['project'], stdin=subprocess.DEVNULL,
                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT,

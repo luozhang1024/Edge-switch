@@ -24,6 +24,8 @@ Manage SSH environments, proxies, and model services from Windows. Deploy Codex 
 
 > The main branch is migrating to Tauri 2, Rust, React and TypeScript (2.0.0-alpha.1). The stable release remains [v1.1.3](https://github.com/luozhang52/Edge-switch/releases/tag/v1.1.3). The new desktop has not completed real-board acceptance and has no published Release. See [migration and development notes (Chinese)](docs/tauri-migration.md). Historical screenshots and Python instructions below refer to the legacy desktop.
 
+Configure provider APIs separately for Codex, Claude Code, DeepSeek Harness, Gemini CLI, and OpenCode. See [model services](docs/model-services.md) (Chinese).
+
 ## Overview
 
 Edge Switch brings device connections, tool installation, network settings, and model authentication into one desktop application. Create work environments for different devices or projects, switch between an official ChatGPT account and custom APIs, and launch VS Code or the Harness web interface.

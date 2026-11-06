@@ -30,6 +30,7 @@ pub struct Profile {
     pub harness_version: String,
     pub active_api: String,
     pub codex_auth: String,
+    pub tool_services: std::collections::HashMap<String, String>,
     #[serde(flatten)]
     pub extra: serde_json::Map<String, Value>,
 }
@@ -56,6 +57,7 @@ impl Default for Profile {
             harness_version: String::new(),
             active_api: String::new(),
             codex_auth: "api".into(),
+            tool_services: Default::default(),
             extra: Default::default(),
         }
     }
@@ -83,6 +85,23 @@ pub fn validate_url(value: &str) -> Result<(), String> {
         return Err("API 地址需要 HTTPS，不能含账号、查询参数或片段".into());
     }
     Ok(())
+}
+
+pub const TOOLS: [&str; 5] = ["codex", "claude", "harness", "gemini", "opencode"];
+pub fn validate_tool_protocol(tool: &str, protocol: &str) -> Result<(), String> {
+    let supported = match tool {
+        "codex" => protocol == "responses",
+        "claude" => protocol == "anthropic",
+        "gemini" => protocol == "gemini",
+        "harness" => ["responses", "chat", "anthropic"].contains(&protocol),
+        "opencode" => ["responses", "chat", "anthropic", "gemini"].contains(&protocol),
+        _ => return Err("工具无效".into()),
+    };
+    if supported {
+        Ok(())
+    } else {
+        Err("所选工具不支持此 API 协议，请选择兼容接口或网关".into())
+    }
 }
 
 impl Profile {

@@ -15,9 +15,19 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import urllib.parse
 
 
 PROXIES = ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy')
+
+
+TOOL_PACKAGES = {
+    'codex': ('@openai/codex', 'codex'),
+    'harness': ('@deepseek-ai/dsh', 'dsh'),
+    'claude': ('@anthropic-ai/claude-code', 'claude'),
+    'gemini': ('@google/gemini-cli', 'gemini'),
+    'opencode': ('opencode-ai', 'opencode'),
+}
 
 
 def clean_env(proxy=''):
@@ -74,7 +84,7 @@ def discover_tools(root):
         runtime = next((x for x in sorted(shared.glob('*/runtime'))
                         if (x / 'bin/node').is_file()), None)
     tools = {}
-    for tool, executable in (('codex', 'codex'), ('harness', 'dsh')):
+    for tool, (_, executable) in TOOL_PACKAGES.items():
         candidates = [root / 'tools' / tool / 'current.json']
         candidates += sorted(shared.glob('*/tools/' + tool + '/current.json'))
         found = None
@@ -102,7 +112,7 @@ def reuse_tools(p):
     root = scope(p)
     inventory = discover_tools(root)
     required = p.get('tools', ['codex', 'harness'])
-    if any(t not in ('codex', 'harness') for t in required):
+    if any(t not in TOOL_PACKAGES for t in required):
         raise ValueError('无效的工具名称')
     if not (root / 'runtime/bin/node').is_file():
         if not inventory['runtime']:
@@ -147,7 +157,8 @@ def diagnose(p):
     node = str(runtime) if runtime.exists() else (
         str(Path(inventory['runtime']) / 'bin/node') if inventory['runtime'] else shutil.which('node'))
     version = command([node, '--version']) if node else '未安装'
-    return dict(user=command(['id', '-un']), home=str(home), arch=platform.machine(),
+    return dict(claude=bool(inventory['tools']['claude']), gemini=bool(inventory['tools']['gemini']),
+                opencode=bool(inventory['tools']['opencode']), user=command(['id', '-un']), home=str(home), arch=platform.machine(),
                 libc=' '.join(platform.libc_ver()), memory_mb=mem,
                 disk_free_mb=shutil.disk_usage(str(home)).free // 1024**2,
                 node=version, managed_runtime=runtime.exists(),
@@ -190,7 +201,7 @@ def harness_stop(p):
 
 def api_test(p):
     if p.get('reuse'):
-        p = reuse_credentials(p)
+        p = tool_credentials(p) if p.get('tool', 'codex') != 'codex' else reuse_credentials(p)
     # No environment proxies or redirects; report only bounded, redacted API errors.
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *args, **kwargs):
@@ -201,11 +212,31 @@ def api_test(p):
     url = p['base_url'].rstrip('/')
     headers = {'Authorization': 'Bearer ' + p['key'], 'Content-Type': 'application/json',
                'Accept': 'application/json', 'User-Agent': 'EdgeSwitch/1.1.3'}
+    protocol = p['protocol']
+    if protocol not in ('responses', 'chat', 'anthropic', 'gemini'):
+        raise ValueError('不支持的 API 协议')
+    if protocol == 'anthropic':
+        headers.pop('Authorization')
+        headers.update({'x-api-key': p['key'], 'anthropic-version': '2023-06-01'})
+        if not url.endswith('/v1'):
+            url += '/v1'
+    elif protocol == 'gemini':
+        headers.pop('Authorization')
+        headers['x-goog-api-key'] = p['key']
     data = None
     if p.get('infer'):
-        if p['protocol'] == 'responses':
+        if not str(p.get('model', '')).strip():
+            raise ValueError('请填写模型 ID')
+        if protocol == 'responses':
             url += '/responses'
             data = dict(model=p['model'], input='Reply with OK.', max_output_tokens=64)
+        elif protocol == 'anthropic':
+            url += '/messages'
+            data = dict(model=p['model'], messages=[dict(role='user', content='Reply with OK.')], max_tokens=64)
+        elif protocol == 'gemini':
+            model = urllib.parse.quote(re.sub('^models/', '', p['model']), safe='')
+            url += '/models/' + model + ':generateContent'
+            data = dict(contents=[dict(parts=[dict(text='Reply with OK.')])], generationConfig=dict(maxOutputTokens=64))
         else:
             url += '/chat/completions'
             data = dict(model=p['model'], messages=[dict(role='user', content='Reply with OK.')], max_tokens=64)
@@ -226,6 +257,12 @@ def api_test(p):
                         isinstance(part, dict) and part.get('type') == 'output_text' and bool(part.get('text'))
                         for part in item['content'])
                     for item in output)
+            elif protocol == 'anthropic':
+                ok = any(isinstance(item, dict) and item.get('type') == 'text' and bool(item.get('text'))
+                         for item in value.get('content', []))
+            elif protocol == 'gemini':
+                ok = any(isinstance(item, dict) and any(isinstance(part, dict) and bool(part.get('text'))
+                         for part in item.get('content', {}).get('parts', [])) for item in value.get('candidates', []))
             else:
                 choices = value.get('choices', [])
                 message = choices[0].get('message', {}) if isinstance(choices, list) and choices and isinstance(choices[0], dict) else {}
@@ -233,10 +270,11 @@ def api_test(p):
             if not ok:
                 return dict(ok=False, message='HTTP 成功，但未得到所选协议的完整文本回答；请检查协议或输出额度')
             return dict(ok=True, message='最小推理成功；尚未验证流式响应与工具调用')
-        models = value.get('data')
+        models = value.get('models') if protocol == 'gemini' else value.get('data')
         if not isinstance(models, list):
             return dict(ok=False, message='模型列表格式不兼容；可手填模型并测试推理')
-        ids = [str(x['id']) for x in models if isinstance(x, dict) and 'id' in x]
+        field = 'name' if protocol == 'gemini' else 'id'
+        ids = [re.sub('^models/', '', str(x[field])) for x in models if isinstance(x, dict) and field in x]
         return dict(ok=True, message='模型列表读取成功；尚未验证推理', models=ids[:1000], truncated=len(ids) > 1000)
     except urllib.error.HTTPError as exc:
         meaning = {401: '凭据无效', 403: '访问被拒绝', 404: '地址或接口不存在',
@@ -327,7 +365,7 @@ def tool_env(p, root):
 def install_tool(p):
     root = scope(p)
     tool = p['tool']
-    package = {'codex': '@openai/codex', 'harness': '@deepseek-ai/dsh'}[tool]
+    package, binary_name = TOOL_PACKAGES[tool]
     version = p['version']
     if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?', version):
         raise ValueError('需要明确的 npm 版本号，例如 1.2.3')
@@ -340,7 +378,6 @@ def install_tool(p):
         raise RuntimeError('可用空间不足 1.5 GB')
     dest = root / 'tools' / tool / version
     env = tool_env(p, root)
-    binary_name = 'codex' if tool == 'codex' else 'dsh'
     if dest.exists():
         binary = dest / 'node_modules/.bin' / binary_name
         result = command([str(binary), '--version'], env, timeout=60)
@@ -862,11 +899,135 @@ os.execvpe(tool['binary'], [tool['binary']] + sys.argv[1:], env)
 '''
 
 
+def tool_credentials(p):
+    """Reuse only this tool's previously synchronized service; never another tool's key."""
+    tool = p.get('tool')
+    if tool not in ('claude', 'gemini', 'opencode', 'harness'):
+        raise ValueError('工具无效')
+    path = scope(p) / (tool + '-api.json')
+    if not path.is_file():
+        raise ValueError('请填写此工具服务的 API Key 后再同步')
+    saved = json.loads(path.read_text())
+    if not p.get('service_id') or saved.get('service_id') != p['service_id']:
+        raise ValueError('此服务尚未同步密钥，不能复用其他服务的凭据')
+    if not saved.get('key'):
+        raise ValueError('此服务尚未保存密钥')
+    return dict(p, key=saved['key'], reuse=False)
+
+
+def configure_tool(p):
+    """Write tool-specific private configuration; no model request or shared-home mutation."""
+    tool = p.get('tool')
+    protocols = {'claude': ('anthropic',), 'gemini': ('gemini',),
+                 'opencode': ('chat', 'responses', 'anthropic', 'gemini'),
+                 'harness': ('chat', 'responses', 'anthropic')}
+    if tool not in protocols or p.get('protocol') not in protocols[tool]:
+        raise ValueError('所选工具不支持此 API 协议')
+    if not str(p.get('model', '')).strip():
+        raise ValueError('请填写模型 ID')
+    parsed = urllib.parse.urlparse(p.get('base_url', ''))
+    if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ValueError('API 地址需要不含账号或参数的 HTTPS URL')
+    if p.get('reuse'):
+        p = tool_credentials(p)
+    if not p.get('key') or any(c in p['key'] for c in '\r\n'):
+        raise ValueError('请填写有效 API Key')
+    if not Path(p['project']).is_dir():
+        raise ValueError('工程目录不存在')
+    root = scope(p)
+    if not (root / 'tools' / tool / 'current.json').is_file():
+        reuse_tools(dict(p, tools=[tool]))
+    value = {k: p[k] for k in ('service_id', 'base_url', 'model', 'protocol', 'key', 'project')}
+    value['proxy'] = p.get('proxy', '')
+    path = root / (tool + '-api.json')
+    if tool == 'harness' and service_module().status(root).get('running'):
+        if path.is_file() and json.loads(path.read_text()) == value:
+            return dict(message='Harness 配置未变化，保留当前后台服务')
+        raise ValueError('Harness 正在运行；请先停止，再同步新的模型服务，避免中断任务')
+    if tool == 'harness':
+        current = json.loads((root / 'tools/harness/current.json').read_text())
+        installed = current.get('version', '')
+        match = re.search(r'(\d+)\.(\d+)\.(\d+)', installed)
+        if not match or tuple(map(int, match.groups())) < (0, 2, 2):
+            raise ValueError('多供应商配置需要 Harness 0.2.2 或更新版本，请先查询并安装新版')
+        api = {'chat': 'openai-completions', 'responses': 'openai-responses',
+               'anthropic': 'anthropic-messages', 'gemini': 'google-generative-ai'}[p['protocol']]
+        # JSON is valid YAML. This dedicated --patch file preserves the user's home patch/settings.
+        patch = [dict(id='llm-pi-ai', config=dict(providers={
+            'edge-workbench': dict(apiKeyEnv='EDGE_MODEL_API_KEY', api=api, baseURL=p['base_url'],
+                                   models=[dict(id=p['model'])])})),
+                 dict(id='agent-default-model', config=dict(provider='edge-workbench', model=p['model']))]
+        patch_path = root / 'harness-provider.patch.yml'
+        # Validate a staged patch using the actual installed CLI before committing it.
+        with tempfile.TemporaryDirectory(prefix='provider-check-', dir=str(root)) as directory:
+            staged = Path(directory) / 'provider.yml'
+            private_write(staged, json.dumps(patch))
+            env = tool_env(p, root)
+            env.update(DSH_HOME=str(root / 'harness-home'), DSH_TELEMETRY_DISABLED='1')
+            output = command([current['binary'], '--profile', 'web', '--patch', str(staged), '--dump-config'], env=env, timeout=60)
+            if 'llm-pi-ai' not in output:
+                raise ValueError('此 Harness 安装未包含多供应商适配器，请升级后重试')
+        private_write(patch_path, json.dumps(patch))
+    elif tool == 'opencode':
+        npm = {'chat': '@ai-sdk/openai-compatible', 'responses': '@ai-sdk/openai',
+               'anthropic': '@ai-sdk/anthropic', 'gemini': '@ai-sdk/google'}[p['protocol']]
+        base = p['base_url'].rstrip('/')
+        if p['protocol'] == 'anthropic' and not base.endswith('/v1'):
+            base += '/v1'
+        config = {'$schema': 'https://opencode.ai/config.json', 'model': 'edge-workbench/' + p['model'],
+                  'provider': {'edge-workbench': {'npm': npm, 'name': 'Edge Workbench',
+                  'options': {'baseURL': base, 'apiKey': '{env:EDGE_MODEL_API_KEY}'},
+                  'models': {p['model']: {'name': p['model']}}}}}
+        private_write(root / 'opencode-config.json', json.dumps(config))
+    elif tool == 'gemini':
+        private_write(root / 'gemini-home/.gemini/settings.json', json.dumps({
+            'security': {'auth': {'selectedType': 'gemini-api-key'}}, 'model': {'name': p['model']}}))
+    private_write(path, json.dumps(value))
+    private_write(root / ('run-' + tool + '.py'), TOOL_LAUNCHER.replace('__TOOL__', tool))
+    return dict(message=tool + ' 模型服务已同步到板卡专属目录', tool=tool, model=p['model'])
+
+
+TOOL_LAUNCHER = '''import json, os, sys
+from pathlib import Path
+root = Path(__file__).resolve().parent
+tool = '__TOOL__'
+p = json.loads((root / (tool + '-api.json')).read_text())
+env = os.environ.copy()
+for name in list(env):
+    if name.startswith(('ANTHROPIC_', 'OPENAI_', 'GOOGLE_', 'GEMINI_', 'OPENCODE_', 'CLAUDE_CODE_USE')) or any(x in name.upper() for x in ('API_KEY', 'ACCESS_TOKEN', 'AUTH_TOKEN')) or name in ('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','http_proxy','https_proxy','all_proxy'):
+        env.pop(name, None)
+if p['proxy']:
+    env.update(HTTP_PROXY=p['proxy'], HTTPS_PROXY=p['proxy'], http_proxy=p['proxy'], https_proxy=p['proxy'])
+env.update(NO_PROXY='localhost,127.0.0.1,::1', no_proxy='localhost,127.0.0.1,::1')
+env['PATH'] = str(root / 'runtime/bin') + os.pathsep + env.get('PATH', '')
+args = []
+if tool == 'claude':
+    env.update(CLAUDE_CONFIG_DIR=str(root / 'claude-home'), ANTHROPIC_API_KEY=p['key'], ANTHROPIC_BASE_URL=p['base_url'], ANTHROPIC_MODEL=p['model'])
+    args = ['--model', p['model']]
+elif tool == 'gemini':
+    base = p['base_url'].rstrip('/')
+    for suffix in ('/v1beta', '/v1'):
+        if base.endswith(suffix):
+            base = base[:-len(suffix)]
+    env.update(GEMINI_CLI_HOME=str(root / 'gemini-home'), GEMINI_API_KEY=p['key'], GOOGLE_GEMINI_BASE_URL=base)
+    args = ['--model', p['model']]
+elif tool == 'opencode':
+    env.update(EDGE_MODEL_API_KEY=p['key'], OPENCODE_CONFIG=str(root / 'opencode-config.json'), OPENCODE_CONFIG_CONTENT=(root / 'opencode-config.json').read_text(), XDG_CONFIG_HOME=str(root / 'opencode-home/config'), XDG_DATA_HOME=str(root / 'opencode-home/data'), XDG_CACHE_HOME=str(root / 'opencode-home/cache'))
+    args = ['--model', 'edge-workbench/' + p['model']]
+else:
+    raise SystemExit('Use the managed Harness web entry.')
+binary = json.loads((root / 'tools' / tool / 'current.json').read_text())['binary']
+os.umask(0o077)
+os.chdir(p['project'])
+os.execvpe(binary, [binary] + args + sys.argv[1:], env)
+'''
+
+
 def main():
     p = json.load(sys.stdin)
     action = p['action']
     actions = dict(diagnose=diagnose, vscode_server=vscode_server, prepare_ide=prepare_ide, reuse_tools=reuse_tools, api_test=api_test, install_runtime=install_runtime,
-                   install_tool=install_tool, configure=configure, configure_ide=configure_ide, codex_auth_status=codex_auth_status, import_official_auth=import_official_auth, official_test=official_test,
+                   install_tool=install_tool, configure_tool=configure_tool, configure=configure, configure_ide=configure_ide, codex_auth_status=codex_auth_status, import_official_auth=import_official_auth, official_test=official_test,
                    harness_prepare=harness_prepare, harness_start=harness_start,
                    harness_status=harness_status, harness_stop=harness_stop)
     if action == 'prepare':

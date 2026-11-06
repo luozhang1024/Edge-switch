@@ -29,6 +29,7 @@
     "targets": ["nsis"],
     "icon": ["../image/EdgeAI.ico"],
     "licenseFile": "../LICENSE",
+    "resources": { "../image/providers/LICENSE": "LobeHub-Icons-LICENSE.txt" },
     "shortDescription": "面向 Linux 板卡的远程 AI 开发工作台",
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper" },

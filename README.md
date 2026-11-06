@@ -24,6 +24,8 @@
 
 > 当前主分支正在迁移到 Tauri 2＋Rust＋React＋TypeScript；稳定版仍为 [v1.1.3](https://github.com/luozhang52/Edge-switch/releases/tag/v1.1.3)。新版尚未完成真实板卡验收，也未发布 Release。新版开发、构建和迁移说明见 [Tauri 迁移文档](docs/tauri-migration.md)。下文历史截图与 Python 开发流程保留供旧版参考。
 
+模型服务支持按 Codex、Claude Code、DeepSeek Harness、Gemini CLI、OpenCode 分别配置供应商 API，详见[模型服务说明](docs/model-services.md)。
+
 ## 项目简介
 
 Edge Switch 将板卡 AI 开发中分散的连接、安装、代理和认证操作集中到一个桌面界面。为不同设备或工程创建工作环境，切换官方 ChatGPT 账号与自定义 API，再从工作台打开 VS Code 或 Harness 网页。
