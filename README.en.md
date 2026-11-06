@@ -10,9 +10,9 @@
 
 Manage SSH environments, proxies, and model services from Windows. Deploy Codex and DeepSeek Harness on your Linux devices and open your remote workspace from one place.
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue)](https://github.com/luozhang52/Edge-switch/releases)
+[![Version](https://img.shields.io/badge/version-2.0.0--alpha.1-blue)](https://github.com/luozhang52/Edge-switch/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey)](#requirements)
-[![Built with](https://img.shields.io/badge/built%20with-Python%20%2B%20CustomTkinter-3776AB)](#development-and-builds)
+[![Built with](https://img.shields.io/badge/built%20with-Tauri%202%20%2B%20Rust%20%2B%20React-3776AB)](#tauri-development-and-builds)
 [![Target](https://img.shields.io/badge/target-Linux%20ARM64%20%7C%20x86__64-34C759)](#requirements)
 [![Downloads](https://img.shields.io/github/downloads/luozhang52/Edge-switch/total?label=downloads&color=007AFF)](https://github.com/luozhang52/Edge-switch/releases)
 [![Stars](https://img.shields.io/github/stars/luozhang52/Edge-switch?style=flat&color=F5A623)](https://github.com/luozhang52/Edge-switch/stargazers)
@@ -22,11 +22,13 @@ Manage SSH environments, proxies, and model services from Windows. Deploy Codex 
 
 </div>
 
+> The main branch is migrating to Tauri 2, Rust, React and TypeScript (2.0.0-alpha.1). The stable release remains [v1.1.3](https://github.com/luozhang52/Edge-switch/releases/tag/v1.1.3). The new desktop has not completed real-board acceptance and has no published Release. See [migration and development notes (Chinese)](docs/tauri-migration.md). Historical screenshots and Python instructions below refer to the legacy desktop.
+
 ## Overview
 
 Edge Switch brings device connections, tool installation, network settings, and model authentication into one desktop application. Create work environments for different devices or projects, switch between an official ChatGPT account and custom APIs, and launch VS Code or the Harness web interface.
 
-The current version is **1.1.0**. The window, tray, and installer use the name **Edge Switch**. The legacy `EdgeSSHAI` configuration directory is retained for upgrade compatibility. The desktop app runs on Windows; AI tools run on the Linux device over SSH. The application UI is currently in Chinese; these documentation pages are available in both languages.
+The current source version is **2.0.0-alpha.1**. The window, tray, and installer use the name **Edge Switch**. The legacy `EdgeSSHAI` configuration directory is retained for upgrade compatibility. The desktop app runs on Windows; AI tools run on the Linux device over SSH. The application UI is currently in Chinese; these documentation pages are available in both languages.
 
 ## Features
 
@@ -209,7 +211,11 @@ Check LAN connectivity, SSH service health, and device CPU / memory load. Choose
 
 </details>
 
-## Development and builds
+## Tauri development and builds
+
+Install Node.js 24, Rust stable, MSVC Build Tools and WebView2. Run `npm ci` and `npm run tauri dev`. Use `npm run desktop:build` for the alpha installer and portable ZIP in ignored `dist/tauri/`. See the [migration notes](docs/tauri-migration.md) for checks, isolated desktop smoke tests and rollback.
+
+## Legacy Python development and builds
 
 Source execution requires **Windows Python 3.10+ with tkinter**:
 

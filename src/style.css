@@ -1,0 +1,384 @@
+:root {
+  font-family: Inter, "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  color: #18202b;
+  background: #f4f6fa;
+  font-size: 14px;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+.app {
+  display: flex;
+  min-height: 100vh;
+}
+aside {
+  width: 220px;
+  background: #101722;
+  color: #dbe6f5;
+  padding: 24px 14px;
+  display: flex;
+  flex-direction: column;
+}
+.brand {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 17px;
+  padding: 4px 10px;
+}
+.brand img {
+  width: 30px;
+  height: 30px;
+}
+.sub {
+  color: #8291a6;
+  font-size: 12px;
+  padding: 10px;
+}
+.nav {
+  border: 0;
+  background: none;
+  color: #9eafc3;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 9px;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 3px;
+}
+.nav.active,
+.nav:hover {
+  background: #1d2b3e;
+  color: #fff;
+}
+.sidefoot {
+  margin-top: auto;
+  color: #718197;
+  padding: 14px 10px;
+  display: grid;
+  gap: 12px;
+}
+.sidefoot button {
+  background: none;
+  border: 0;
+  color: #aab9ca;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+main {
+  flex: 1;
+  padding: 22px 36px;
+  max-width: 1280px;
+  margin: auto;
+}
+header {
+  height: 42px;
+  color: #69778a;
+  display: flex;
+  justify-content: space-between;
+}
+header small {
+  color: #8a97a7;
+}
+.hero {
+  background: linear-gradient(115deg, #102638, #1c4d6b);
+  color: #fff;
+  border-radius: 18px;
+  padding: 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  min-height: 190px;
+}
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #83c9ff;
+}
+.hero h1 {
+  font-size: 28px;
+  font-weight: 650;
+  max-width: 630px;
+  margin: 12px 0;
+}
+.hero p {
+  color: #b6d7ee;
+}
+.primary {
+  background: #1976d2;
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 18px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin: 18px 0;
+}
+.card,
+.panel {
+  background: #fff;
+  border: 1px solid #e1e7ef;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 8px 24px #14253d08;
+}
+.card {
+  display: grid;
+  gap: 8px;
+}
+.card small {
+  color: #738197;
+}
+.card strong {
+  font-size: 17px;
+}
+.card span {
+  color: #8490a0;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.panel {
+  margin-top: 14px;
+}
+.panelhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.panel h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+}
+.panelhead h2 {
+  margin: 0;
+}
+.panelhead button:not(.primary),
+.profile button,
+.actions button {
+  border: 1px solid #d5dde8;
+  background: #fff;
+  border-radius: 7px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+.task,
+.profile {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 13px 0;
+  border-top: 1px solid #edf0f4;
+}
+.task em {
+  font-style: normal;
+  color: #26844d;
+}
+.empty {
+  color: #8490a0;
+  padding: 22px 0;
+}
+.profile {
+  padding: 18px 8px;
+}
+.profile.selected {
+  background: #eff7ff;
+  border-radius: 10px;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+.profile b {
+  font-size: 15px;
+}
+.profile small {
+  color: #7c8998;
+}
+.profile button {
+  margin-left: 8px;
+}
+.formrow,
+.form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 18px 0;
+}
+.form label {
+  display: grid;
+  gap: 7px;
+}
+.form input,
+.formrow input {
+  border: 1px solid #d8e0ea;
+  border-radius: 7px;
+  padding: 10px;
+  font-size: 14px;
+}
+.modal {
+  position: fixed;
+  inset: 0;
+  background: #10203366;
+  display: grid;
+  place-items: center;
+}
+.dialog {
+  background: #fff;
+  border-radius: 16px;
+  padding: 26px;
+  width: 480px;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.loading {
+  display: grid;
+  place-items: center;
+  height: 100vh;
+  color: #678;
+}
+button {
+  border: 1px solid #d5dde8;
+  background: #fff;
+  border-radius: 7px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font: inherit;
+}
+button:hover {
+  border-color: #1976d2;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+select,
+input {
+  font: inherit;
+  min-width: 0;
+  border: 1px solid #d8e0ea;
+  border-radius: 7px;
+  padding: 9px;
+  background: #fff;
+  color: #18202b;
+}
+header {
+  gap: 20px;
+  align-items: center;
+  height: auto;
+  min-height: 48px;
+}
+header label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.notice {
+  background: #eaf3ff;
+  color: #285278;
+  padding: 12px 16px;
+  margin: 12px 0;
+  border-radius: 9px;
+  overflow-wrap: anywhere;
+}
+.buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.taskdetail {
+  border-top: 1px solid #edf0f4;
+  padding: 14px 0;
+}
+.taskdetail summary {
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.taskdetail p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 440px;
+  overflow: auto;
+  background: #f4f6fa;
+  padding: 14px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.form label {
+  display: grid;
+  gap: 7px;
+}
+.wide {
+  grid-column: 1/-1;
+}
+.form .check {
+  display: flex;
+  align-items: center;
+}
+.dialog {
+  width: min(690px, 95vw);
+  max-height: 90vh;
+  overflow: auto;
+}
+.modal {
+  z-index: 5;
+}
+.profile {
+  gap: 16px;
+}
+.profile > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.profile p {
+  margin: 6px 0;
+}
+.hero button {
+  white-space: nowrap;
+}
+.card strong {
+  overflow-wrap: anywhere;
+}
+main {
+  width: calc(100% - 220px);
+  margin: 0 auto;
+}
+.sidefoot span {
+  font-size: 11px;
+}
+.loading {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+@media (max-width: 1000px) {
+  main {
+    padding: 18px;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .profile {
+    align-items: flex-start;
+  }
+  .hero h1 {
+    font-size: 24px;
+  }
+}

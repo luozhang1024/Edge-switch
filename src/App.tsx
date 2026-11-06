@@ -1,0 +1,1000 @@
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { confirm, open } from "@tauri-apps/plugin-dialog";
+import logo from "../image/EdgeAI.png";
+import {
+  Connection,
+  emptyProfile,
+  isRunning,
+  newId,
+  Official,
+  Profile,
+  Service,
+  Snapshot,
+} from "./types";
+import "./style.css";
+
+export function App() {
+  const [data, setData] = useState<Snapshot | null>(null);
+  const [connections, setConnections] = useState<Record<string, Connection>>(
+    {},
+  );
+  const [tab, setTab] = useState("overview");
+  const [editing, setEditing] = useState<Profile | null>(null);
+  const [service, setService] = useState<Service | null>(null);
+  const [official, setOfficial] = useState<Official | null>(null);
+  const [authPath, setAuthPath] = useState("");
+  const [key, setKey] = useState("");
+  const [remember, setRemember] = useState(false);
+  const [message, setMessage] = useState("就绪");
+  const [pending, setPending] = useState(false);
+  const refreshInFlight = useRef(false);
+  const load = useCallback(async () => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    try {
+      const [snapshot, status] = await Promise.all([
+        invoke<Snapshot>("snapshot"),
+        invoke<Record<string, Connection>>("connection_status"),
+      ]);
+      setData(snapshot);
+      setConnections(status);
+    } catch (e) {
+      setMessage(String(e));
+    } finally {
+      refreshInFlight.current = false;
+    }
+  }, []);
+  useEffect(() => {
+    void load();
+    const timer = setInterval(() => void load(), 2000);
+    const listeners = ["task-progress", "task-finished", "app-error"].map(
+      (event) =>
+        listen(event, (e) => {
+          if (event === "app-error") setMessage(String(e.payload));
+          void load();
+        }),
+    );
+    return () => {
+      clearInterval(timer);
+      listeners.forEach((p) => void p.then((unlisten) => unlisten()));
+    };
+  }, [load]);
+  async function command(name: string, args: Record<string, unknown> = {}) {
+    setPending(true);
+    try {
+      await invoke(name, args);
+      setMessage("操作已提交");
+      await load();
+      return true;
+    } catch (e) {
+      setMessage(String(e));
+      return false;
+    } finally {
+      setPending(false);
+    }
+  }
+  if (!data)
+    return (
+      <div className="loading">
+        <p>正在启动 Edge Switch…</p>
+        <p role="status">{message}</p>
+        <button onClick={() => void load()}>重试</button>
+      </div>
+    );
+  const current =
+    data.profiles.find((p) => p.id === data.selected_profile) ||
+    data.profiles[0];
+  const busy =
+    pending ||
+    data.tasks.some((t) => t.profile_id === current.id && isRunning(t));
+  const currentConnections = Object.entries(connections).filter(([id]) =>
+    id.startsWith(`${current.id}:`),
+  );
+  async function run(action: string, payload: Record<string, unknown> = {}) {
+    if (
+      payload.infer &&
+      !(await confirm(
+        "将发送真实推理请求，可能消耗 API 余额或账号额度。是否继续？",
+        { title: "推理验证", kind: "warning" },
+      ))
+    )
+      return;
+    if (
+      action === "harness_stop" &&
+      !(await confirm(
+        "停止 Harness 会中断当前服务和可能进行中的任务。是否继续？",
+        { title: "停止 Harness", kind: "warning" },
+      ))
+    )
+      return;
+    if (
+      action === "disconnect" &&
+      !(await confirm(
+        "将断开网页和代理隧道，使用这些连接的工具会受影响；板卡后台服务保留。是否继续？",
+        { title: "断开连接", kind: "warning" },
+      ))
+    )
+      return;
+    await command("start_task", { profileId: current.id, action, payload });
+  }
+  const button = (label: string, action: string, payload = {}) => (
+    <button disabled={busy} onClick={() => void run(action, payload)}>
+      {label}
+    </button>
+  );
+  async function choose(action: string) {
+    try {
+      const path = await open({
+        multiple: false,
+        title:
+          action === "editor_pin"
+            ? "选择 VS Code 的 Code.exe"
+            : "选择 Server tar.gz 安装包",
+      });
+      if (typeof path === "string") await run(action, { path });
+    } catch (e) {
+      setMessage(String(e));
+    }
+  }
+  const remove = async (
+    name: string,
+    args: Record<string, unknown>,
+    warning: string,
+  ) => {
+    if (await confirm(warning, { title: "确认删除", kind: "warning" }))
+      await command(name, args);
+  };
+  return (
+    <div className="app">
+      <aside>
+        <div className="brand">
+          <img src={logo} alt="" />
+          <b>Edge Switch</b>
+        </div>
+        <div className="sub">板卡 AI 工作台</div>
+        {[
+          ["overview", "总览与任务"],
+          ["connect", "工作环境"],
+          ["models", "模型服务"],
+          ["proxy", "代理网络"],
+          ["tools", "AI 工具"],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            className={tab === id ? "nav active" : "nav"}
+            onClick={() => setTab(id)}
+          >
+            {label}
+          </button>
+        ))}
+        <div className="sidefoot">
+          v{data.version}
+          <span>关闭窗口后保留在托盘</span>
+          <button onClick={() => void command("quit_app")}>退出程序</button>
+        </div>
+      </aside>
+      <main>
+        <header>
+          <label>
+            当前环境{" "}
+            <select
+              disabled={pending}
+              value={current.id}
+              onChange={(e) => {
+                setEditing(null);
+                setService(null);
+                setOfficial(null);
+                setKey("");
+                void command("select_profile", { id: e.target.value });
+              }}
+            >
+              {data.profiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span>
+            {current.user}@{current.host}:{current.port}
+          </span>
+        </header>
+        <div role="status" className="notice">
+          {message}
+        </div>
+        {tab === "overview" && (
+          <section>
+            <div className="hero">
+              <div>
+                <div className="eyebrow">REMOTE AI WORKBENCH</div>
+                <h1>连接板卡，开始工作。</h1>
+                <p>选择环境 → 检查 SSH → 安装工具 → 配置模型</p>
+              </div>
+              {button("刷新设备", "diagnose")}
+            </div>
+            <div className="grid">
+              <Card
+                title="工程目录"
+                value={current.project}
+                detail={current.identity || "使用系统 SSH 身份"}
+              />
+              <Card
+                title="模型服务"
+                value={
+                  current.codex_auth === "chatgpt"
+                    ? "OpenAI Official"
+                    : current.model || "尚未配置"
+                }
+                detail={current.base_url}
+              />
+              <Card
+                title="连接"
+                value={
+                  currentConnections.map(([, c]) => c.state).join(" / ") ||
+                  "尚未建立隧道"
+                }
+                detail="SSH 通道按需建立，请查看任务结果确认设备状态"
+              />
+            </div>
+          </section>
+        )}
+        {tab === "connect" && (
+          <section className="panel">
+            <div className="panelhead">
+              <h2>工作环境</h2>
+              <button onClick={() => setEditing(emptyProfile())}>
+                添加环境
+              </button>
+            </div>
+            {data.profiles.map((p) => (
+              <div
+                className={p.id === current.id ? "profile selected" : "profile"}
+                key={p.id}
+              >
+                <div>
+                  <b>{p.name}</b>
+                  <p>
+                    {p.user}@{p.host}:{p.port}
+                  </p>
+                  <small>{p.project}</small>
+                </div>
+                <div className="buttons">
+                  <button
+                    disabled={pending || p.id === current.id}
+                    onClick={() => void command("select_profile", { id: p.id })}
+                  >
+                    使用
+                  </button>
+                  <button
+                    disabled={data.tasks.some(
+                      (t) => t.profile_id === p.id && isRunning(t),
+                    )}
+                    onClick={() => setEditing({ ...p })}
+                  >
+                    编辑
+                  </button>
+                  <button
+                    disabled={pending || data.profiles.length <= 1}
+                    onClick={() =>
+                      void remove(
+                        "delete_profile",
+                        { id: p.id },
+                        `删除「${p.name}」及本地保存的服务和凭据？板卡文件保留。`,
+                      )
+                    }
+                  >
+                    删除
+                  </button>
+                </div>
+              </div>
+            ))}
+            <div className="buttons">
+              {button("配置 SSH 登录", "setup_ssh")}
+              {button("打开 SSH 终端", "ssh_console")}
+              {button("检查设备", "diagnose")}
+            </div>
+          </section>
+        )}
+        {tab === "models" && (
+          <section>
+            <div className="panel">
+              <div className="panelhead">
+                <h2>API 服务</h2>
+                <button
+                  disabled={busy}
+                  onClick={() => {
+                    setKey("");
+                    setRemember(false);
+                    setService({
+                      id: newId(),
+                      name: "",
+                      base_url: "https://api.openai.com/v1",
+                      model: "",
+                      protocol: "responses",
+                    });
+                  }}
+                >
+                  添加服务
+                </button>
+              </div>
+              {(data.services[current.id] || []).map((s) => (
+                <div className="profile" key={s.id}>
+                  <div>
+                    <b>
+                      {s.name}{" "}
+                      {current.codex_auth === "api" &&
+                        current.active_api === s.id &&
+                        "· 当前使用"}
+                    </b>
+                    <p>
+                      {s.model || "未设置模型"} · {s.protocol}
+                    </p>
+                    <small>
+                      {s.base_url} ·{" "}
+                      {data.saved_keys.includes(s.id)
+                        ? "已加密保存密钥"
+                        : "未持久保存密钥"}
+                    </small>
+                  </div>
+                  <div className="buttons">
+                    <button
+                      disabled={busy}
+                      onClick={() =>
+                        void command("activate_service", {
+                          profileId: current.id,
+                          serviceId: s.id,
+                        })
+                      }
+                    >
+                      使用
+                    </button>
+                    <button
+                      disabled={busy}
+                      onClick={() => {
+                        setService({ ...s });
+                        setKey("");
+                        setRemember(data.saved_keys.includes(s.id));
+                      }}
+                    >
+                      编辑
+                    </button>
+                    <button
+                      disabled={busy}
+                      onClick={() =>
+                        void remove(
+                          "delete_service",
+                          { profileId: current.id, serviceId: s.id },
+                          `删除服务「${s.name}」及其本地密钥？`,
+                        )
+                      }
+                    >
+                      删除
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <p>
+                密钥留空保留已有值。取消加密保存后仅在本次进程中使用。Codex 需要
+                Responses 协议和模型 ID。
+              </p>
+            </div>
+            <div className="panel">
+              <h2>
+                OpenAI Official{" "}
+                {current.codex_auth === "chatgpt" && "· 当前使用"}
+              </h2>
+              <p>
+                {data.official[current.id]?.name || "官方 ChatGPT 账号"} ·{" "}
+                {data.official[current.id]?.has_credentials
+                  ? "已保存导入凭据"
+                  : "可在板卡终端登录"}
+              </p>
+              <p>{data.official[current.id]?.note}</p>
+              <div className="buttons">
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void command("activate_service", {
+                      profileId: current.id,
+                      serviceId: "official",
+                    })
+                  }
+                >
+                  使用官方账号
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => {
+                    setAuthPath("");
+                    setOfficial({
+                      name: "OpenAI Official",
+                      ...data.official[current.id],
+                    });
+                  }}
+                >
+                  编辑 / 导入 auth.json
+                </button>
+                <button
+                  disabled={busy || current.codex_auth !== "chatgpt"}
+                  onClick={() => void run("login")}
+                >
+                  设备码登录
+                </button>
+                <button
+                  disabled={busy || !data.official[current.id]}
+                  onClick={() =>
+                    void remove(
+                      "delete_official",
+                      { profileId: current.id },
+                      "删除本机保存的官方账号信息和导入凭据？板卡上已有登录状态保留。",
+                    )
+                  }
+                >
+                  删除本机账号信息
+                </button>
+              </div>
+            </div>
+            <div className="panel">
+              <h2>验证当前服务</h2>
+              <p>
+                保存和切换仅更新本地配置，点击同步才写入板卡。当前：
+                {current.codex_auth === "chatgpt"
+                  ? "OpenAI Official"
+                  : current.model || "未配置模型"}
+              </p>
+              <div className="buttons">
+                {button("同步到板卡", "sync_api")}
+                {button(
+                  "连通性检查",
+                  current.codex_auth === "chatgpt"
+                    ? "official_test"
+                    : "api_test",
+                  { infer: false },
+                )}
+                {button(
+                  "推理验证（消耗额度）",
+                  current.codex_auth === "chatgpt"
+                    ? "official_test"
+                    : "api_test",
+                  { infer: true },
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+        {tab === "proxy" && (
+          <section className="panel">
+            <h2>代理网络</h2>
+            <p>
+              电脑下载：
+              {current.proxy ? `127.0.0.1:${current.proxy_port}` : "直连"}
+              ；Codex：
+              {(current.codex_proxy ?? current.proxy) ? "电脑代理" : "板卡直连"}
+              ；Harness：
+              {(current.harness_proxy ?? current.proxy)
+                ? "电脑代理"
+                : "板卡直连"}
+              。
+            </p>
+            <p>
+              电脑代理通过 SSH
+              反向转发到板卡，中断后自动尝试重连。修改设置前先断开本地连接。
+            </p>
+            <div className="buttons">
+              <button
+                disabled={busy}
+                onClick={() => setEditing({ ...current })}
+              >
+                编辑网络设置
+              </button>
+              {button("连接代理", "proxy_start")}
+              {button("断开本地连接", "disconnect")}
+            </div>
+            {currentConnections.map(([id, c]) => (
+              <div className="profile" key={id}>
+                <b>{c.kind === "proxy" ? "代理隧道" : "Harness 网页"}</b>
+                <span>
+                  {c.state} · 电脑 {c.local_port} ↔ 板卡 {c.remote_port}
+                </span>
+              </div>
+            ))}
+          </section>
+        )}
+        {tab === "tools" && (
+          <section>
+            <div className="panel">
+              <h2>工具部署</h2>
+              <p>
+                安装到当前环境专属目录，不替换系统
+                Node.js。先查询版本，再选择安装。
+              </p>
+              <div className="buttons">
+                {button("检查设备", "diagnose")}
+                {button("查询可用版本", "versions")}
+                {button("安装独立 Node.js", "install_runtime")}
+                {button("复用已有工具", "reuse_tools")}
+              </div>
+              <ToolInstaller
+                data={data}
+                profileId={current.id}
+                disabled={busy}
+                install={(tool, version) =>
+                  void run("install_tool", { tool, version })
+                }
+              />
+            </div>
+            <div className="panel">
+              <h2>启动与服务</h2>
+              <div className="buttons">
+                {button("打开 Codex", "codex")}
+                {button("打开 Harness 网页", "harness")}
+                {button("停止 Harness", "harness_stop")}
+                {button("打开 VS Code", "vscode")}
+                {button("打开 SSH 终端", "ssh_console")}
+              </div>
+              <p>
+                Harness：
+                {current.harness_background
+                  ? "退出工作台后保留板卡后台服务"
+                  : "退出工作台时停止服务"}
+                。关闭主窗口仅缩至托盘。
+              </p>
+            </div>
+            <div className="panel">
+              <h2>编辑器维护</h2>
+              <p>
+                选择已安装的 Code.exe 创建固定副本。独立设置不会覆盖日常 VS Code
+                配置，导入服务端仍需通过官方 SHA-256 校验。
+              </p>
+              <div className="buttons">
+                <button
+                  disabled={busy}
+                  onClick={() => void choose("editor_pin")}
+                >
+                  选择并固定 Code.exe
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => void choose("import_server")}
+                >
+                  导入 Server 安装包
+                </button>
+                {button("读取连接诊断", "vscode_diagnostics")}
+              </div>
+            </div>
+          </section>
+        )}
+        <section className="panel">
+          <div className="panelhead">
+            <h2>任务记录 · {current.name}</h2>
+            <button onClick={() => void load()}>刷新</button>
+          </div>
+          {data.tasks
+            .filter((t) => t.profile_id === current.id)
+            .slice()
+            .reverse()
+            .map((t) => (
+              <details className="taskdetail" key={t.id} open={isRunning(t)}>
+                <summary>
+                  <span>
+                    {t.label} · {t.state}
+                  </span>
+                  <small>
+                    {new Date(t.started_at * 1000).toLocaleTimeString()}
+                  </small>
+                </summary>
+                <p>{t.message}</p>
+                {isRunning(t) && (
+                  <button
+                    onClick={async () => {
+                      if (
+                        await confirm(
+                          "停止本地等待和 SSH 操作；远端操作可能仍在进行，请随后刷新设备核对。",
+                          { title: "取消任务", kind: "warning" },
+                        )
+                      )
+                        await command("cancel_task", { taskId: t.id });
+                    }}
+                  >
+                    取消任务
+                  </button>
+                )}
+                {t.result != null && (
+                  <pre>{JSON.stringify(t.result, null, 2)}</pre>
+                )}
+              </details>
+            ))}
+          {!data.tasks.some((t) => t.profile_id === current.id) && (
+            <p className="empty">
+              暂无任务。先检查设备，确认 SSH 连接和板卡状态。
+            </p>
+          )}
+        </section>
+      </main>
+      {editing && (
+        <Modal title="编辑工作环境" close={() => setEditing(null)}>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (await command("save_profile", { profile: editing }))
+                setEditing(null);
+            }}
+          >
+            <div className="form">
+              {(["name", "host", "user", "project"] as const).map(
+                (field, i) => (
+                  <label key={field}>
+                    {["名称", "主机地址", "Linux 用户", "工程绝对路径"][i]}
+                    <input
+                      required
+                      value={editing[field]}
+                      onChange={(e) =>
+                        setEditing({ ...editing, [field]: e.target.value })
+                      }
+                    />
+                  </label>
+                ),
+              )}
+              {(["port", "proxy_port"] as const).map((field, i) => (
+                <label key={field}>
+                  {["SSH 端口", "电脑代理端口"][i]}
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    max="65535"
+                    value={editing[field]}
+                    onChange={(e) =>
+                      setEditing({
+                        ...editing,
+                        [field]: Number(e.target.value),
+                      })
+                    }
+                  />
+                </label>
+              ))}
+              <label className="wide">
+                SSH 私钥（空值使用系统身份）
+                <input
+                  value={editing.identity}
+                  onChange={(e) =>
+                    setEditing({ ...editing, identity: e.target.value })
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const path = await open({
+                        multiple: false,
+                        title: "选择 SSH 私钥",
+                      });
+                      if (typeof path === "string")
+                        setEditing({ ...editing, identity: path });
+                    } catch (e) {
+                      setMessage(String(e));
+                    }
+                  }}
+                >
+                  选择私钥
+                </button>
+              </label>
+              <label>
+                电脑下载线路
+                <select
+                  value={String(editing.proxy)}
+                  onChange={(e) =>
+                    setEditing({ ...editing, proxy: e.target.value === "true" })
+                  }
+                >
+                  <option value="false">直连</option>
+                  <option value="true">电脑代理</option>
+                </select>
+              </label>
+              {(["codex_proxy", "harness_proxy"] as const).map((field, i) => (
+                <label key={field}>
+                  {["Codex 线路", "Harness 线路"][i]}
+                  <select
+                    value={
+                      editing[field] == null
+                        ? "inherit"
+                        : String(editing[field])
+                    }
+                    onChange={(e) =>
+                      setEditing({
+                        ...editing,
+                        [field]:
+                          e.target.value === "inherit"
+                            ? null
+                            : e.target.value === "true",
+                      })
+                    }
+                  >
+                    <option value="inherit">跟随电脑下载线路</option>
+                    <option value="false">板卡直连</option>
+                    <option value="true">电脑代理</option>
+                  </select>
+                </label>
+              ))}
+              <label>
+                退出策略
+                <select
+                  value={String(editing.harness_background)}
+                  onChange={(e) =>
+                    setEditing({
+                      ...editing,
+                      harness_background: e.target.value === "true",
+                    })
+                  }
+                >
+                  <option value="true">保留 Harness 后台服务</option>
+                  <option value="false">退出时停止 Harness</option>
+                </select>
+              </label>
+            </div>
+            <div className="actions">
+              <button type="button" onClick={() => setEditing(null)}>
+                取消
+              </button>
+              <button disabled={pending} className="primary">
+                保存
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {service && (
+        <Modal
+          title="编辑 API 服务"
+          close={() => {
+            setService(null);
+            setKey("");
+          }}
+        >
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (
+                await command("save_service", {
+                  profileId: current.id,
+                  entry: service,
+                  key: key || null,
+                  remember,
+                })
+              ) {
+                setService(null);
+                setKey("");
+              }
+            }}
+          >
+            <div className="form">
+              {(["name", "base_url", "model"] as const).map((field, i) => (
+                <label key={field}>
+                  {["服务名称", "HTTPS API 地址", "模型 ID"][i]}
+                  <input
+                    required
+                    value={service[field]}
+                    onChange={(e) =>
+                      setService({ ...service, [field]: e.target.value })
+                    }
+                  />
+                </label>
+              ))}
+              <label>
+                协议
+                <select
+                  value={service.protocol}
+                  onChange={(e) =>
+                    setService({ ...service, protocol: e.target.value })
+                  }
+                >
+                  <option value="responses">Responses</option>
+                  <option value="chat">Chat Completions</option>
+                </select>
+              </label>
+              <label className="wide">
+                API Key（留空保留已有值）
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={key}
+                  onChange={(e) => setKey(e.target.value)}
+                />
+              </label>
+              <label className="check wide">
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                />
+                使用 Windows DPAPI 加密保存
+              </label>
+            </div>
+            <div className="actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setService(null);
+                  setKey("");
+                }}
+              >
+                取消
+              </button>
+              <button disabled={pending} className="primary">
+                保存服务
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {official && (
+        <Modal title="官方账号" close={() => setOfficial(null)}>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (
+                await command("save_official", {
+                  profileId: current.id,
+                  name: official.name || "",
+                  note: official.note || "",
+                  path: authPath || null,
+                })
+              )
+                setOfficial(null);
+            }}
+          >
+            <div className="form">
+              <label>
+                账号名称
+                <input
+                  required
+                  value={official.name || ""}
+                  onChange={(e) =>
+                    setOfficial({ ...official, name: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                备注
+                <input
+                  value={official.note || ""}
+                  onChange={(e) =>
+                    setOfficial({ ...official, note: e.target.value })
+                  }
+                />
+              </label>
+            </div>
+            <p>
+              仅导入本人官方 OAuth
+              auth.json，凭据在本机加密保存，使用时同步至当前板卡环境。
+            </p>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const path = await open({
+                    multiple: false,
+                    filters: [{ name: "JSON", extensions: ["json"] }],
+                  });
+                  if (typeof path === "string") setAuthPath(path);
+                } catch (e) {
+                  setMessage(String(e));
+                }
+              }}
+            >
+              选择 auth.json
+            </button>
+            <p>{authPath || "未选择文件，保留已有凭据"}</p>
+            <div className="actions">
+              <button disabled={pending} className="primary">
+                保存账号
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+function ToolInstaller({
+  data,
+  profileId,
+  disabled,
+  install,
+}: {
+  data: Snapshot;
+  profileId: string;
+  disabled: boolean;
+  install: (tool: string, version: string) => void;
+}) {
+  const [selected, setSelected] = useState<Record<string, string>>({});
+  const task = data.tasks
+    .filter(
+      (t) =>
+        t.profile_id === profileId &&
+        t.label === "查询工具版本" &&
+        t.state === "已完成",
+    )
+    .at(-1);
+  const versions = task?.result as
+    Record<string, { versions: string[] }> | undefined;
+  return (
+    <div className="form">
+      {["codex", "harness"].map((tool) => (
+        <label key={tool}>
+          {tool === "codex" ? "Codex" : "DeepSeek Harness"} 版本
+          <select
+            disabled={disabled}
+            value={selected[`${profileId}:${tool}`] || ""}
+            onChange={(e) =>
+              setSelected({
+                ...selected,
+                [`${profileId}:${tool}`]: e.target.value,
+              })
+            }
+          >
+            <option value="">请先查询并选择版本</option>
+            {versions?.[tool]?.versions.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+          <button
+            disabled={disabled || !selected[`${profileId}:${tool}`]}
+            onClick={() => install(tool, selected[`${profileId}:${tool}`])}
+          >
+            安装选定版本
+          </button>
+        </label>
+      ))}
+    </div>
+  );
+}
+function Modal({
+  title,
+  close,
+  children,
+}: {
+  title: string;
+  close: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="modal">
+      <div
+        className="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="panelhead">
+          <h2>{title}</h2>
+          <button aria-label="关闭" onClick={close}>
+            ×
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+function Card({
+  title,
+  value,
+  detail,
+}: {
+  title: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="card">
+      <small>{title}</small>
+      <strong>{value}</strong>
+      <span title={detail}>{detail}</span>
+    </div>
+  );
+}

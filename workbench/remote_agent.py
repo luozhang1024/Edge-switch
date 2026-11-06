@@ -361,6 +361,8 @@ def install_tool(p):
 
 
 def configure(p):
+    if p.get('reuse') and p.get('auth_mode') != 'chatgpt':
+        p = reuse_credentials(p)
     root = scope(p)
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     if not Path(p['project']).is_dir():

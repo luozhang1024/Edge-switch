@@ -1,0 +1,41 @@
+[package]
+name = "edge-switch"
+version = "2.0.0-alpha.1"
+description = "Edge Switch remote AI workbench"
+edition = "2021"
+license = "AGPL-3.0-only"
+
+[lib]
+name = "edge_switch_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-ico"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
+tokio = { version = "1", features = ["process", "io-util", "sync", "time", "rt-multi-thread", "macros", "net"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+json5 = "0.4"
+uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+base64 = "0.22"
+flate2 = "1"
+regex = "1"
+fs2 = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+futures-util = "0.3"
+url = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Security_Cryptography", "Win32_System_Memory", "Win32_Foundation", "Win32_Storage_FileSystem"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

@@ -52,6 +52,15 @@ class AuthTests(unittest.TestCase):
             self.assertNotIn('CODEX_ACCESS_TOKEN', captured)
             self.assertEqual(captured['CODEX_HOME'], str(root.resolve() / 'codex-chatgpt-home'))
 
+    def test_terminal_configuration_resolves_board_credentials_before_writing(self):
+        payload = dict(reuse=True, scope='b' * 32, project='/project')
+        with patch.object(remote_agent, 'reuse_credentials', side_effect=ValueError('missing credentials')) as reuse:
+            with patch.object(remote_agent, 'scope') as scope:
+                with self.assertRaisesRegex(ValueError, 'missing credentials'):
+                    remote_agent.configure(payload)
+                reuse.assert_called_once_with(payload)
+                scope.assert_not_called()
+
     def test_mode_survives_store_restart(self):
         with tempfile.TemporaryDirectory() as folder:
             store = Store(folder)

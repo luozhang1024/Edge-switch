@@ -10,9 +10,9 @@
 
 在 Windows 上管理 SSH 工作环境、网络代理与模型服务，让 Codex、DeepSeek Harness 更容易部署和使用。
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue)](https://github.com/luozhang52/Edge-switch/releases)
+[![Version](https://img.shields.io/badge/version-2.0.0--alpha.1-blue)](https://github.com/luozhang52/Edge-switch/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey)](#环境要求)
-[![Built with](https://img.shields.io/badge/built%20with-Python%20%2B%20CustomTkinter-3776AB)](#开发与构建)
+[![Built with](https://img.shields.io/badge/built%20with-Tauri%202%20%2B%20Rust%20%2B%20React-3776AB)](#新版开发与构建)
 [![Target](https://img.shields.io/badge/target-Linux%20ARM64%20%7C%20x86__64-34C759)](#环境要求)
 [![Downloads](https://img.shields.io/github/downloads/luozhang52/Edge-switch/total?label=downloads&color=007AFF)](https://github.com/luozhang52/Edge-switch/releases)
 [![Stars](https://img.shields.io/github/stars/luozhang52/Edge-switch?style=flat&color=F5A623)](https://github.com/luozhang52/Edge-switch/stargazers)
@@ -22,11 +22,13 @@
 
 </div>
 
+> 当前主分支正在迁移到 Tauri 2＋Rust＋React＋TypeScript；稳定版仍为 [v1.1.3](https://github.com/luozhang52/Edge-switch/releases/tag/v1.1.3)。新版尚未完成真实板卡验收，也未发布 Release。新版开发、构建和迁移说明见 [Tauri 迁移文档](docs/tauri-migration.md)。下文历史截图与 Python 开发流程保留供旧版参考。
+
 ## 项目简介
 
 Edge Switch 将板卡 AI 开发中分散的连接、安装、代理和认证操作集中到一个桌面界面。为不同设备或工程创建工作环境，切换官方 ChatGPT 账号与自定义 API，再从工作台打开 VS Code 或 Harness 网页。
 
-程序窗口、托盘和安装包统一使用 **Edge Switch**，当前版本 **1.1.0**。为兼容旧版，本机配置目录保留 `EdgeSSHAI`。桌面端运行于 Windows，AI 工具运行于通过 SSH 连接的 Linux 设备。中英文文档可从首页顶部切换，当前程序界面为中文。
+程序窗口、托盘和安装包统一使用 **Edge Switch**，当前源码版本 **2.0.0-alpha.1**。为兼容旧版，本机配置目录保留 `EdgeSSHAI`。桌面端运行于 Windows，AI 工具运行于通过 SSH 连接的 Linux 设备。中英文文档可从首页顶部切换，当前程序界面为中文。
 
 ## 功能亮点
 
@@ -212,7 +214,11 @@ API Key 在勾选保存后通过 Windows DPAPI 加密，绑定当前 Windows 用
 
 </details>
 
-## 开发与构建
+## 新版开发与构建
+
+安装 Node.js 24、Rust stable、MSVC Build Tools 和 WebView2 后，执行 `npm.cmd ci`、`npm.cmd run tauri dev`。使用 `npm.cmd run desktop:build` 构建新版安装包和便携版，输出位于 `dist/tauri/`，不入库。完整检查与回退步骤见 [迁移文档](docs/tauri-migration.md)。
+
+## 旧版 Python 开发与构建
 
 源码运行需要 **Windows Python 3.10+（含 tkinter）**：
 

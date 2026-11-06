@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Edge Switch",
+  "version": "2.0.0-alpha.1",
+  "identifier": "com.edgeswitch.workbench",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist/web"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Edge Switch",
+        "width": 1180,
+        "height": 790,
+        "minWidth": 980,
+        "minHeight": 660
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["../image/EdgeAI.ico"],
+    "licenseFile": "../LICENSE",
+    "shortDescription": "面向 Linux 板卡的远程 AI 开发工作台",
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["SimpChinese", "English"],
+        "displayLanguageSelector": true
+      }
+    }
+  }
+}

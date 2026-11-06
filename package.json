@@ -1,0 +1,35 @@
+{
+  "name": "edge-switch",
+  "version": "2.0.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "tauri": "tauri",
+    "test": "vitest run",
+    "desktop:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-desktop.ps1",
+    "test:desktop": "node scripts/smoke-desktop.mjs",
+    "format:check": "prettier --check src scripts package.json tsconfig.json vite.config.ts vitest.config.ts src-tauri/tauri.conf.json src-tauri/capabilities/main.json"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-dialog": "^2.4.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.0",
+    "@tauri-apps/cli": "^2.8.0",
+    "@testing-library/react": "^16.3.3",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "jsdom": "^31.0.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.8.0",
+    "vite": "^6.3.0",
+    "vitest": "^4.1.12"
+  }
+}

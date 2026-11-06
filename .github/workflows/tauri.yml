@@ -1,0 +1,50 @@
+﻿name: Tauri desktop checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx prettier --check src scripts package.json tsconfig.json vite.config.ts vitest.config.ts src-tauri/tauri.conf.json src-tauri/capabilities/main.json
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --lib -- -D warnings
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
+      - name: Build alpha installer and portable archive (no release publication)
+        run: npm run desktop:build
+      - name: Exercise packaged desktop through WebView2
+        run: npm run test:desktop
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: edge-switch-windows-alpha
+          path: |
+            dist/tauri/*
+            build/migration/desktop-*/result.json
+            build/migration/desktop-*/*.png
+          if-no-files-found: warn

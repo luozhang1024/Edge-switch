@@ -7,3 +7,8 @@ EdgeSSHAI/
 build/
 dist/
 *.spec
+node_modules/
+src-tauri/target/
+.pytest_cache/
+*.tsbuildinfo
+src-tauri/gen/
