@@ -132,25 +132,41 @@ class ServerTests(unittest.TestCase):
             self.assertIn('--proxy', requests[0])
             self.assertNotIn('--proxy', requests[1])
 
-    def test_window_opens_before_remote_extension_install(self):
+    def test_remote_extension_and_auth_verified_before_opening_window(self):
         with tempfile.TemporaryDirectory() as folder:
             board = MagicMock(profile=Profile(protocol='responses'), scope='b' * 32)
             board.ssh.return_value = ['ssh.exe']
-            board.call.side_effect = [dict(flock=True), dict(cli='/private/codex')]
+            board.call.side_effect = [dict(flock=True), dict(ready=True, message='扩展已验证'), dict(cli='/private/codex')]
             calls = []
             def run(args, **kwargs):
                 calls.append(args)
+                if '--reuse-window' in args:
+                    self.assertEqual(board.call.call_args.args[0], 'configure_ide')
+                    settings = json.loads((Path(folder) / 'User/settings.json').read_text())
+                    self.assertEqual(settings['chatgpt.cliExecutable'], '/private/codex')
                 return __import__('subprocess').CompletedProcess(args, 0, b'ms-vscode-remote.remote-ssh\n', b'')
             with patch('workbench.editor_runtime.editor_for', return_value=('Code.exe', 'cli.js', {}, COMMIT)), \
                  patch('workbench.vscode_server.prepare_server', return_value=dict(path='/private/server', ready=True)), \
                  patch('workbench.core.subprocess.run', side_effect=run):
                 open_vscode(board, folder, api=dict(key='private-key'))
-            window = next(i for i, args in enumerate(calls) if '--reuse-window' in args)
-            extension = next(i for i, args in enumerate(calls) if 'openai.chatgpt' in args)
-            self.assertLess(window, extension)
+            self.assertTrue(any('--reuse-window' in args for args in calls))
+            self.assertFalse(any('openai.chatgpt' in args for args in calls))
             settings = json.loads((Path(folder) / 'User/settings.json').read_text())
             self.assertEqual(settings['remote.SSH.serverInstallPath'], {'edge-' + 'b' * 32: '/private/server'})
             self.assertNotIn('private-key', json.dumps(settings))
+
+    def test_unverified_extension_does_not_sync_or_open_window(self):
+        with tempfile.TemporaryDirectory() as folder:
+            board = MagicMock(profile=Profile(protocol='responses'), scope='b' * 32)
+            board.ssh.return_value = ['ssh.exe']
+            board.call.side_effect = [dict(flock=True), dict(ready=False)]
+            with patch('workbench.editor_runtime.editor_for', return_value=('Code.exe', 'cli.js', {}, COMMIT)), \
+                 patch('workbench.vscode_server.prepare_server', return_value=dict(path='/private/server', ready=True)), \
+                 patch('workbench.core.subprocess.run', return_value=__import__('subprocess').CompletedProcess([], 0, b'ms-vscode-remote.remote-ssh\n', b'')) as run:
+                with self.assertRaisesRegex(RuntimeError, '尚未验证就绪'):
+                    open_vscode(board, folder, api=dict(key='test-key'))
+            self.assertNotIn('configure_ide', [call.args[0] for call in board.call.call_args_list])
+            self.assertFalse(any('--reuse-window' in call.args[0] for call in run.call_args_list))
 
     def test_download_failure_report_is_specific(self):
         with tempfile.TemporaryDirectory() as folder:

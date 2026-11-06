@@ -200,7 +200,7 @@ def api_test(p):
         urllib.request.ProxyHandler({'http': proxy, 'https': proxy} if proxy else {}), NoRedirect())
     url = p['base_url'].rstrip('/')
     headers = {'Authorization': 'Bearer ' + p['key'], 'Content-Type': 'application/json',
-               'Accept': 'application/json', 'User-Agent': 'EdgeSwitch/1.1.0'}
+               'Accept': 'application/json', 'User-Agent': 'EdgeSwitch/1.1.1'}
     data = None
     if p.get('infer'):
         if p['protocol'] == 'responses':
@@ -641,15 +641,100 @@ def vscode_server(p):
                     codex_extension=any((root / 'extensions').glob('openai.chatgpt-*/package.json')))
 
 
+def ide_candidates(extension_root):
+    """Only accept the actual Codex extension with a matching runnable binary."""
+    arch = {'aarch64': 'linux-aarch64', 'x86_64': 'linux-x86_64'}.get(platform.machine())
+    found = []
+    for package in Path(extension_root).glob('openai.chatgpt-*'):
+        try:
+            manifest = json.loads((package / 'package.json').read_text())
+            binary = package / 'bin' / arch / 'codex' if arch else None
+            if (manifest.get('publisher', '').lower() != 'openai' or
+                    manifest.get('name', '').lower() != 'chatgpt' or not binary or
+                    not binary.is_file() or not os.access(str(binary), os.X_OK)):
+                continue
+            found.append((package, binary, manifest.get('version', '')))
+        except (OSError, ValueError, TypeError):
+            continue
+    return sorted(found, key=lambda item: item[0].stat().st_mtime, reverse=True)
+
+
+def prepare_ide(p):
+    """Install/reuse and verify on the board, never via the Windows CLI."""
+    commit = p.get('commit', '')
+    if not re.fullmatch('[a-f0-9]{40}', commit):
+        raise ValueError('Invalid VS Code commit')
+    root = scope(p) / 'vscode-server'
+    server = root / 'bin' / commit / 'bin/code-server'
+    if not server.is_file():
+        raise RuntimeError('此环境 VS Code Server 尚未准备好，无法安装远程扩展')
+    extensions = root / 'extensions'
+    extensions.mkdir(parents=True, exist_ok=True, mode=0o700)
+    env = clean_env(p.get('proxy', ''))
+    env.update(VSCODE_AGENT_FOLDER=str(root))
+    args = [str(server), '--extensions-dir', str(extensions), '--user-data-dir', str(root / 'data')]
+    import fcntl
+    with (root / 'edge-extension.lock').open('a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError('此环境正在准备 Codex 扩展，请等待本次任务完成')
+        reused = False
+        candidates = ide_candidates(extensions)
+        if not candidates:
+            sources = [Path.home() / '.vscode-server/extensions']
+            sources += sorted(root.parent.parent.glob('*/vscode-server/extensions'))
+            for source in sources:
+                if source == extensions:
+                    continue
+                for package, binary, version in ide_candidates(source):
+                    try:
+                        command([str(binary), '--version'], env=env, timeout=20)
+                    except RuntimeError:
+                        continue
+                    target = extensions / package.name
+                    if target.exists():
+                        continue
+                    stage = Path(tempfile.mkdtemp(prefix='extension-copy-', dir=str(root)))
+                    try:
+                        shutil.copytree(str(package), str(stage / package.name))
+                        (stage / package.name).rename(target)
+                    finally:
+                        shutil.rmtree(str(stage))
+                    reused = True
+                    break
+                if reused:
+                    break
+        # The server CLI performs extension management without starting another
+        # server or connecting to a running Windows window.
+        try:
+            listed = command(args + ['--list-extensions'], env=env, timeout=30)
+            registered = 'openai.chatgpt' in [line.strip().lower() for line in listed.splitlines()]
+            if not registered or not ide_candidates(extensions):
+                command(args + ['--install-extension', 'openai.chatgpt'], env=env, timeout=180)
+            listed = command(args + ['--list-extensions'], env=env, timeout=30)
+        except RuntimeError:
+            raise RuntimeError('板卡 Codex 扩展安装或注册验证失败；请检查该环境代理和扩展市场线路。远程窗口尚未作为同步成功处理。') from None
+        candidates = ide_candidates(extensions)
+        if not candidates or 'openai.chatgpt' not in [line.strip().lower() for line in listed.splitlines()]:
+            raise RuntimeError('板卡安装步骤已结束，但未检测到已注册且包含本机架构 CLI 的 Codex 扩展；未声明安装成功')
+        package, binary, version = candidates[0]
+        try:
+            command([str(binary), '--version'], env=env, timeout=20)
+        except RuntimeError:
+            raise RuntimeError('Codex 扩展已注册，但附带 CLI 无法在此板卡运行，请检查架构和系统依赖') from None
+        return dict(ready=True, reused=reused, version=version, binary=str(binary),
+                    message=('已复用板卡已有 Codex 扩展' if reused else 'Codex 远程扩展已就绪') +
+                            '；VS Code Server 注册与 CLI 运行检查通过')
+
+
 def configure_ide(p):
     """Use the extension's own app-server binary through a scoped launcher."""
     root = scope(p)
     if p.get('auth_mode') != 'chatgpt':
         p = reuse_credentials(p)
     extension_root = root / 'vscode-server/extensions' if p.get('private_server') else Path.home() / '.vscode-server/extensions'
-    candidates = list(extension_root.glob('openai.chatgpt-*/bin/*/codex'))
-    arch = {'aarch64': 'linux-aarch64', 'x86_64': 'linux-x86_64'}.get(platform.machine())
-    candidates = [x for x in candidates if x.parent.name == arch and x.is_file()]
+    candidates = [item[1] for item in ide_candidates(extension_root)]
     if not candidates:
         raise RuntimeError('请先在远程 VS Code 安装 Codex（openai.chatgpt）扩展，再同步配置')
     binary = max(candidates, key=lambda x: x.stat().st_mtime)
@@ -776,7 +861,7 @@ os.execvpe(tool['binary'], [tool['binary']] + sys.argv[1:], env)
 def main():
     p = json.load(sys.stdin)
     action = p['action']
-    actions = dict(diagnose=diagnose, vscode_server=vscode_server, reuse_tools=reuse_tools, api_test=api_test, install_runtime=install_runtime,
+    actions = dict(diagnose=diagnose, vscode_server=vscode_server, prepare_ide=prepare_ide, reuse_tools=reuse_tools, api_test=api_test, install_runtime=install_runtime,
                    install_tool=install_tool, configure=configure, configure_ide=configure_ide, codex_auth_status=codex_auth_status, import_official_auth=import_official_auth, official_test=official_test,
                    harness_prepare=harness_prepare, harness_start=harness_start,
                    harness_status=harness_status, harness_stop=harness_stop)

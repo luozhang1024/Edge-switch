@@ -666,26 +666,22 @@ def open_vscode(board, data_dir, api=None, proxy='', progress=None):
                                 capture_output=True, timeout=180, creationflags=CREATE_NO_WINDOW)
         if result.returncode:
             raise RuntimeError('Remote SSH 扩展下载/安装失败，请检查电脑到 VS Code 扩展市场的网络；板卡 SSH 与模型 API 是独立线路')
-    # Open a visible window before remote extension setup can wait on a connection.
-    progress('VS Code：服务端已准备，正在打开远程窗口…')
-    subprocess.run([*args, '--reuse-window', '--remote', 'ssh-remote+' + alias, p.project],
-                   env=env, check=True, timeout=30, creationflags=CREATE_NO_WINDOW)
     if api:
         progress('VS Code：正在准备远程 Codex 扩展与当前环境认证…')
         if p.codex_auth != 'chatgpt' and p.protocol != 'responses':
             raise ValueError('Codex 插件需要 Responses 协议')
-        # Install on the remote extension host; preserve the extension's bundled CLI version.
-        if not server.get('codex_extension'):
-            result = subprocess.run([*args, '--remote', 'ssh-remote+' + alias,
-                                     '--install-extension', 'openai.chatgpt'], env=env,
-                                    capture_output=True, timeout=180, creationflags=CREATE_NO_WINDOW)
-            if result.returncode:
-                raise RuntimeError('远程 Codex 扩展安装失败，请在远程扩展面板安装后重试')
+        extension = board.call('prepare_ide', commit=commit, proxy=proxy, timeout=300)
+        if not extension.get('ready'):
+            raise RuntimeError('板卡 Codex 扩展尚未验证就绪，未同步登录配置')
+        progress('VS Code：' + extension['message'])
         ide = board.call('configure_ide', project=p.project, private_server=True, **api)
         changes.update({'chatgpt.cliExecutable': ide['cli'], 'chatgpt.openOnStartup': True,
                         'chatgpt.localeOverride': 'zh-CN'})
         value = settings.read_text(encoding='utf-8-sig')
         settings.write_text(patch_jsonc(value, changes), encoding='utf-8')
+    progress('VS Code：远程准备已完成，正在打开远程窗口…')
+    subprocess.run([*args, '--reuse-window', '--remote', 'ssh-remote+' + alias, p.project],
+                   env=env, check=True, timeout=30, creationflags=CREATE_NO_WINDOW)
     progress('VS Code：打开请求已发送，实际连接状态可点击“连接诊断”查看。')
     return ('已发送 VS Code Remote SSH 打开/切换请求；' +
             ((ide.get('message', 'Codex 扩展 CLI 已确认 API 登录') + '；') if api else '') +

@@ -43,7 +43,7 @@ class ProfileTests(unittest.TestCase):
             board.profile = core.Profile(protocol='responses', model='gpt-6.1-sol')
             board.scope = 'a' * 32
             board.ssh.return_value = ['ssh.exe']
-            board.call.side_effect = [dict(flock=True), dict(cli='/home/user/private/run-ide-codex')]
+            board.call.side_effect = [dict(flock=True), dict(ready=True, message='扩展已验证'), dict(cli='/home/user/private/run-ide-codex')]
             cli_args = []
             def run(args, **kwargs):
                 cli_args.append(args)
@@ -57,7 +57,8 @@ class ProfileTests(unittest.TestCase):
                 result = core.open_vscode(board, directory, api=dict(key='test-private-key', model='gpt-6.1-sol'))
             settings = json.loads((Path(directory) / 'User/settings.json').read_text())
             self.assertEqual(settings['chatgpt.cliExecutable'], '/home/user/private/run-ide-codex')
-            self.assertTrue(any('openai.chatgpt' in args and '--remote' in args for args in cli_args))
+            self.assertIn('prepare_ide', [call.args[0] for call in board.call.call_args_list])
+            self.assertFalse(any('openai.chatgpt' in args for args in cli_args))
             self.assertNotIn('test-private-key', str(cli_args))
             self.assertNotIn('test-private-key', str(settings))
             self.assertIn('API', result)
@@ -141,6 +142,8 @@ class RemoteTests(unittest.TestCase):
             bundled = home / '.vscode-server/extensions/openai.chatgpt-test/bin/linux-aarch64/codex'
             bundled.parent.mkdir(parents=True)
             bundled.touch()
+            bundled.chmod(0o700)
+            (bundled.parent.parent.parent / 'package.json').write_text(json.dumps(dict(publisher='openai', name='chatgpt', version='1.0.0')))
             with patch.object(remote_agent.platform, 'machine', return_value='aarch64'), \
                     patch.object(remote_agent, 'command', side_effect=['features', 'Logged in using an API key']):
                 result = remote_agent.configure_ide(p)
@@ -267,7 +270,7 @@ class RemoteTests(unittest.TestCase):
         with patch.object(remote_agent.urllib.request, 'build_opener', return_value=opener):
             remote_agent.api_test(dict(base_url='https://test', key='key'))
         request = opener.open.call_args.args[0]
-        self.assertEqual(request.get_header('User-agent'), 'EdgeSwitch/1.1.0')
+        self.assertEqual(request.get_header('User-agent'), 'EdgeSwitch/1.1.1')
         self.assertEqual(request.get_header('Accept'), 'application/json')
 
     def test_gateway_403_is_distinguished_from_authentication(self):

@@ -1,4 +1,4 @@
-#define AppVersion "1.1.0"
+#define AppVersion "1.1.1"
 
 [Setup]
 AppId={{4E8B46D3-9164-4831-A164-38CB76378A9E}
@@ -34,7 +34,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"
 
 [Files]
-Source: "..\dist\current\EdgeSwitch-1.1.0.exe"; DestDir: "{app}"; DestName: "EdgeSwitch.exe"; Flags: ignoreversion
+Source: "..\dist\current\EdgeSwitch-1.1.1.exe"; DestDir: "{app}"; DestName: "EdgeSwitch.exe"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; DestName: "README.txt"; Flags: ignoreversion
 Source: "..\README.en.md"; DestDir: "{app}"; DestName: "README.en.txt"; Flags: ignoreversion

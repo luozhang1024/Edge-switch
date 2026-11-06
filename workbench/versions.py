@@ -28,7 +28,7 @@ def fetch_versions(proxy=False, port=7890):
     result = {}
     for tool, package in [('codex', '@openai%2Fcodex'), ('harness', '@deepseek-ai%2Fdsh')]:
         request = urllib.request.Request('https://registry.npmjs.org/' + package,
-            headers={'Accept': 'application/vnd.npm.install-v1+json', 'User-Agent': 'EdgeSwitch/1.1.0'})
+            headers={'Accept': 'application/vnd.npm.install-v1+json', 'User-Agent': 'EdgeSwitch/1.1.1'})
         with opener.open(request, timeout=25) as response:
             result[tool] = published_versions(json.load(response))
     return result
