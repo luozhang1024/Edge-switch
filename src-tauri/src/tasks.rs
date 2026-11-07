@@ -60,6 +60,7 @@ pub async fn start_task(
         "ssh_console" => "打开 SSH 终端",
         "codex" => "打开 Codex",
         "login" => "登录官方账号",
+        "auth_status" => "检测官方登录状态",
         "harness" => "打开 Harness",
         "claude" => "打开 Claude Code",
         "gemini" => "打开 Gemini CLI",
@@ -342,6 +343,31 @@ async fn import_auth(core: &Core, p: &Profile, scope: &str) -> Result<(), String
     }
     Ok(())
 }
+fn remember_auth(
+    core: &Core,
+    p: &Profile,
+    authenticated: bool,
+    fresh_login: bool,
+) -> Result<(), String> {
+    let mut live = core.store.lock().unwrap();
+    let mut next = live.clone();
+    if !next.data["official"][&p.id].is_object() {
+        next.data["official"][&p.id] = json!({"name":"OpenAI Official"});
+    }
+    let entry = &mut next.data["official"][&p.id];
+    entry["remote_authenticated"] = json!(authenticated);
+    entry["verified_target"] = store::Store::auth_target(p);
+    entry["verified_at"] = json!(SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs());
+    if fresh_login {
+        entry.as_object_mut().unwrap().remove("credentials");
+    }
+    next.save()?;
+    *live = next;
+    Ok(())
+}
 async fn execute(
     core: Arc<Core>,
     app: &tauri::AppHandle,
@@ -409,14 +435,29 @@ async fn execute(
         }
         "official_test" => {
             import_auth(&core, p, scope).await?;
-            core.call(
-                p,
-                scope,
-                "official_test",
-                json!({"infer":v["infer"]==true,"proxy":core.route(p,"codex").await?}),
-                100,
+            let result = core
+                .call(
+                    p,
+                    scope,
+                    "official_test",
+                    json!({"infer":v["infer"]==true,"proxy":core.route(p,"codex").await?}),
+                    100,
+                )
+                .await?;
+            if let Some(authenticated) = result["authenticated"].as_bool() {
+                remember_auth(&core, p, authenticated, false)?;
+            }
+            Ok(result)
+        }
+        "auth_status" => {
+            let result = core
+                .call(p, scope, "codex_auth_status", json!({}), 60)
+                .await?;
+            let authenticated = result["authenticated"] == true;
+            remember_auth(&core, p, authenticated, false)?;
+            Ok(
+                json!({"authenticated":authenticated,"message":if authenticated {"已确认官方账号登录，可在模型服务中启用"}else{"尚未登录，请完成账号授权"}}),
             )
-            .await
         }
         "setup_ssh" => setup_ssh(&core, app, id, p, scope).await,
         "ssh_console" => {
@@ -430,7 +471,15 @@ async fn execute(
             Ok(json!({"message":"已打开板卡工具终端"}))
         }
         "codex" | "login" => {
-            configure(&core, p, scope, false).await?;
+            if action == "login" {
+                let mut login_profile = p.clone();
+                login_profile.codex_auth = "chatgpt".into();
+                let payload = json!({"auth_mode":"chatgpt","project":p.project,"proxy":core.route(p,"codex").await?});
+                core.call(&login_profile, scope, "configure", payload, 100)
+                    .await?;
+            } else {
+                configure(&core, p, scope, false).await?;
+            }
             let command = format!(
                 "python3 ~/.local/share/edge-ssh-ai/{scope}/run-codex.py{}",
                 if action == "login" {
@@ -441,13 +490,15 @@ async fn execute(
             );
             progress(app, id, "请查看弹出的终端窗口");
             console(p, Some(command), action == "login").await?;
-            if action == "login"
-                && core
+            if action == "login" {
+                let authenticated = core
                     .call(p, scope, "codex_auth_status", json!({}), 60)
                     .await?["authenticated"]
-                    != true
-            {
-                return Err("尚未确认官方登录，请检查终端授权结果".into());
+                    == true;
+                remember_auth(&core, p, authenticated, authenticated)?;
+                if !authenticated {
+                    return Err("尚未确认官方登录，请检查终端授权结果".into());
+                }
             }
             Ok(json!({"message":if action=="login"{"已确认官方账号登录"}else{"已打开 Codex 终端"}}))
         }
@@ -665,6 +716,32 @@ fn open_url(url: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn remote_auth_is_bound_to_target_and_does_not_switch_api() {
+        let core = crate::tests::core();
+        let profile = {
+            let s = core.store.lock().unwrap();
+            s.profile(s.data["selected_profile"].as_str().unwrap())
+                .unwrap()
+        };
+        assert!(!core.store.lock().unwrap().official_ready(&profile));
+        remember_auth(&core, &profile, true, true).unwrap();
+        let s = core.store.lock().unwrap();
+        assert!(s.official_ready(&profile));
+        assert_eq!(s.profile(&profile.id).unwrap().codex_auth, "api");
+        assert_eq!(
+            s.snapshot()["official"][&profile.id]["remote_authenticated"],
+            true
+        );
+        let mut changed = profile.clone();
+        changed.host = "other-board.local".into();
+        assert!(!s.official_ready(&changed));
+        let dir = s.directory.clone();
+        drop(s);
+        assert!(store::Store::load(dir).unwrap().official_ready(&profile));
+        remember_auth(&core, &profile, false, false).unwrap();
+        assert!(!core.store.lock().unwrap().official_ready(&profile));
+    }
     #[test]
     fn task_results_hide_session_keys_and_nested_auth_fields() {
         let core = crate::tests::core();

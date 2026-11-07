@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Profile } from "./types";
+import { Preferences, Profile, ToolId } from "./types";
 import { ScrollList } from "./ScrollList";
 
 export function RecordPlayer({
@@ -11,6 +11,7 @@ export function RecordPlayer({
   onTasks,
   onInfo,
   taskCount,
+  preferences,
 }: {
   current: Profile;
   busy: boolean;
@@ -20,6 +21,7 @@ export function RecordPlayer({
   onTasks: () => void;
   onInfo: () => void;
   taskCount: number;
+  preferences: Preferences;
 }) {
   const [spinning, setSpinning] = useState(true);
   const tracks = [
@@ -30,7 +32,11 @@ export function RecordPlayer({
     ["05", "Claude Code", "用自然语言，雕琢想法", "claude"],
     ["06", "Gemini CLI", "另一种灵感，另一种可能", "gemini"],
     ["07", "OpenCode", "开放工具 · 自由创造", "opencode"],
-  ];
+  ].filter(
+    ([, , , action]) =>
+      ["vscode", "ssh_console"].includes(action) ||
+      preferences.home_tools.includes(action as ToolId),
+  );
   return (
     <section className="listening-room" aria-label="远程开发唱片台">
       <div className="track-column">
@@ -43,7 +49,7 @@ export function RecordPlayer({
         <p className="room-intro">连接你的板卡，进入创造的节奏。</p>
         <div className="track-heading">
           <span>A SIDE / 快速启动</span>
-          <span>07 TRACKS</span>
+          <span>{String(tracks.length).padStart(2, "0")} TRACKS</span>
         </div>
         <ScrollList className="launch-tracks" label="快速启动列表">
           {tracks.map(([number, name, detail, action]) => (
@@ -84,7 +90,7 @@ export function RecordPlayer({
         <span className="turntable-caption">EDGE SESSIONS — VOL. 01</span>
         <div className="record-platter">
           <div
-            className={`vinyl ${spinning ? "is-spinning" : ""}`}
+            className={`vinyl ${spinning && preferences.motion ? "is-spinning" : ""}`}
             aria-hidden="true"
           >
             <div className="vinyl-label">
@@ -103,12 +109,17 @@ export function RecordPlayer({
         </div>
         <button
           className="spin-control"
+          disabled={!preferences.motion}
           aria-pressed={!spinning}
           aria-label={spinning ? "暂停唱片动画" : "继续唱片动画"}
           onClick={() => setSpinning(!spinning)}
         >
           <span aria-hidden="true">{spinning ? "Ⅱ" : "▷"}</span>
-          {spinning ? "暂停转动" : "继续转动"}
+          {!preferences.motion
+            ? "动画已关闭"
+            : spinning
+              ? "暂停转动"
+              : "继续转动"}
         </button>
       </div>
       <div className="sleeve-column">

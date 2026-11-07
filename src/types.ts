@@ -36,6 +36,8 @@ export type Service = {
   protocol: string;
 };
 export type Official = {
+  remote_authenticated?: boolean;
+  verified_at?: number;
   icon?: string;
   name?: string;
   note?: string;
@@ -51,6 +53,7 @@ export type Task = {
   started_at: number;
 };
 export type Snapshot = {
+  preferences?: Preferences;
   profiles: Profile[];
   selected_profile: string;
   services: Record<string, Service[]>;
@@ -58,6 +61,16 @@ export type Snapshot = {
   saved_keys: string[];
   tasks: Task[];
   version: string;
+};
+export type Preferences = {
+  theme: "light" | "dark" | "system";
+  motion: boolean;
+  home_tools: ToolId[];
+};
+export const defaultPreferences: Preferences = {
+  theme: "system",
+  motion: true,
+  home_tools: ["codex", "claude", "harness", "gemini", "opencode"],
 };
 export type Connection = {
   kind: string;

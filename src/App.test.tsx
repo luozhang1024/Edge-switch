@@ -10,7 +10,7 @@ import {
 } from "@testing-library/react";
 import { App } from "./App";
 import { version } from "../package.json";
-import { emptyProfile, Snapshot } from "./types";
+import { defaultPreferences, emptyProfile, Snapshot } from "./types";
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   confirm: vi.fn(),
@@ -70,6 +70,90 @@ async function models() {
   fireEvent.click(await screen.findByText("模型服务", { selector: "button" }));
 }
 describe("桌面工作流", () => {
+  it("管理区持续保留导航，切换功能不需要重新展开", async () => {
+    await models();
+    expect(screen.queryByRole("button", { name: "总览与任务" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "工作环境" }));
+    expect(screen.getByRole("button", { name: "添加环境" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "模型服务" }));
+    expect(screen.getByRole("tab", { name: "Codex" })).toBeTruthy();
+  });
+  it("未认证账号引导到设置，登录不需要先启用官方账号", async () => {
+    await models();
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "启用官方账号",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "前往设置认证" }));
+    expect(
+      screen.getByRole("tab", { name: "认证" }).getAttribute("aria-selected"),
+    ).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "登录 ChatGPT" }));
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith("start_task", {
+        profileId: data.selected_profile,
+        action: "login",
+        payload: {},
+      }),
+    );
+    expect(
+      mocks.invoke.mock.calls.some(([name]) => name === "activate_service"),
+    ).toBe(false);
+  });
+  it("认证状态刷新后可在模型列表启用官方账号", async () => {
+    await models();
+    data.official[data.selected_profile] = {
+      name: "官方账号",
+      remote_authenticated: true,
+    };
+    fireEvent.click(screen.getByRole("button", { name: "刷新" }));
+    const enable = screen.getByRole("button", { name: "启用官方账号" });
+    await waitFor(() =>
+      expect((enable as HTMLButtonElement).disabled).toBe(false),
+    );
+    fireEvent.click(enable);
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith("activate_service", {
+        profileId: data.selected_profile,
+        serviceId: "official",
+        tool: "codex",
+      }),
+    );
+  });
+  it("设置持久化主题、首页工具与唱片动画偏好", async () => {
+    data.preferences = structuredClone(defaultPreferences);
+    mocks.invoke.mockImplementation(async (name: string, args: any) => {
+      if (name === "save_preferences") {
+        data.preferences = args.preferences;
+        return null;
+      }
+      return name === "snapshot"
+        ? structuredClone(data)
+        : name === "connection_status"
+          ? {}
+          : null;
+    });
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    fireEvent.click(screen.getByRole("button", { name: "☾ 深色" }));
+    await waitFor(() =>
+      expect(document.documentElement.dataset.theme).toBe("dark"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Claude Code" }));
+    await waitFor(() =>
+      expect(data.preferences?.home_tools.includes("claude")).toBe(false),
+    );
+    fireEvent.click(screen.getByLabelText("自动旋转唱片"));
+    await waitFor(() => expect(data.preferences?.motion).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "← 返回唱片台" }));
+    expect(
+      screen.queryByRole("button", { name: "打开 Claude Code" }),
+    ).toBeNull();
+    expect(document.querySelector(".vinyl.is-spinning")).toBeNull();
+  });
   it("添加页展示预设与表单，OpenAI Official 是首个供应商", async () => {
     await models();
     const add = screen.getByRole("button", { name: "添加服务" });

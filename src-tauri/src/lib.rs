@@ -2,6 +2,7 @@ mod editor;
 mod providers;
 mod resources;
 mod secrets;
+mod settings;
 mod store;
 mod tasks;
 mod transport;
@@ -378,6 +379,9 @@ async fn activate_service(
             if tool != "codex" {
                 return Err("ChatGPT 官方账号登录仅用于 Codex；其他工具请使用 API Key".into());
             }
+            if !s.official_ready(&p) {
+                return Err("请先在设置 → 认证中登录官方账号或导入凭据".into());
+            }
             p.codex_auth = "chatgpt".into();
         } else {
             let entry = s.data["services"][&profile_id]
@@ -669,6 +673,9 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            settings::save_preferences,
+            settings::check_update,
+            settings::open_release_page,
             snapshot,
             connection_status,
             save_profile,

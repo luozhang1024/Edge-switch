@@ -89,17 +89,18 @@ try {
       ),
     ).toBe(true);
     await page.screenshot({
+      animations: "disabled",
       path: join(output, `${name}.png`),
       fullPage: (await page.locator(".provider-page").count()) === 0,
     });
   }
   async function navigate(name) {
-    const close = page.locator(
-      '.workspace-sheet > .panelhead > button[aria-label="关闭"]',
-    );
-    if (await close.count()) await close.click();
-    await page.getByRole("button", { name: "打开导航", exact: true }).click();
-    await page.getByRole("button", { name, exact: true }).click();
+    if (!(await page.locator(".workspace-hub").count()))
+      await page.getByRole("button", { name: "打开导航", exact: true }).click();
+    await page
+      .locator(".management-sidebar")
+      .getByRole("button", { name, exact: true })
+      .click();
   }
   await checkVisuals("overview-initial");
   const initialMaximized = await ipc("plugin:window|is_maximized", {
@@ -161,9 +162,23 @@ try {
   await page.setViewportSize(originalViewport || { width: 1180, height: 790 });
   let snapshot = await ipc("snapshot");
   expect(snapshot.version).toBe(expectedVersion);
+  let rejectedUnauthenticated = false;
+  try {
+    await ipc("activate_service", {
+      profileId: snapshot.selected_profile,
+      serviceId: "official",
+      tool: "codex",
+    });
+  } catch (error) {
+    rejectedUnauthenticated = String(error).includes("认证");
+  }
+  expect(rejectedUnauthenticated).toBe(true);
   await page.getByRole("button", { name: "打开导航" }).click();
   await expect(page.locator(".sidefoot")).toContainText(`v${expectedVersion}`);
-  await checkVisuals("navigation-drawer");
+  await expect(
+    page.getByRole("button", { name: "总览与任务", exact: true }),
+  ).toHaveCount(0);
+  await checkVisuals("persistent-navigation");
   await page.keyboard.press("Escape");
   const profile = {
     ...snapshot.profiles[0],
@@ -456,14 +471,64 @@ try {
     page.getByRole("button", { name: "连接代理", exact: true }),
   ).toBeVisible();
   await checkVisuals("proxy");
-  await navigate("总览与任务");
+  await page.getByRole("button", { name: "← 返回唱片台", exact: true }).click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await expect(
+    page.getByRole("tab", { name: "通用", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: "☾ 深色", exact: true }).click();
+  await expect
+    .poll(async () => (await ipc("snapshot")).preferences.theme)
+    .toBe("dark");
+  await checkVisuals("settings-dark");
+  await page.getByRole("button", { name: "☼ 浅色", exact: true }).click();
+  await expect
+    .poll(async () => (await ipc("snapshot")).preferences.theme)
+    .toBe("light");
+  await page.getByRole("button", { name: "Claude Code", exact: true }).click();
+  await expect
+    .poll(async () =>
+      (await ipc("snapshot")).preferences.home_tools.includes("claude"),
+    )
+    .toBe(false);
+  await page.getByLabel("自动旋转唱片").click();
+  await expect(page.getByLabel("自动旋转唱片")).not.toBeChecked();
+  await expect
+    .poll(async () => (await ipc("snapshot")).preferences.motion)
+    .toBe(false);
+  await checkVisuals("settings-general");
+  await page.getByRole("tab", { name: "认证", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "登录 ChatGPT", exact: true }),
+  ).toBeVisible();
+  await checkVisuals("settings-auth");
+  await page.getByRole("button", { name: "← 返回唱片台", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "打开 Claude Code", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator(".vinyl")).toHaveCSS(
+    "animation-play-state",
+    "paused",
+  );
   await checkVisuals("overview");
+  await page.getByRole("button", { name: "检查更新", exact: true }).click();
+  await expect(
+    page.getByRole("tab", { name: "关于", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.locator(".settings-page .update-result, .settings-page .form-error"),
+  ).toBeVisible({ timeout: 25000 });
+  await checkVisuals("settings-update-result");
+  await page.getByRole("button", { name: "← 返回唱片台", exact: true }).click();
   expect(errors).toEqual([]);
   const stored = JSON.parse(
     await readFile(join(output, "EdgeSSHAI/profiles.json"), "utf8"),
   );
   expect(JSON.stringify(stored)).not.toContain("smoke-only-not-a-real-key");
   expect(stored.client_id).toHaveLength(32);
+  expect(stored.preferences.theme).toBe("light");
+  expect(stored.preferences.motion).toBe(false);
+  expect(stored.preferences.home_tools).not.toContain("claude");
   await page.getByRole("button", { name: "最小化窗口" }).click();
   await expect
     .poll(() => ipc("plugin:window|is_minimized", { label: "main" }))
@@ -484,7 +549,8 @@ try {
           "bundled logo and restored navigation/action icons",
           "all page images decode and compact layout has no horizontal overflow",
           "vinyl pause/resume and system reduced-motion preference",
-          "single canvas, drawer, task sheet, scroll fade, native maximize/minimize/close-to-tray",
+          "edge-to-edge canvas, persistent navigation, task sheet, scroll fade, native maximize/minimize/close-to-tray",
+          "persisted theme, tool visibility, animation and account authentication settings",
           "environment edit",
           "API CRUD and DPAPI",
           "active API synchronization",

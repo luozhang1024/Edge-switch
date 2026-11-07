@@ -20,6 +20,7 @@ type Props = {
   onTool: (tool: ToolId) => void;
   onEdit: (service: Service) => void;
   onOfficial: (official: Official) => void;
+  onAuthenticate: () => void;
   command: (name: string, args?: Record<string, unknown>) => Promise<boolean>;
   run: (action: string, payload?: Record<string, unknown>) => Promise<void>;
   remove: (
@@ -36,6 +37,7 @@ export function ModelServices({
   onTool,
   onEdit,
   onOfficial,
+  onAuthenticate,
   command,
   run,
   remove,
@@ -45,6 +47,10 @@ export function ModelServices({
   const activeId =
     tool === "codex" ? current.active_api : current.tool_services?.[tool];
   const official = tool === "codex" && current.codex_auth === "chatgpt";
+  const officialReady = !!(
+    data.official[current.id]?.has_credentials ||
+    data.official[current.id]?.remote_authenticated
+  );
   const services = (data.services[current.id] || []).filter(
     (s) => s.scope === "universal" || (s.tool || "codex") === tool,
   );
@@ -117,7 +123,9 @@ export function ModelServices({
                 {data.official[current.id]?.name || "官方 ChatGPT 账号"} ·{" "}
                 {data.official[current.id]?.has_credentials
                   ? "已保存导入凭据"
-                  : "可在板卡终端登录"}
+                  : data.official[current.id]?.remote_authenticated
+                    ? "已确认板卡账号登录"
+                    : "请先在设置中认证"}
               </small>
               {data.official[current.id]?.note && (
                 <small>{data.official[current.id]?.note}</small>
@@ -128,12 +136,22 @@ export function ModelServices({
               <button
                 title="启用官方账号"
                 className="primary activate-service"
-                disabled={busy || official}
+                disabled={busy || official || !officialReady}
                 onClick={() => void activate("official")}
               >
                 <ActionIcon name="activate" />
                 <span className="sr-only">启用官方账号</span>
               </button>
+              {!officialReady && (
+                <button
+                  className="authenticate-link"
+                  title="前往设置认证"
+                  aria-label="前往设置认证"
+                  onClick={onAuthenticate}
+                >
+                  认证
+                </button>
+              )}
               <button
                 title="编辑 / 导入 auth.json"
                 disabled={busy}
@@ -335,11 +353,8 @@ export function ModelServices({
         </div>
         <div className="buttons">
           {tool === "codex" && (
-            <button
-              disabled={busy || !official}
-              onClick={() => void run("login")}
-            >
-              设备码登录
+            <button disabled={busy} onClick={onAuthenticate}>
+              账号认证设置
             </button>
           )}
           <button

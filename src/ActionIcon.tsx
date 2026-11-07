@@ -3,9 +3,21 @@ import React from "react";
 export function ActionIcon({
   name,
 }: {
-  name: "activate" | "edit" | "copy" | "test" | "delete" | "eye" | "hidden";
+  name:
+    | "activate"
+    | "edit"
+    | "copy"
+    | "test"
+    | "delete"
+    | "eye"
+    | "hidden"
+    | "settings"
+    | "upgrade";
 }) {
   const paths = {
+    settings:
+      "m9 3-1 3-3 1 1 3-2 2 2 2-1 3 3 1 1 3h4l1-3 3-1-1-3 2-2-2-2 1-3-3-1-1-3ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0",
+    upgrade: "M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM12 16V8M8 12l4-4 4 4",
     activate: "m8 4 12 8-12 8Z",
     edit: "m16 3 5 5-12 12H4v-5ZM14 5l5 5M12 4H4v16h16v-8",
     copy: "M9 9h12v12H9ZM15 9V3H3v12h6",

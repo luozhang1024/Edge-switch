@@ -320,16 +320,32 @@ impl Store {
     }
     pub fn snapshot(&self) -> Value {
         let mut official = self.data["official"].clone();
-        for entry in official.as_object_mut().unwrap().values_mut() {
+        for (id, entry) in official.as_object_mut().unwrap().iter_mut() {
             if let Some(obj) = entry.as_object_mut() {
                 let saved = obj.remove("credentials").is_some();
                 obj.insert("has_credentials".into(), json!(saved));
+                let authenticated = self.profile(id).is_ok_and(|p| {
+                    self.data["official"][id]["remote_authenticated"] == true
+                        && self.data["official"][id]["verified_target"] == Self::auth_target(&p)
+                });
+                obj.insert("remote_authenticated".into(), json!(authenticated));
+                obj.remove("verified_target");
             }
         }
         json!({"profiles": self.data["profiles"], "selected_profile": self.data["selected_profile"],
             "services": self.data["services"], "official": official,
             "saved_keys": self.data["secrets"].as_object().unwrap().keys().collect::<Vec<_>>(),
+            "preferences":serde_json::from_value::<crate::settings::Preferences>(self.data["preferences"].clone()).unwrap_or_default(),
             "version":env!("CARGO_PKG_VERSION")})
+    }
+    pub fn auth_target(p: &Profile) -> Value {
+        json!([p.host, p.port, p.user, p.identity])
+    }
+    pub fn official_ready(&self, p: &Profile) -> bool {
+        let entry = &self.data["official"][&p.id];
+        entry["credentials"].as_str().is_some_and(|s| !s.is_empty())
+            || (entry["remote_authenticated"] == true
+                && entry["verified_target"] == Self::auth_target(p))
     }
     pub fn key(&self, p: &Profile) -> Result<String, String> {
         let id = if p.active_api.is_empty() {
