@@ -489,6 +489,28 @@ try {
   await expect(
     page.getByRole("tab", { name: "通用", exact: true }),
   ).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.getByRole("switch", { name: "开机自启", exact: true }),
+  ).toBeChecked({ checked: await ipc("autostart_status") });
+  await expect(
+    page.getByRole("switch", { name: "关闭时最小化到托盘", exact: true }),
+  ).toBeChecked();
+  await page.getByRole("button", { name: "English", exact: true }).click();
+  await expect(
+    page.getByRole("tab", { name: "General", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect
+    .poll(async () => (await ipc("snapshot")).preferences.language)
+    .toBe("en");
+  await page.reload();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(
+    page.getByRole("tab", { name: "General", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "中文", exact: true }).click();
+  await expect
+    .poll(async () => (await ipc("snapshot")).preferences.language)
+    .toBe("zh");
   await page.getByRole("button", { name: "☾ 深色", exact: true }).click();
   await expect
     .poll(async () => (await ipc("snapshot")).preferences.theme)
@@ -551,6 +573,20 @@ try {
     .poll(() => ipc("plugin:window|is_visible", { label: "main" }))
     .toBe(false);
   expect(child.exitCode).toBeNull();
+  const refocus = spawn(exe, [], { env, windowsHide: true, stdio: "ignore" });
+  await once(refocus, "exit");
+  await expect
+    .poll(() => ipc("plugin:window|is_visible", { label: "main" }))
+    .toBe(true);
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page
+    .getByRole("switch", { name: "关闭时最小化到托盘", exact: true })
+    .click();
+  await expect
+    .poll(async () => (await ipc("snapshot")).preferences.close_to_tray)
+    .toBe(false);
+  await page.locator(".close-window").click();
+  await expect.poll(() => child.exitCode).toBe(0);
   await writeFile(
     join(output, "result.json"),
     JSON.stringify(
@@ -578,7 +614,6 @@ try {
       2,
     ),
   );
-  await ipc("quit_app").catch(() => {});
   console.log(`Desktop smoke passed; isolated data and screenshots: ${output}`);
 } finally {
   await browser?.close().catch(() => {});
