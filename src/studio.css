@@ -56,6 +56,25 @@
   max-width: 220px;
   font-size: 11px;
   padding: 6px 16px 6px 6px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.studio-app .studio-header select:focus:not(:focus-visible) {
+  outline: none;
+}
+.environment-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.environment-tabs [aria-selected="true"] {
+  background: var(--accent);
+  color: white;
+}
+.form[hidden],
+[hidden] {
+  display: none !important;
 }
 .window-controls {
   display: flex;
@@ -213,6 +232,8 @@
   letter-spacing: 1.6px;
 }
 .studio-app .record-platter {
+  display: block;
+  padding: 0;
   width: min(112%, 54vh);
   max-width: 490px;
   flex-shrink: 0;
@@ -240,6 +261,11 @@
   padding: 0 32px 0 28px;
 }
 .studio-app .album-cover {
+  display: block;
+  padding: 0;
+  border-radius: 0;
+  text-align: left;
+  background: linear-gradient(#a6d4ed 50%, #f8e89c 50%);
   width: min(100%, 29vh);
   margin: 0 auto 25px;
 }

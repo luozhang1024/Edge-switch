@@ -132,7 +132,7 @@ try {
   await expect(page.locator(".task-history")).toHaveCount(0);
   await page.getByRole("button", { name: "任务记录", exact: true }).click();
   await expect(
-    page.getByRole("dialog", { name: "任务记录", exact: true }),
+    page.getByRole("dialog", { name: "日志", exact: true }),
   ).toBeVisible();
   await checkVisuals("task-history-dialog");
   await page.keyboard.press("Escape");
@@ -174,7 +174,10 @@ try {
   }
   expect(rejectedUnauthenticated).toBe(true);
   await page.getByRole("button", { name: "打开导航" }).click();
-  await expect(page.locator(".sidefoot")).toContainText(`v${expectedVersion}`);
+  await expect(page.locator(".sidefoot")).toHaveCount(0);
+  await expect(page.locator(".turntable-caption")).toContainText(
+    `v${expectedVersion}`,
+  );
   await expect(
     page.getByRole("button", { name: "总览与任务", exact: true }),
   ).toHaveCount(0);
@@ -459,14 +462,15 @@ try {
   expect(
     (await ipc("snapshot")).profiles[0].tool_services.opencode,
   ).toBeUndefined();
-  await navigate("AI 工具");
+  await navigate("工作环境");
+  await page.getByRole("tab", { name: "AI 工具", exact: true }).click();
   await expect(
     page
       .locator(".workspace-sheet")
       .getByRole("button", { name: "打开 VS Code", exact: true }),
   ).toBeVisible();
   await checkVisuals("tools");
-  await navigate("代理网络");
+  await page.getByRole("tab", { name: "代理网络", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "连接代理", exact: true }),
   ).toBeVisible();

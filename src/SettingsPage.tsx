@@ -276,7 +276,7 @@ export function SettingsPage({
                 </button>
               </div>
               <p className="settings-note">
-                首次使用请先在 AI 工具中安装 Codex CLI，并配置好 SSH
+                首次使用请先在工作环境的 AI 工具中安装 Codex CLI，并配置好 SSH
                 登录。点击登录后，会打开当前板卡的 SSH
                 终端。按照终端提示在官方网页完成设备码授权；应用不会收集账号密码。登录过程可在任务记录中查看或取消。
               </p>

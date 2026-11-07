@@ -54,18 +54,6 @@ const navigation = [
     icon: modelIcon,
     description: "管理 API 与官方账号，随时切换所需模型。",
   },
-  {
-    id: "proxy",
-    label: "代理网络",
-    icon: proxyIcon,
-    description: "让电脑与板卡之间的连接井然有序。",
-  },
-  {
-    id: "tools",
-    label: "AI 工具",
-    icon: toolsIcon,
-    description: "从安装到启动，你的开发工具都在这里。",
-  },
 ];
 const actionIcons: Record<string, string> = {
   diagnose: verifyIcon,
@@ -113,6 +101,9 @@ export function App() {
   const [checkOnOpen, setCheckOnOpen] = useState(false);
   const [modelTool, setModelTool] = useState<ToolId>("codex");
   const [editing, setEditing] = useState<Profile | null>(null);
+  const [environmentTab, setEnvironmentTab] = useState("profiles");
+  const [editorTab, setEditorTab] = useState("connection");
+  useEffect(() => setEditorTab("connection"), [editing?.id]);
   const [service, setService] = useState<Service | null>(null);
   const [official, setOfficial] = useState<Official | null>(null);
   const [authPath, setAuthPath] = useState("");
@@ -177,6 +168,12 @@ export function App() {
       return false;
     } finally {
       setPending(false);
+    }
+  }
+  async function configureEnvironment(action: string, payload = {}) {
+    if (!editing) return;
+    if (await command("save_profile", { profile: editing })) {
+      await command("start_task", { profileId: editing.id, action, payload });
     }
   }
   if (!data)
@@ -299,8 +296,8 @@ export function App() {
             <span data-tauri-drag-region>REMOTE AI STUDIO</span>
           </div>
           <label>
-            当前环境{" "}
             <select
+              aria-label="切换工作环境"
               disabled={pending}
               value={current.id}
               onChange={(e) => {
@@ -321,11 +318,16 @@ export function App() {
         </header>
         <RecordPlayer
           current={current}
+          version={data.version}
           busy={busy}
           connected={currentConnections.some(([, c]) => c.state === "已连接")}
           run={run}
           preferences={preferences}
           onNavigate={() => setTab("models")}
+          onEnvironment={() => {
+            setEnvironmentTab("profiles");
+            setTab("connect");
+          }}
           onTasks={() => setTab("tasks")}
           onInfo={() => setTab("info")}
           taskCount={
@@ -355,7 +357,7 @@ export function App() {
           title={
             navigation.find((item) => item.id === tab)?.label ||
             (tab === "tasks"
-              ? "任务记录"
+              ? "日志"
               : tab === "settings"
                 ? "设置"
                 : "环境详情")
@@ -391,7 +393,8 @@ export function App() {
                 className={tab === "tasks" ? "nav active" : "nav"}
                 onClick={() => setTab("tasks")}
               >
-                任务记录
+                <ActionIcon name="logs" />
+                日志
               </button>
               <button
                 className={tab === "settings" ? "nav active" : "nav"}
@@ -403,13 +406,6 @@ export function App() {
                 <ActionIcon name="settings" />
                 设置
               </button>
-              <div className="sidefoot">
-                v{data.version}
-                <span>关闭窗口后保留在托盘</span>
-                <button onClick={() => void command("quit_app")}>
-                  退出程序
-                </button>
-              </div>
             </aside>
             <div className="management-content">
               <div className="management-notice" role="status">
@@ -461,7 +457,7 @@ export function App() {
                           .map(([, c]) => c.state)
                           .join(" / ") || "尚未建立隧道"
                       }
-                      detail="SSH 通道按需建立，请查看任务结果确认设备状态"
+                      detail="这里只统计代理和网页隧道；SSH 终端独立连接，可检查设备验证 SSH 是否可用"
                     />
                   </div>
                   <p className="info-address">
@@ -470,6 +466,28 @@ export function App() {
                 </>
               )}
               {tab === "connect" && (
+                <div
+                  className="environment-tabs"
+                  role="tablist"
+                  aria-label="工作环境配置"
+                >
+                  {[
+                    ["profiles", "环境与 SSH"],
+                    ["proxy", "代理网络"],
+                    ["tools", "AI 工具"],
+                  ].map(([id, label]) => (
+                    <button
+                      key={id}
+                      role="tab"
+                      aria-selected={environmentTab === id}
+                      onClick={() => setEnvironmentTab(id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {tab === "connect" && environmentTab === "profiles" && (
                 <section className="panel">
                   <div className="panelhead">
                     <h2>工作环境</h2>
@@ -560,7 +578,7 @@ export function App() {
                   }}
                 />
               )}
-              {tab === "proxy" && (
+              {tab === "connect" && environmentTab === "proxy" && (
                 <section className="panel">
                   <h2>代理网络</h2>
                   <p>
@@ -601,7 +619,7 @@ export function App() {
                   ))}
                 </section>
               )}
-              {tab === "tools" && (
+              {tab === "connect" && environmentTab === "tools" && (
                 <section>
                   <div className="panel">
                     <h2>工具部署</h2>
@@ -730,6 +748,79 @@ export function App() {
       )}
       {editing && (
         <Modal title="编辑工作环境" close={() => setEditing(null)}>
+          <div
+            className="environment-tabs"
+            role="tablist"
+            aria-label="编辑环境配置"
+          >
+            {[
+              ["connection", "SSH 与网络"],
+              ["tools", "AI 工具"],
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={editorTab === id}
+                onClick={() => setEditorTab(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div hidden={editorTab !== "tools"}>
+            <p>
+              使用此环境的 SSH
+              与代理设置，在板卡上安装工具。操作时会先保存环境配置。
+            </p>
+            <div className="buttons">
+              <button
+                disabled={
+                  pending ||
+                  data.tasks.some(
+                    (t) => t.profile_id === editing.id && isRunning(t),
+                  )
+                }
+                onClick={() => void configureEnvironment("versions")}
+              >
+                查询可用版本
+              </button>
+              <button
+                disabled={
+                  pending ||
+                  data.tasks.some(
+                    (t) => t.profile_id === editing.id && isRunning(t),
+                  )
+                }
+                onClick={() => void configureEnvironment("install_runtime")}
+              >
+                安装独立 Node.js
+              </button>
+              <button
+                disabled={
+                  pending ||
+                  data.tasks.some(
+                    (t) => t.profile_id === editing.id && isRunning(t),
+                  )
+                }
+                onClick={() => void configureEnvironment("reuse_tools")}
+              >
+                复用已有工具
+              </button>
+            </div>
+            <ToolInstaller
+              data={data}
+              profileId={editing.id}
+              disabled={
+                pending ||
+                data.tasks.some(
+                  (t) => t.profile_id === editing.id && isRunning(t),
+                )
+              }
+              install={(tool, version) =>
+                void configureEnvironment("install_tool", { tool, version })
+              }
+            />
+          </div>
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -737,7 +828,7 @@ export function App() {
                 setEditing(null);
             }}
           >
-            <div className="form">
+            <div className="form" hidden={editorTab !== "connection"}>
               {(["name", "host", "user", "project"] as const).map(
                 (field, i) => (
                   <label key={field}>

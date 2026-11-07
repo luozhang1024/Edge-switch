@@ -12,9 +12,11 @@ export function ActionIcon({
     | "eye"
     | "hidden"
     | "settings"
+    | "logs"
     | "upgrade";
 }) {
   const paths = {
+    logs: "M6 3h9l4 4v14H5V3ZM14 3v5h5M8 12h8M8 16h8",
     settings:
       "m9 3-1 3-3 1 1 3-2 2 2 2-1 3 3 1 1 3h4l1-3 3-1-1-3 2-2-2-2 1-3-3-1-1-3ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0",
     upgrade: "M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM12 16V8M8 12l4-4 4 4",

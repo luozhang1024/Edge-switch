@@ -70,6 +70,63 @@ async function models() {
   fireEvent.click(await screen.findByText("模型服务", { selector: "button" }));
 }
 describe("桌面工作流", () => {
+  it("首页提供环境与模型快捷入口，导航仅保留四项", async () => {
+    render(<App />);
+    expect(await screen.findByText(`EDGE SWITCH — v${version}`)).toBeTruthy();
+    expect(screen.getByText("SSH 终端按需连接")).toBeTruthy();
+    expect(screen.queryByText("尚未建立连接通道")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "配置工作环境" }));
+    const sidebar = screen
+      .getByRole("navigation", { name: "主导航" })
+      .closest("aside")!;
+    expect(
+      within(sidebar)
+        .getAllByRole("button")
+        .map((b) => b.textContent?.trim()),
+    ).toEqual(["← 返回唱片台", "工作环境", "模型服务", "日志", "设置"]);
+    fireEvent.click(screen.getByRole("tab", { name: "代理网络" }));
+    expect(screen.getByRole("button", { name: "连接代理" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "AI 工具" }));
+    expect(screen.getByRole("button", { name: "查询可用版本" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "← 返回唱片台" }));
+    fireEvent.click(screen.getByRole("button", { name: "配置模型服务" }));
+    expect(screen.getByRole("tab", { name: "Codex" })).toBeTruthy();
+  });
+  it("创建环境时先保存 SSH 与代理配置，再为该环境部署工具", async () => {
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "配置工作环境" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "添加环境" }));
+    const editor = screen.getByRole("dialog", { name: "编辑工作环境" });
+    fireEvent.change(within(editor).getByLabelText("主机地址"), {
+      target: { value: "new-board.local" },
+    });
+    fireEvent.change(within(editor).getByLabelText("电脑下载线路"), {
+      target: { value: "true" },
+    });
+    fireEvent.click(within(editor).getByRole("tab", { name: "AI 工具" }));
+    fireEvent.click(
+      within(editor).getByRole("button", { name: "查询可用版本" }),
+    );
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith(
+        "start_task",
+        expect.objectContaining({ action: "versions" }),
+      ),
+    );
+    const saved = mocks.invoke.mock.calls.find(
+      ([name]) => name === "save_profile",
+    )![1].profile;
+    expect(saved.host).toBe("new-board.local");
+    expect(saved.proxy).toBe(true);
+    expect(saved.id).not.toBe(data.selected_profile);
+    expect(mocks.invoke).toHaveBeenCalledWith("start_task", {
+      profileId: saved.id,
+      action: "versions",
+      payload: {},
+    });
+  });
   it("管理区持续保留导航，切换功能不需要重新展开", async () => {
     await models();
     expect(screen.queryByRole("button", { name: "总览与任务" })).toBeNull();

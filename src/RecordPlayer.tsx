@@ -4,20 +4,24 @@ import { ScrollList } from "./ScrollList";
 
 export function RecordPlayer({
   current,
+  version,
   busy,
   connected,
   run,
   onNavigate,
+  onEnvironment,
   onTasks,
   onInfo,
   taskCount,
   preferences,
 }: {
   current: Profile;
+  version: string;
   busy: boolean;
   connected: boolean;
   run: (action: string) => Promise<void>;
   onNavigate: () => void;
+  onEnvironment: () => void;
   onTasks: () => void;
   onInfo: () => void;
   taskCount: number;
@@ -87,8 +91,14 @@ export function RecordPlayer({
         <span className="scroll-hint">滚动探索更多工具 ↓</span>
       </div>
       <div className="turntable">
-        <span className="turntable-caption">EDGE SESSIONS — VOL. 01</span>
-        <div className="record-platter">
+        <span className="turntable-caption">EDGE SWITCH — v{version}</span>
+        <button
+          type="button"
+          className="record-platter"
+          title="工作环境"
+          aria-label="配置工作环境"
+          onClick={onEnvironment}
+        >
           <div
             className={`vinyl ${spinning && preferences.motion ? "is-spinning" : ""}`}
             aria-hidden="true"
@@ -100,10 +110,10 @@ export function RecordPlayer({
                 SWITCH
               </span>
               <i />
-              <small>SIDE A · 33⅓ RPM</small>
+              <small>luozhang</small>
             </div>
           </div>
-        </div>
+        </button>
         <div className="tonearm" aria-hidden="true">
           <i />
         </div>
@@ -123,7 +133,13 @@ export function RecordPlayer({
         </button>
       </div>
       <div className="sleeve-column">
-        <div className="album-cover" aria-hidden="true">
+        <button
+          type="button"
+          className="album-cover"
+          title="配置模型服务"
+          aria-label="配置模型服务"
+          onClick={onNavigate}
+        >
           <span>
             REMOTE
             <br />
@@ -136,7 +152,7 @@ export function RecordPlayer({
             YOUR NEXT GREAT IDEA
           </small>
           <b>01</b>
-        </div>
+        </button>
         <div className="sleeve-meta">
           <span>当前工作环境</span>
           <span>↗ SSH</span>
@@ -148,9 +164,12 @@ export function RecordPlayer({
         <div className="sleeve-note">
           <span className="edition-label">LINER NOTES / 环境信息</span>
           <p>{current.project}</p>
-          <span className="connection-indicator">
+          <span
+            className="connection-indicator"
+            title="这里只统计应用维护的代理和网页隧道；外部 SSH 终端独立连接，不以隧道状态判断 SSH 是否可用。"
+          >
             <i className={connected ? "connected" : ""} />
-            {connected ? "已有连接通道" : "尚未建立连接通道"}
+            {connected ? "代理 / 网页隧道已连接" : "SSH 终端按需连接"}
           </span>
         </div>
         <button
