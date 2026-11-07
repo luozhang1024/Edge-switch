@@ -123,6 +123,12 @@ try {
   expect(snapshot.profiles[0].port).toBe(2222);
   await page.getByRole("button", { name: "模型服务", exact: true }).click();
   await page.getByRole("button", { name: "添加服务", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "Codex · 选择供应商" });
+  await expect(picker.locator(".provider-preset").first()).toContainText(
+    "OpenAI Official",
+  );
+  await checkVisuals("codex-provider-picker");
+  await picker.getByRole("button", { name: /OpenAI \/ ChatGPT API/ }).click();
   await page.getByLabel("服务名称").fill("冒烟 API");
   await page.getByLabel("模型 ID").fill("smoke-model");
   await page
@@ -200,6 +206,19 @@ try {
   ]) {
     await page.getByRole("tab", { name, exact: true }).click();
     await page.getByRole("button", { name: "添加服务", exact: true }).click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", {
+        name:
+          provider === "anthropic"
+            ? /Anthropic \/ Claude/
+            : provider === "google"
+              ? /Google \/ Gemini/
+              : provider === "deepseek"
+                ? /DeepSeek/
+                : /OpenAI \/ ChatGPT API/,
+      })
+      .click();
     await page.getByLabel("模型供应商", { exact: true }).selectOption(provider);
     await page.getByLabel("服务名称", { exact: true }).fill(`smoke-${tool}`);
     await page.getByLabel("模型 ID", { exact: true }).fill(`model-${tool}`);
