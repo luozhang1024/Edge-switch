@@ -1,4 +1,5 @@
 mod editor;
+mod providers;
 mod resources;
 mod secrets;
 mod store;
@@ -262,6 +263,11 @@ fn save_service_inner(
         store::validate_tool_protocol(tool, protocol)?;
     }
     let provider = entry["provider"].as_str().unwrap_or("custom");
+    let scope = entry["scope"].as_str().unwrap_or("cli");
+    if !["cli", "universal"].contains(&scope) {
+        return Err("供应商范围无效".into());
+    }
+    providers::validate_icon(entry["icon"].as_str().unwrap_or(""))?;
     if !["openai", "deepseek", "anthropic", "google", "custom"].contains(&provider) {
         return Err("供应商无效".into());
     }
@@ -310,7 +316,7 @@ fn save_service_inner(
     } else {
         None
     };
-    let clean = json!({"id":id,"name":entry["name"],"base_url":entry["base_url"],"model":entry["model"],"protocol":entry["protocol"],"tool":tool,"provider":provider});
+    let clean = json!({"id":id,"name":entry["name"],"base_url":entry["base_url"],"model":entry["model"],"protocol":entry["protocol"],"tool":tool,"provider":provider,"scope":scope,"icon":entry["icon"].as_str().unwrap_or(""),"preset":entry["preset"].as_str().unwrap_or("custom")});
     let entries = s.data["services"][&profile_id]
         .as_array_mut()
         .ok_or("服务列表损坏")?;
@@ -327,7 +333,12 @@ fn save_service_inner(
     if profile.active_api == id {
         profile.base_url = entry["base_url"].as_str().unwrap_or("").into();
         profile.model = entry["model"].as_str().unwrap_or("").into();
-        profile.protocol = entry["protocol"].as_str().unwrap_or("responses").into();
+        profile.protocol = if scope == "universal" {
+            "responses"
+        } else {
+            entry["protocol"].as_str().unwrap_or("responses")
+        }
+        .into();
         s.save_profile(profile)?;
     } else {
         s.data["applied"]
@@ -375,21 +386,14 @@ async fn activate_service(
                 .iter()
                 .find(|v| v["id"] == service_id)
                 .ok_or("服务不存在")?;
-            if entry["tool"].as_str().unwrap_or("codex") != tool {
-                return Err("服务不属于当前工具".into());
-            }
-            store::validate_tool_protocol(tool, entry["protocol"].as_str().unwrap_or(""))?;
+            let selected = providers::apply_service(&p, entry, tool)?;
             if tool != "codex" {
                 p.tool_services.insert(tool.into(), service_id);
                 s.save_profile(p)?;
                 *live = s;
                 return Ok(live.snapshot());
             }
-            p.active_api = service_id;
-            p.base_url = entry["base_url"].as_str().unwrap_or("").into();
-            p.model = entry["model"].as_str().unwrap_or("").into();
-            p.protocol = entry["protocol"].as_str().unwrap_or("responses").into();
-            p.codex_auth = "api".into();
+            p = selected;
         }
         s.save_profile(p)?;
         *live = s;
@@ -453,6 +457,7 @@ async fn save_official(
     name: String,
     note: String,
     path: Option<String>,
+    icon: Option<String>,
 ) -> Result<Value, String> {
     let _mutation = state.0.mutation.lock().await;
     if state.0.active.lock().unwrap().contains_key(&profile_id) {
@@ -460,6 +465,9 @@ async fn save_official(
     }
     let core = state.0.clone();
     tokio::task::spawn_blocking(move || {
+        if let Some(ref icon) = icon {
+            providers::validate_icon(icon)?;
+        }
         if name.trim().is_empty() {
             return Err("请填写账号名称".into());
         }
@@ -492,6 +500,9 @@ async fn save_official(
         }
         s.data["official"][&profile_id]["name"] = json!(name.trim());
         s.data["official"][&profile_id]["note"] = json!(note);
+        if let Some(icon) = icon {
+            s.data["official"][&profile_id]["icon"] = json!(icon);
+        }
         if let Some(credentials) = credentials {
             s.data["official"][&profile_id]["credentials"] = json!(credentials);
         }
@@ -666,6 +677,9 @@ pub fn run() {
             save_service,
             activate_service,
             delete_service,
+            providers::get_service_key,
+            providers::duplicate_service,
+            providers::fetch_models,
             save_official,
             delete_official,
             tasks::start_task,
@@ -759,6 +773,56 @@ mod tests {
             .insert(sid.clone(), "keep".into());
         assert!(delete_service_inner(&core, pid, sid.clone()).is_err());
         assert_eq!(core.volatile_keys.lock().unwrap()[&sid], "keep");
+    }
+    #[cfg(windows)]
+    #[test]
+    fn universal_metadata_and_masked_credentials_survive_reload() {
+        let core = core();
+        let pid = core.store.lock().unwrap().data["profiles"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let sid = store::new_id();
+        let icon = format!("data:image/png;base64,{}", {
+            use base64::Engine;
+            base64::engine::general_purpose::STANDARD.encode(b"\x89PNG\r\n\x1a\n")
+        });
+        let entry = json!({"id":sid,"tool":"codex","scope":"universal","preset":"newapi","icon":icon,"provider":"custom","name":"New API","base_url":"https://newapi.example/v1","model":"model","protocol":"responses"});
+        save_service_inner(
+            &core,
+            pid.clone(),
+            entry,
+            Some("saved-test-key".into()),
+            true,
+        )
+        .unwrap();
+        core.volatile_keys.lock().unwrap().clear();
+        assert_eq!(
+            providers::service_key(&core, &pid, &sid).unwrap(),
+            "saved-test-key"
+        );
+        let other = store::Profile::default();
+        core.store
+            .lock()
+            .unwrap()
+            .save_profile(other.clone())
+            .unwrap();
+        assert!(providers::service_key(&core, &other.id, &sid).is_err());
+        let s = core.store.lock().unwrap();
+        let loaded = Store::load(s.directory.clone()).unwrap();
+        let record = loaded.data["services"][&pid]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["id"] == sid)
+            .unwrap();
+        assert_eq!(record["scope"], "universal");
+        assert_eq!(record["icon"], icon);
+        assert!(!loaded.snapshot().to_string().contains("saved-test-key"));
+        let claude =
+            providers::apply_service(&loaded.profile(&pid).unwrap(), record, "claude").unwrap();
+        assert_eq!(claude.base_url, "https://newapi.example");
+        assert_eq!(claude.protocol, "anthropic");
     }
     #[cfg(windows)]
     #[test]

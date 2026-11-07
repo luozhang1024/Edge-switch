@@ -24,6 +24,9 @@ export type ToolId = "codex" | "claude" | "harness" | "gemini" | "opencode";
 export type ProviderId =
   "openai" | "deepseek" | "anthropic" | "google" | "custom";
 export type Service = {
+  scope?: "cli" | "universal";
+  icon?: string;
+  preset?: string;
   tool?: ToolId;
   provider?: ProviderId;
   id: string;
@@ -33,6 +36,7 @@ export type Service = {
   protocol: string;
 };
 export type Official = {
+  icon?: string;
   name?: string;
   note?: string;
   has_credentials?: boolean;

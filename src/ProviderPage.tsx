@@ -1,43 +1,41 @@
 import React, { useEffect, useRef } from "react";
-import { providers, serviceTemplate, tools } from "./catalog";
+import { detectProvider, serviceTemplate, tools } from "./catalog";
 import { Service, ToolId } from "./types";
 import officialIcon from "../image/providers/openai-official.svg";
-
-// Responses presets from cc-switch-reference/src/config/codexProviderPresets.ts.
-// These use the existing custom gateway configuration, without protocol conversion.
-const codexGateways = [
-  ["AiHubMix", "https://aihubmix.com/v1"],
-  ["DMXAPI", "https://www.dmxapi.cn/v1"],
-  ["OpenRouter", "https://openrouter.ai/api/v1"],
-  ["TheRouter", "https://api.therouter.ai/v1"],
-  ["PackyCode", "https://www.packyapi.ai/v1"],
-  ["Cubence", "https://api.cubence.com/v1"],
-  ["RightCode", "https://www.rightapi.ai/codex/v1"],
-  ["CherryIN", "https://open.cherryin.net/v1"],
-];
+import { cliPresets, defaultProtocol } from "./providerConfig";
+import { ProviderIconUpload } from "./ProviderIconUpload";
 
 export function ProviderPage({
   tool,
   service,
   official,
+  icon,
   editing,
   close,
   onSelect,
+  onIcon,
   children,
 }: {
   tool: ToolId;
   service?: Service;
   official?: boolean;
+  icon?: string;
   editing?: boolean;
   close: () => void;
   onSelect: (service: Service | "official") => void;
+  onIcon: (icon: string) => void;
   children: React.ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const selected = tools.find((t) => t.id === tool)!;
-  const provider = providers.find((p) => p.id === service?.provider);
-  const gateway = codexGateways.find(([name]) => name === service?.name);
-  const icon = official ? officialIcon : provider?.icon;
+  const unified = service?.scope === "universal";
+  const presets = cliPresets(tool);
+  const preset = official
+    ? "official"
+    : service?.preset ||
+      (service?.provider && service.provider !== "custom"
+        ? "official"
+        : "custom");
   const title = editing ? "编辑供应商" : "添加新供应商";
   useEffect(() => {
     const node = dialog.current!;
@@ -69,82 +67,89 @@ export function ProviderPage({
         <h2>{title}</h2>
       </header>
       <div className="provider-page-body">
-        <div className="provider-scope">
-          <span>{selected.name} 供应商</span>
+        <div className="provider-scope" role="tablist" aria-label="供应商类型">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!unified}
+            onClick={() => {
+              if (unified)
+                onSelect({
+                  ...serviceTemplate(tool, "custom"),
+                  scope: "cli",
+                  preset: "custom",
+                  protocol: defaultProtocol(tool),
+                });
+            }}
+          >
+            {selected.name} 供应商
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!!unified}
+            onClick={() => {
+              if (!unified)
+                onSelect({
+                  ...serviceTemplate(tool, "custom"),
+                  scope: "universal",
+                  preset: "newapi",
+                  name: "New API",
+                  protocol: defaultProtocol(tool),
+                });
+            }}
+          >
+            统一供应商 · New API
+          </button>
         </div>
         <section className="provider-form-panel">
           <p className="preset-label">预设供应商</p>
           <div className="preset-chips" aria-label="预设供应商">
-            <button
-              type="button"
-              aria-pressed={
-                !official && service?.provider === "custom" && !gateway
-              }
-              onClick={() => onSelect(serviceTemplate(tool, "custom"))}
-            >
-              自定义配置
-            </button>
-            {tool === "codex" && (
-              <button
-                type="button"
-                aria-pressed={!!official}
-                onClick={() => onSelect("official")}
-              >
-                <img src={officialIcon} alt="" />
-                OpenAI Official
+            {unified ? (
+              <button type="button" aria-pressed="true">
+                New API
               </button>
-            )}
-            {providers
-              .filter((p) => p.id !== "custom")
-              .map((p) => (
+            ) : (
+              presets.map((p) => (
                 <button
                   type="button"
                   key={p.id}
-                  aria-pressed={!official && service?.provider === p.id}
-                  onClick={() => onSelect(serviceTemplate(tool, p.id))}
+                  aria-pressed={preset === p.id}
+                  onClick={() => {
+                    if (p.id === "official" && tool === "codex")
+                      onSelect("official");
+                    else onSelect({ ...p.entry, preset: p.id, scope: "cli" });
+                  }}
                 >
-                  {p.icon && <img src={p.icon} alt="" />}
+                  {p.id === "official" && (
+                    <img
+                      src={tool === "codex" ? officialIcon : selected.icon}
+                      alt=""
+                    />
+                  )}
                   {p.name}
                 </button>
-              ))}
-            {tool === "codex" &&
-              codexGateways.map(([name, url]) => (
-                <button
-                  type="button"
-                  key={name}
-                  aria-pressed={
-                    !official &&
-                    service?.name === name &&
-                    service.provider === "custom"
-                  }
-                  onClick={() =>
-                    onSelect({
-                      ...serviceTemplate(tool, "custom"),
-                      name,
-                      base_url: url,
-                    })
-                  }
-                >
-                  {name}
-                </button>
-              ))}
+              ))
+            )}
           </div>
           <p className="preset-hint">
-            {official
-              ? "使用 ChatGPT 官方账号，无需填写 API Key"
-              : service?.provider === "custom" && !gateway
-                ? "自定义配置需手动填写所有必要字段"
-                : "已填入供应商预设，请确认 API 地址并填写模型和密钥"}
+            {unified
+              ? "同一份 New API 配置可供各 CLI 工具使用；应用按工具生成请求格式，接口需支持对应工具。"
+              : official
+                ? "使用 ChatGPT 官方账号，无需填写 API Key"
+                : "应用根据当前 CLI 工具自动配置接口格式，填写供应商提供的请求地址和模型名称。"}
           </p>
-          <div className="provider-preview">
-            <span>
-              {icon ? (
-                <img src={icon} alt="" />
-              ) : (
-                (service?.name || "P").slice(0, 1).toUpperCase()
-              )}
-            </span>
-          </div>
+          <ProviderIconUpload
+            icon={icon}
+            fallback={
+              official
+                ? officialIcon
+                : service
+                  ? detectProvider(service).icon
+                  : undefined
+            }
+            onChange={onIcon}
+          />
           {children}
         </section>
       </div>

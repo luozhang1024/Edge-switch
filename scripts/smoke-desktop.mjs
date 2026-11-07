@@ -137,12 +137,22 @@ try {
   await page.getByRole("button", { name: "添加服务", exact: true }).click();
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: /OpenAI \/ ChatGPT API/ })
+    .getByRole("button", { name: "自定义配置", exact: true })
     .click();
   await page.getByLabel("服务名称").fill("冒烟 API");
-  await page.getByLabel("模型 ID").fill("smoke-model");
   await page
-    .getByLabel("API Key（留空保留已有值）")
+    .getByLabel("API请求地址", { exact: true })
+    .fill("https://example.com/v1");
+  await page
+    .getByLabel("选择供应商图标文件")
+    .setInputFiles(resolve("image/EdgeAI.png"));
+  await expect(
+    page.getByRole("button", { name: "恢复默认图标" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("协议", { exact: true })).toHaveCount(0);
+  await page.getByLabel("模型名称").fill("smoke-model");
+  await page
+    .getByLabel("API Key", { exact: true })
     .fill("smoke-only-not-a-real-key");
   await page.getByLabel("使用 Windows DPAPI 加密保存").check();
   await page.getByRole("button", { name: "保存服务", exact: true }).click();
@@ -153,6 +163,63 @@ try {
     (s) => s.name === "冒烟 API",
   );
   expect(snapshot.saved_keys).toContain(service.id);
+  expect(service.icon.startsWith("data:image/png;base64,")).toBe(true);
+  let rejectedKeyForward = false;
+  try {
+    await ipc("fetch_models", {
+      profileId: profile.id,
+      serviceId: service.id,
+      baseUrl: "https://other.example/v1",
+      protocol: "responses",
+      key: null,
+    });
+  } catch (e) {
+    rejectedKeyForward = String(e).includes("地址已更改");
+  }
+  expect(rejectedKeyForward).toBe(true);
+  const row = page
+    .locator(".service-card")
+    .filter({ has: page.getByText("冒烟 API", { exact: true }) });
+  await page.mouse.move(0, 0);
+  await expect(row.locator(".service-actions")).toHaveCSS("opacity", "0");
+  await row.hover();
+  await expect(row.locator(".service-actions")).toHaveCSS("opacity", "1");
+  await expect(
+    row.getByRole("button", { name: "编辑", exact: true }),
+  ).toHaveAttribute("title", "编辑");
+  await checkVisuals("models-hover-actions");
+  await row.getByRole("button", { name: "编辑", exact: true }).click();
+  await expect(page.getByLabel("API Key", { exact: true })).toHaveValue(
+    "smoke-only-not-a-real-key",
+  );
+  await expect(page.getByLabel("API Key", { exact: true })).toHaveAttribute(
+    "type",
+    "password",
+  );
+  await expect(
+    page.getByLabel("auth.json (JSON) *", { exact: true }),
+  ).not.toContainText("smoke-only-not-a-real-key");
+  await page.getByRole("button", { name: "显示 API Key", exact: true }).click();
+  await expect(page.getByLabel("API Key", { exact: true })).toHaveAttribute(
+    "type",
+    "text",
+  );
+  await page.getByRole("button", { name: "隐藏 API Key", exact: true }).click();
+  await checkVisuals("provider-saved-masked-key");
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await row.hover();
+  await row.getByRole("button", { name: "复制", exact: true }).click();
+  await expect(page.getByText("冒烟 API 副本", { exact: true })).toBeVisible();
+  const copyState = await ipc("snapshot");
+  const copy = copyState.services[profile.id].find(
+    (s) => s.name === "冒烟 API 副本",
+  );
+  expect(copy.icon).toBe(service.icon);
+  expect(
+    await ipc("get_service_key", { profileId: profile.id, serviceId: copy.id }),
+  ).toBe("smoke-only-not-a-real-key");
+  await ipc("delete_service", { profileId: profile.id, serviceId: copy.id });
+  await page.getByRole("button", { name: "刷新", exact: true }).click();
   expect(JSON.stringify(snapshot)).not.toContain("smoke-only-not-a-real-key");
   await ipc("activate_service", {
     profileId: profile.id,
@@ -210,35 +277,35 @@ try {
   const toolServices = [];
   for (const [tool, name, provider] of [
     ["claude", "Claude Code", "anthropic"],
-    ["harness", "DeepSeek Harness", "openai"],
+    ["harness", "DeepSeek Harness", "deepseek"],
     ["gemini", "Gemini CLI", "google"],
-    ["opencode", "OpenCode", "deepseek"],
+    ["opencode", "OpenCode", "custom"],
   ]) {
     await page.getByRole("tab", { name, exact: true }).click();
     await page.getByRole("button", { name: "添加服务", exact: true }).click();
     await page
       .getByRole("dialog")
       .getByRole("button", {
-        name:
-          provider === "anthropic"
-            ? /Anthropic \/ Claude/
-            : provider === "google"
-              ? /Google \/ Gemini/
-              : provider === "deepseek"
-                ? /DeepSeek/
-                : /OpenAI \/ ChatGPT API/,
+        name: {
+          claude: "Anthropic Official",
+          harness: "DeepSeek Official",
+          gemini: "Google Official",
+          opencode: "OpenCode Zen",
+        }[tool],
+        exact: true,
       })
       .click();
     await page.getByLabel("服务名称", { exact: true }).fill(`smoke-${tool}`);
-    await page.getByLabel("模型 ID", { exact: true }).fill(`model-${tool}`);
+    await page.getByLabel("模型名称", { exact: true }).fill(`model-${tool}`);
     await page
-      .getByLabel("API Key（留空保留已有值）")
+      .getByLabel("API Key", { exact: true })
       .fill("smoke-only-not-a-real-key");
     await page.getByLabel("使用 Windows DPAPI 加密保存").check();
     await page.getByRole("button", { name: "保存服务", exact: true }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.locator(".service-info b")).toHaveText([`smoke-${tool}`]);
-    await page.getByRole("button", { name: "使用", exact: true }).click();
+    await page.locator(".service-card").hover();
+    await page.getByRole("button", { name: "启用", exact: true }).click();
     await expect(page.locator(".service-card .active-badge")).toHaveText(
       "当前使用",
     );
@@ -267,6 +334,44 @@ try {
   await expect(page.locator(".service-card .active-badge")).toHaveText(
     "当前使用",
   );
+  await page.getByRole("button", { name: "添加服务", exact: true }).click();
+  await page
+    .getByRole("tab", { name: "统一供应商 · New API", exact: true })
+    .click();
+  await page
+    .getByLabel("API请求地址", { exact: true })
+    .fill("https://newapi.example/v1");
+  await page.getByLabel("模型名称", { exact: true }).fill("universal-model");
+  await page
+    .getByLabel("API Key", { exact: true })
+    .fill("smoke-only-not-a-real-key");
+  await page.getByLabel("使用 Windows DPAPI 加密保存").check();
+  await checkVisuals("provider-universal-newapi");
+  await page.getByRole("button", { name: "保存服务", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const shared = (await ipc("snapshot")).services[profile.id].find(
+    (s) => s.scope === "universal",
+  );
+  for (const [tool, name] of [
+    ["codex", "Codex"],
+    ["claude", "Claude Code"],
+    ["gemini", "Gemini CLI"],
+    ["harness", "DeepSeek Harness"],
+    ["opencode", "OpenCode"],
+  ]) {
+    await page.getByRole("tab", { name, exact: true }).click();
+    const sharedRow = page
+      .locator(".service-card")
+      .filter({ has: page.getByText("New API · 统一", { exact: true }) });
+    await sharedRow.hover();
+    await sharedRow.getByRole("button", { name: "启用", exact: true }).click();
+    await expect(sharedRow.locator(".active-badge")).toHaveText("当前使用");
+    const p = (await ipc("snapshot")).profiles[0];
+    expect(tool === "codex" ? p.active_api : p.tool_services[tool]).toBe(
+      shared.id,
+    );
+  }
+  await ipc("delete_service", { profileId: profile.id, serviceId: shared.id });
   const deletedTool = toolServices.find((s) => s.tool === "opencode");
   await ipc("delete_service", {
     profileId: profile.id,

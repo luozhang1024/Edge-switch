@@ -1,8 +1,6 @@
-import React from "react";
-import editIcon from "../image/编辑.png";
-import deleteIcon from "../image/删除.png";
-import activateIcon from "../image/启用.png";
-import loginIcon from "../image/connect.png";
+import React, { useState } from "react";
+import { ActionIcon } from "./ActionIcon";
+import { defaultProtocol } from "./providerConfig";
 import officialIcon from "../image/providers/openai-official.svg";
 import addIcon from "../image/加.png";
 import { Official, Profile, Service, Snapshot, ToolId } from "./types";
@@ -41,12 +39,13 @@ export function ModelServices({
   run,
   remove,
 }: Props) {
+  const [copyStatus, setCopyStatus] = useState("");
   const selected = tools.find((t) => t.id === tool)!;
   const activeId =
     tool === "codex" ? current.active_api : current.tool_services?.[tool];
   const official = tool === "codex" && current.codex_auth === "chatgpt";
   const services = (data.services[current.id] || []).filter(
-    (s) => (s.tool || "codex") === tool,
+    (s) => s.scope === "universal" || (s.tool || "codex") === tool,
   );
   const active = services.find((s) => s.id === activeId);
   const currentTask = data.tasks
@@ -62,10 +61,7 @@ export function ModelServices({
   return (
     <section className="model-workspace">
       <div className="model-toolbar">
-        <h2>
-          {selected.name}
-          <span>供应商</span>
-        </h2>
+        <h2>{selected.name}</h2>
         <div className="tool-switcher" role="tablist" aria-label="板卡 AI 工具">
           {tools.map((t) => (
             <button
@@ -86,7 +82,14 @@ export function ModelServices({
           aria-label="添加服务"
           title="添加新供应商"
           disabled={busy}
-          onClick={() => onEdit(serviceTemplate(tool, "custom"))}
+          onClick={() =>
+            onEdit({
+              ...serviceTemplate(tool, "custom"),
+              protocol: defaultProtocol(tool),
+              preset: "custom",
+              scope: "cli",
+            })
+          }
         >
           <img src={addIcon} alt="" />
           <span className="sr-only">添加服务</span>
@@ -96,7 +99,10 @@ export function ModelServices({
         {tool === "codex" && (
           <article className={`service-card ${official ? "selected" : ""}`}>
             <div className="provider-avatar">
-              <img src={officialIcon} alt="OpenAI Official" />
+              <img
+                src={data.official[current.id]?.icon || officialIcon}
+                alt="OpenAI Official"
+              />
             </div>
             <div className="service-info">
               <b>OpenAI Official</b>
@@ -116,16 +122,16 @@ export function ModelServices({
                 <small>{data.official[current.id]?.note}</small>
               )}
             </div>
+            {official && <span className="active-badge">当前使用</span>}
             <div className="service-actions">
-              {official && <span className="active-badge">当前使用</span>}
               <button
-                title="使用官方账号"
+                title="启用官方账号"
                 className="primary activate-service"
                 disabled={busy || official}
                 onClick={() => void activate("official")}
               >
-                <img src={activateIcon} alt="" />
-                使用官方账号
+                <ActionIcon name="activate" />
+                <span className="sr-only">启用官方账号</span>
               </button>
               <button
                 title="编辑 / 导入 auth.json"
@@ -137,16 +143,44 @@ export function ModelServices({
                   })
                 }
               >
-                <img src={editIcon} alt="" />
-                编辑 / 导入 auth.json
+                <ActionIcon name="edit" />
+                <span className="sr-only">编辑 / 导入 auth.json</span>
               </button>
               <button
-                title="设备码登录"
-                disabled={busy || !official}
-                onClick={() => void run("login")}
+                title="复制账号信息"
+                aria-label="复制账号信息"
+                disabled={busy}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(
+                      JSON.stringify(
+                        {
+                          name:
+                            data.official[current.id]?.name ||
+                            "OpenAI Official",
+                          note: data.official[current.id]?.note || "",
+                        },
+                        null,
+                        2,
+                      ),
+                    );
+                    setCopyStatus("已复制账号名称和备注");
+                  } catch {
+                    setCopyStatus("复制未完成，请检查系统剪贴板权限");
+                  }
+                }}
               >
-                <img src={loginIcon} alt="" />
-                设备码登录
+                <ActionIcon name="copy" />
+              </button>
+              <button
+                title="测试官方账号"
+                aria-label="测试官方账号"
+                disabled={busy}
+                onClick={() =>
+                  void run("official_test", { tool, infer: false })
+                }
+              >
+                <ActionIcon name="test" />
               </button>
               <button
                 className="danger-text"
@@ -160,8 +194,8 @@ export function ModelServices({
                   )
                 }
               >
-                <img src={deleteIcon} alt="" />
-                删除本机账号信息
+                <ActionIcon name="delete" />
+                <span className="sr-only">删除本机账号信息</span>
               </button>
             </div>
           </article>
@@ -175,14 +209,19 @@ export function ModelServices({
               className={`service-card ${selected ? "selected" : ""}`}
             >
               <div className="provider-avatar">
-                {provider.icon ? (
-                  <img src={provider.icon} alt={provider.name} />
+                {s.icon || provider.icon ? (
+                  <img src={s.icon || provider.icon} alt={provider.name} />
                 ) : (
                   <span>{s.name.slice(0, 1).toUpperCase()}</span>
                 )}
               </div>
               <div className="service-info">
-                <b>{s.name}</b>
+                <b>
+                  {s.name}
+                  {s.scope === "universal" && (
+                    <small className="universal-tag">New API · 统一</small>
+                  )}
+                </b>
                 <span className="service-url" title={s.base_url}>
                   {s.base_url}
                 </span>
@@ -194,24 +233,56 @@ export function ModelServices({
                     : "未持久保存密钥"}
                 </small>
               </div>
+              {selected && <span className="active-badge">当前使用</span>}
               <div className="service-actions">
-                {selected && <span className="active-badge">当前使用</span>}
                 <button
-                  title="使用"
+                  title="启用"
                   className="primary activate-service"
                   disabled={busy || selected}
                   onClick={() => void activate(s.id)}
                 >
-                  <img src={activateIcon} alt="" />
-                  使用
+                  <ActionIcon name="activate" />
+                  <span className="sr-only">启用</span>
                 </button>
                 <button
                   title="编辑"
                   disabled={busy}
-                  onClick={() => onEdit({ ...s, tool })}
+                  onClick={() =>
+                    onEdit({
+                      ...s,
+                      tool: s.scope === "universal" ? s.tool : tool,
+                    })
+                  }
                 >
-                  <img src={editIcon} alt="" />
-                  编辑
+                  <ActionIcon name="edit" />
+                  <span className="sr-only">编辑</span>
+                </button>
+                <button
+                  title="复制"
+                  aria-label="复制"
+                  disabled={busy}
+                  onClick={() =>
+                    void command("duplicate_service", {
+                      profileId: current.id,
+                      serviceId: s.id,
+                    })
+                  }
+                >
+                  <ActionIcon name="copy" />
+                </button>
+                <button
+                  title="测试"
+                  aria-label="测试"
+                  disabled={busy}
+                  onClick={() =>
+                    void run("api_test", {
+                      tool,
+                      service_id: s.id,
+                      infer: false,
+                    })
+                  }
+                >
+                  <ActionIcon name="test" />
                 </button>
                 <button
                   className="danger-text"
@@ -225,8 +296,8 @@ export function ModelServices({
                     )
                   }
                 >
-                  <img src={deleteIcon} alt="" />
-                  删除
+                  <ActionIcon name="delete" />
+                  <span className="sr-only">删除</span>
                 </button>
               </div>
             </article>
@@ -236,7 +307,7 @@ export function ModelServices({
           <div className="provider-empty">
             <img src={selected.icon} alt="" />
             <h3>为 {selected.name} 添加第一个模型服务</h3>
-            <p>选择供应商，填写 API 地址、模型 ID 和密钥，然后同步到板卡。</p>
+            <p>选择供应商，填写 API 地址、模型名称 和密钥，然后同步到板卡。</p>
             <button
               onClick={() => onEdit(serviceTemplate(tool, "custom"))}
               disabled={busy}
@@ -246,6 +317,11 @@ export function ModelServices({
           </div>
         )}
       </div>
+      {copyStatus && (
+        <p className="provider-help" role="status">
+          {copyStatus}
+        </p>
+      )}
       <details className="panel sync-panel">
         <summary>验证与同步 · {selected.name}</summary>
         <div>
@@ -257,6 +333,14 @@ export function ModelServices({
           </p>
         </div>
         <div className="buttons">
+          {tool === "codex" && (
+            <button
+              disabled={busy || !official}
+              onClick={() => void run("login")}
+            >
+              设备码登录
+            </button>
+          )}
           <button
             disabled={busy || (!official && !active)}
             onClick={() => void run("sync_api", { tool })}

@@ -30,6 +30,7 @@ import {
 import "./style.css";
 import { ModelServices } from "./ModelServices";
 import { ProviderPage } from "./ProviderPage";
+import { ServiceEditor } from "./ServiceEditor";
 import { protocolNames, tools } from "./catalog";
 import { ToolId } from "./types";
 
@@ -112,8 +113,6 @@ export function App() {
   const [service, setService] = useState<Service | null>(null);
   const [official, setOfficial] = useState<Official | null>(null);
   const [authPath, setAuthPath] = useState("");
-  const [key, setKey] = useState("");
-  const [remember, setRemember] = useState(false);
   const [message, setMessage] = useState("就绪");
   const [pending, setPending] = useState(false);
   const refreshInFlight = useRef(false);
@@ -235,8 +234,6 @@ export function App() {
       await command(name, args);
   };
   function selectProvider(preset: Service | "official") {
-    setKey("");
-    setRemember(false);
     if (preset === "official") {
       setService(null);
       setAuthPath("");
@@ -285,7 +282,6 @@ export function App() {
                 setEditing(null);
                 setService(null);
                 setOfficial(null);
-                setKey("");
                 void command("select_profile", { id: e.target.value });
               }}
             >
@@ -429,8 +425,6 @@ export function App() {
             remove={remove}
             onEdit={(entry) => {
               setService(entry);
-              setKey("");
-              setRemember(data.saved_keys.includes(entry.id));
             }}
             onOfficial={(entry) => {
               setAuthPath("");
@@ -726,123 +720,43 @@ export function App() {
         <ProviderPage
           tool={service.tool || "codex"}
           service={service}
+          icon={service.icon}
+          onIcon={(icon) => setService({ ...service, icon })}
           editing={(data.services[current.id] || []).some(
             (s) => s.id === service.id,
           )}
           onSelect={selectProvider}
           close={() => {
             setService(null);
-            setKey("");
           }}
         >
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (
-                await command("save_service", {
-                  profileId: current.id,
-                  entry: service,
-                  key: key || null,
-                  remember,
-                })
-              ) {
-                setService(null);
-                setKey("");
-              }
-            }}
-          >
-            <div className="form">
-              {(["name", "base_url", "model"] as const).map((field, i) => (
-                <label key={field}>
-                  {["服务名称", "HTTPS API 地址", "模型 ID"][i]}
-                  <input
-                    required
-                    placeholder={
-                      [
-                        "例如：公司专用 API",
-                        "https://example.com/v1",
-                        "填写供应商提供的模型 ID",
-                      ][i]
-                    }
-                    value={service[field]}
-                    onChange={(e) =>
-                      setService({ ...service, [field]: e.target.value })
-                    }
-                  />
-                </label>
-              ))}
-              <label>
-                协议
-                <select
-                  value={service.protocol}
-                  onChange={(e) =>
-                    setService({ ...service, protocol: e.target.value })
-                  }
-                >
-                  {(
-                    tools.find((t) => t.id === (service.tool || "codex"))
-                      ?.protocols || []
-                  ).map((protocol) => (
-                    <option key={protocol} value={protocol}>
-                      {protocolNames[protocol]}
-                    </option>
-                  ))}
-                  {(service.tool || "codex") === "codex" &&
-                    service.protocol === "chat" && (
-                      <option value="chat">
-                        Chat Completions（旧配置，请改用 Responses 网关）
-                      </option>
-                    )}
-                </select>
-              </label>
-              <label className="wide">
-                API Key（留空保留已有值）
-                <input
-                  type="password"
-                  autoComplete="off"
-                  value={key}
-                  onChange={(e) => setKey(e.target.value)}
-                />
-              </label>
-              <label className="check wide">
-                <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                />
-                使用 Windows DPAPI 加密保存
-              </label>
-              <p className="wide provider-help">
-                此服务用于{" "}
-                {tools.find((t) => t.id === (service.tool || "codex"))?.name}。
-                {tools.find((t) => t.id === (service.tool || "codex"))?.hint}
-                {service.provider !== "custom" &&
-                  !service.base_url &&
-                  "所选供应商的原生协议不兼容，请填写兼容网关地址。"}
-                API Key 留空保留已有值；更换供应商时请填写对应密钥。
-              </p>
-            </div>
-            <div className="actions">
-              <button
-                type="button"
-                onClick={() => {
-                  setService(null);
-                  setKey("");
-                }}
-              >
-                取消
-              </button>
-              <button disabled={pending} className="primary">
-                保存服务
-              </button>
-            </div>
-          </form>
+          <ServiceEditor
+            service={service}
+            original={(data.services[current.id] || []).find(
+              (s) => s.id === service.id,
+            )}
+            profileId={current.id}
+            saved={data.saved_keys.includes(service.id)}
+            busy={busy}
+            onChange={setService}
+            close={() => setService(null)}
+            onSave={(key, remember) =>
+              command("save_service", {
+                profileId: current.id,
+                entry: service,
+                key,
+                remember,
+              })
+            }
+          />
         </ProviderPage>
       )}
       {official && (
         <ProviderPage
           tool="codex"
           official
+          icon={official.icon}
+          onIcon={(icon) => setOfficial({ ...official, icon })}
           onSelect={selectProvider}
           close={() => setOfficial(null)}
         >
@@ -855,6 +769,7 @@ export function App() {
                   name: official.name || "",
                   note: official.note || "",
                   path: authPath || null,
+                  icon: official.icon || "",
                 })
               )
                 setOfficial(null);
@@ -881,27 +796,41 @@ export function App() {
                 />
               </label>
             </div>
-            <p>
-              仅导入本人官方 OAuth
-              auth.json，凭据在本机加密保存，使用时同步至当前板卡环境。
-            </p>
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  const path = await open({
-                    multiple: false,
-                    filters: [{ name: "JSON", extensions: ["json"] }],
-                  });
-                  if (typeof path === "string") setAuthPath(path);
-                } catch (e) {
-                  setMessage(String(e));
-                }
-              }}
-            >
-              选择 auth.json
-            </button>
-            <p>{authPath || "未选择文件，保留已有凭据"}</p>
+            <section className="config-previews">
+              <label>
+                config.toml (TOML)
+                <textarea
+                  readOnly
+                  aria-label="config.toml (TOML)"
+                  value={
+                    'forced_login_method = "chatgpt"\ncli_auth_credentials_store = "file"\n'
+                  }
+                  rows={3}
+                />
+              </label>
+              <b>auth.json (JSON)</b>
+              <p className="provider-help">
+                导入官方 OAuth
+                凭据，或启用官方账号后在“验证与同步”中设备码登录。凭据在本机加密保存，同步时写入远程设备。
+              </p>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const path = await open({
+                      multiple: false,
+                      filters: [{ name: "JSON", extensions: ["json"] }],
+                    });
+                    if (typeof path === "string") setAuthPath(path);
+                  } catch (e) {
+                    setMessage(String(e));
+                  }
+                }}
+              >
+                选择 auth.json
+              </button>
+              <p>{authPath || "未选择文件，保留已有凭据"}</p>
+            </section>
             <div className="actions">
               <button type="button" onClick={() => setOfficial(null)}>
                 取消

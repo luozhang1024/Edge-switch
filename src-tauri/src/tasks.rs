@@ -257,15 +257,9 @@ fn tool_profile(core: &Core, p: &Profile, tool: &str) -> Result<Profile, String>
         .as_array()
         .ok_or("服务列表损坏")?
         .iter()
-        .find(|e| e["id"] == *id && e["tool"].as_str() == Some(tool))
+        .find(|e| e["id"] == *id)
         .ok_or("工具的模型服务不存在")?;
-    let mut selected = p.clone();
-    selected.active_api = id.clone();
-    selected.base_url = entry["base_url"].as_str().unwrap_or("").into();
-    selected.model = entry["model"].as_str().unwrap_or("").into();
-    selected.protocol = entry["protocol"].as_str().unwrap_or("").into();
-    selected.codex_auth = "api".into();
-    Ok(selected)
+    crate::providers::apply_service(p, entry, tool)
 }
 async fn configure_tool(
     core: &Core,
@@ -392,7 +386,18 @@ async fn execute(
         "sync_api" => configure_tool(&core, p, scope, v["tool"].as_str().unwrap_or("codex")).await,
         "api_test" => {
             let tool = v["tool"].as_str().unwrap_or("codex");
-            let selected = tool_profile(&core, p, tool)?;
+            let selected = if let Some(sid) = v["service_id"].as_str() {
+                let s = core.store.lock().unwrap();
+                let entry = s.data["services"][&p.id]
+                    .as_array()
+                    .ok_or("服务列表损坏")?
+                    .iter()
+                    .find(|e| e["id"] == sid)
+                    .ok_or("服务不存在")?;
+                crate::providers::apply_service(p, entry, tool)?
+            } else {
+                tool_profile(&core, p, tool)?
+            };
             let mut api = api(&core, &selected).await?;
             api["tool"] = json!(tool);
             if api["key"].as_str().unwrap_or("").is_empty() {

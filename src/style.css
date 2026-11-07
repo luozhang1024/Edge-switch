@@ -755,6 +755,14 @@ input[type="checkbox"] {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms;
+}
+.service-card:hover .service-actions,
+.service-card:focus-within .service-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 .service-actions button {
   font-size: 0;
@@ -772,20 +780,28 @@ input[type="checkbox"] {
   object-fit: contain;
 }
 .service-actions button.activate-service {
-  width: auto;
-  font-size: 11px;
-  gap: 5px;
-  padding: 6px 10px;
-  background: #1686ff;
-  color: #fff;
+  width: 28px;
+  padding: 5px;
+  background: transparent;
+  color: #1686ff;
 }
 .active-badge {
   color: #1686ff;
   font-size: 10px;
   white-space: nowrap;
 }
-.service-actions button.activate-service:disabled {
-  display: none;
+.service-actions button:hover {
+  background: #eef5ff;
+  color: #1686ff;
+}
+.service-actions button.danger-text:hover {
+  color: #e25362;
+  background: #fff1f2;
+}
+.universal-tag {
+  margin-left: 8px;
+  color: #868998;
+  font-weight: 400;
 }
 .provider-empty {
   padding: 70px 20px;
@@ -880,15 +896,21 @@ input[type="checkbox"] {
   border-radius: 10px;
   margin-bottom: 24px;
 }
-.provider-scope span {
+.provider-scope button {
   width: 100%;
-  background: #1686ff;
-  color: #fff;
+  background: transparent;
+  color: #90939d;
+  border: 0;
+  box-shadow: none;
   text-align: center;
   border-radius: 8px;
   padding: 9px;
   font-size: 13px;
   font-weight: 600;
+}
+.provider-scope button[aria-selected="true"] {
+  background: #1686ff;
+  color: #fff;
 }
 .provider-form-panel {
   padding: 24px;
@@ -931,8 +953,9 @@ input[type="checkbox"] {
   display: grid;
   place-items: center;
   margin: 28px 0;
+  gap: 8px;
 }
-.provider-preview > span {
+.provider-preview > .icon-upload {
   width: 80px;
   height: 80px;
   display: grid;
@@ -942,6 +965,10 @@ input[type="checkbox"] {
   font-size: 26px;
   color: #747782;
   background: #f9f9fb;
+}
+.provider-preview small {
+  color: var(--muted);
+  font-size: 11px;
 }
 .provider-preview img {
   width: 42px;
@@ -963,6 +990,82 @@ input[type="checkbox"] {
 }
 .provider-page .check input {
   min-height: 0;
+}
+.text-button {
+  border: 0;
+  background: transparent;
+  color: #1686ff;
+  box-shadow: none;
+  padding: 0;
+  min-height: 24px;
+  font-size: 12px;
+}
+.field-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.model-field {
+  display: grid;
+  gap: 8px;
+}
+.model-field label {
+  font-size: 13px;
+}
+.secret-field {
+  display: flex;
+  margin-top: 8px;
+  border: 1px solid #e1e1e6;
+  border-radius: 7px;
+  overflow: hidden;
+}
+.secret-field input {
+  flex: 1;
+  border: 0;
+  box-shadow: none;
+  width: 0;
+}
+.secret-field button {
+  border: 0;
+  box-shadow: none;
+  color: #7d8190;
+}
+.config-previews {
+  display: grid;
+  gap: 14px;
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid #ececf0;
+}
+.config-previews label {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.config-previews textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 12px;
+  background: #f9fafc;
+  color: #5e6575;
+  border: 1px solid #e1e1e6;
+  border-radius: 10px;
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.7;
+}
+.form-error {
+  color: #bd4351;
+  overflow-wrap: anywhere;
+}
+@media (hover: none) {
+  .service-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 .provider-page .actions {
   position: fixed;

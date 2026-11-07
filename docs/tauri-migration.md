@@ -1,6 +1,6 @@
 # Tauri 2 迁移与开发
 
-当前源码版本为 **2.0.0-alpha.4**。Windows 控制端采用 Tauri 2、Rust、React 和 TypeScript，不打包本地 Python。远端仍需要 Python 3.8+，继续使用仓库内的 `remote_agent.py` 和 `harness_service.py`。旧版 1.1.3 已发布，新版安装包仅用于 alpha 验证，未发布新版 GitHub Release。
+当前源码版本为 **2.0.0-alpha.5**。Windows 控制端采用 Tauri 2、Rust、React 和 TypeScript，不打包本地 Python。远端仍需要 Python 3.8+，继续使用仓库内的 `remote_agent.py` 和 `harness_service.py`。旧版 1.1.3 已发布，新版安装包仅用于 alpha 验证，未发布新版 GitHub Release。
 
 ## 开发与检查
 
