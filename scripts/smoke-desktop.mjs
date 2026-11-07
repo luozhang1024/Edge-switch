@@ -90,7 +90,7 @@ try {
     ).toBe(true);
     await page.screenshot({
       path: join(output, `${name}.png`),
-      fullPage: true,
+      fullPage: (await page.locator(".provider-page").count()) === 0,
     });
   }
   await checkVisuals("overview-initial");
@@ -122,13 +122,23 @@ try {
   snapshot = await ipc("snapshot");
   expect(snapshot.profiles[0].port).toBe(2222);
   await page.getByRole("button", { name: "模型服务", exact: true }).click();
+  await checkVisuals("models-official");
   await page.getByRole("button", { name: "添加服务", exact: true }).click();
-  const picker = page.getByRole("dialog", { name: "Codex · 选择供应商" });
-  await expect(picker.locator(".provider-preset").first()).toContainText(
+  const picker = page.getByRole("dialog", { name: "添加新供应商" });
+  await expect(picker.locator(".preset-chips button").nth(1)).toContainText(
     "OpenAI Official",
   );
   await checkVisuals("codex-provider-picker");
-  await picker.getByRole("button", { name: /OpenAI \/ ChatGPT API/ }).click();
+  await page.setViewportSize({ width: 980, height: 660 });
+  await checkVisuals("provider-form-compact");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.setViewportSize({ width: 1180, height: 790 });
+  await page.getByRole("button", { name: "添加服务", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /OpenAI \/ ChatGPT API/ })
+    .click();
   await page.getByLabel("服务名称").fill("冒烟 API");
   await page.getByLabel("模型 ID").fill("smoke-model");
   await page
@@ -219,7 +229,6 @@ try {
                 : /OpenAI \/ ChatGPT API/,
       })
       .click();
-    await page.getByLabel("模型供应商", { exact: true }).selectOption(provider);
     await page.getByLabel("服务名称", { exact: true }).fill(`smoke-${tool}`);
     await page.getByLabel("模型 ID", { exact: true }).fill(`model-${tool}`);
     await page

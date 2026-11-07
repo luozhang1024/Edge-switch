@@ -29,13 +29,8 @@ import {
 } from "./types";
 import "./style.css";
 import { ModelServices } from "./ModelServices";
-import {
-  providers,
-  protocolNames,
-  serviceTemplate,
-  tools,
-  detectProvider,
-} from "./catalog";
+import { ProviderPage } from "./ProviderPage";
+import { protocolNames, tools } from "./catalog";
 import { ToolId } from "./types";
 
 const navigation = [
@@ -239,6 +234,18 @@ export function App() {
     if (await confirm(warning, { title: "确认删除", kind: "warning" }))
       await command(name, args);
   };
+  function selectProvider(preset: Service | "official") {
+    setKey("");
+    setRemember(false);
+    if (preset === "official") {
+      setService(null);
+      setAuthPath("");
+      setOfficial({ name: "OpenAI Official", ...data!.official[current.id] });
+    } else {
+      setOfficial(null);
+      setService({ ...preset, id: service?.id || preset.id });
+    }
+  }
   return (
     <div className="app">
       <aside>
@@ -716,8 +723,13 @@ export function App() {
         </Modal>
       )}
       {service && (
-        <Modal
-          title="编辑 API 服务"
+        <ProviderPage
+          tool={service.tool || "codex"}
+          service={service}
+          editing={(data.services[current.id] || []).some(
+            (s) => s.id === service.id,
+          )}
+          onSelect={selectProvider}
           close={() => {
             setService(null);
             setKey("");
@@ -740,41 +752,18 @@ export function App() {
             }}
           >
             <div className="form">
-              <label className="wide">
-                模型供应商
-                <select
-                  aria-label="模型供应商"
-                  value={detectProvider(service).id}
-                  onChange={(e) => {
-                    const preset = serviceTemplate(
-                      service.tool || "codex",
-                      e.target.value as NonNullable<Service["provider"]>,
-                    );
-                    setService({ ...preset, id: service.id });
-                  }}
-                >
-                  {providers.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <p className="wide provider-help">
-                此服务用于{" "}
-                {tools.find((t) => t.id === (service.tool || "codex"))?.name}。
-                {tools.find((t) => t.id === (service.tool || "codex"))?.hint}
-                {service.provider !== "custom" &&
-                  !service.base_url &&
-                  "所选供应商的原生协议不兼容，请填写兼容网关地址。"}
-                API Key 留空保留已有值；更换供应商时请填写对应密钥。
-              </p>
-
               {(["name", "base_url", "model"] as const).map((field, i) => (
                 <label key={field}>
                   {["服务名称", "HTTPS API 地址", "模型 ID"][i]}
                   <input
                     required
+                    placeholder={
+                      [
+                        "例如：公司专用 API",
+                        "https://example.com/v1",
+                        "填写供应商提供的模型 ID",
+                      ][i]
+                    }
                     value={service[field]}
                     onChange={(e) =>
                       setService({ ...service, [field]: e.target.value })
@@ -823,6 +812,15 @@ export function App() {
                 />
                 使用 Windows DPAPI 加密保存
               </label>
+              <p className="wide provider-help">
+                此服务用于{" "}
+                {tools.find((t) => t.id === (service.tool || "codex"))?.name}。
+                {tools.find((t) => t.id === (service.tool || "codex"))?.hint}
+                {service.provider !== "custom" &&
+                  !service.base_url &&
+                  "所选供应商的原生协议不兼容，请填写兼容网关地址。"}
+                API Key 留空保留已有值；更换供应商时请填写对应密钥。
+              </p>
             </div>
             <div className="actions">
               <button
@@ -839,10 +837,15 @@ export function App() {
               </button>
             </div>
           </form>
-        </Modal>
+        </ProviderPage>
       )}
       {official && (
-        <Modal title="官方账号" close={() => setOfficial(null)}>
+        <ProviderPage
+          tool="codex"
+          official
+          onSelect={selectProvider}
+          close={() => setOfficial(null)}
+        >
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -900,12 +903,15 @@ export function App() {
             </button>
             <p>{authPath || "未选择文件，保留已有凭据"}</p>
             <div className="actions">
+              <button type="button" onClick={() => setOfficial(null)}>
+                取消
+              </button>
               <button disabled={pending} className="primary">
                 保存账号
               </button>
             </div>
           </form>
-        </Modal>
+        </ProviderPage>
       )}
     </div>
   );

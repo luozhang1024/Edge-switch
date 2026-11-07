@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
@@ -69,27 +69,44 @@ async function models() {
   fireEvent.click(await screen.findByText("模型服务", { selector: "button" }));
 }
 describe("桌面工作流", () => {
-  it("Codex 添加入口使用图片，供应商首项进入官方账号配置", async () => {
+  it("添加页展示预设与表单，OpenAI Official 是首个供应商", async () => {
     await models();
     const add = screen.getByRole("button", { name: "添加服务" });
-    expect(decodeURI(add.querySelector("img")!.getAttribute("src")!)).toContain(
-      "加.png",
-    );
-    fireEvent.click(add);
-    const dialog = screen.getByRole("dialog", { name: "Codex · 选择供应商" });
-    const choices = within(dialog).getAllByRole("button");
-    expect(choices[1].textContent).toContain("OpenAI Official");
-    fireEvent.click(choices[1]);
     expect(
-      screen.queryByRole("dialog", { name: "Codex · 选择供应商" }),
-    ).toBeNull();
+      decodeURIComponent(add.querySelector("img")!.getAttribute("src")!),
+    ).toContain("加.png");
+    expect(
+      decodeURIComponent(
+        screen
+          .getByRole("img", { name: "OpenAI Official" })
+          .getAttribute("src")!,
+      ),
+    ).toContain("#00a67e");
+    fireEvent.click(add);
+    const dialog = screen.getByRole("dialog", { name: "添加新供应商" });
+    expect(within(dialog).getByLabelText("服务名称")).toBeTruthy();
+    const choices = within(dialog)
+      .getByLabelText("预设供应商")
+      .querySelectorAll("button");
+    expect(choices[0].textContent).toBe("自定义配置");
+    expect(choices[1].textContent).toBe("OpenAI Official");
+    fireEvent.click(choices[1]);
     expect(screen.getByText("保存账号")).toBeTruthy();
     expect(screen.queryByText("保存服务")).toBeNull();
   });
-  it("点击当前工具标签打开供应商选择，Escape 关闭且不修改配置", async () => {
+  it("预设可填入网关地址，返回不保存，工具标签仅切换列表", async () => {
     await models();
     fireEvent.click(screen.getByRole("tab", { name: "Codex" }));
-    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "添加服务" }));
+    fireEvent.click(screen.getByRole("button", { name: "OpenRouter" }));
+    expect(
+      (screen.getByLabelText("HTTPS API 地址") as HTMLInputElement).value,
+    ).toBe("https://openrouter.ai/api/v1");
+    expect((screen.getByLabelText("协议") as HTMLSelectElement).value).toBe(
+      "responses",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "返回" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(
       mocks.invoke.mock.calls.some(
@@ -235,10 +252,8 @@ describe("桌面工作流", () => {
   });
   it("Codex 选择 DeepSeek 时要求 Responses 网关，不预填不兼容原生接口", async () => {
     await models();
-    fireEvent.click(screen.getByText("添加服务", { selector: "button" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: /DeepSeek.*需要兼容网关地址/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "添加服务" }));
+    fireEvent.click(screen.getByRole("button", { name: "DeepSeek" }));
     expect(
       (screen.getByLabelText("HTTPS API 地址") as HTMLInputElement).value,
     ).toBe("");
@@ -250,7 +265,7 @@ describe("桌面工作流", () => {
   it("Harness 可保存 OpenAI API，记录工具与供应商", async () => {
     await models();
     fireEvent.click(screen.getByRole("tab", { name: "DeepSeek Harness" }));
-    fireEvent.click(screen.getByText("添加服务", { selector: "button" }));
+    fireEvent.click(screen.getByRole("button", { name: "添加服务" }));
     expect(
       screen.queryByRole("button", { name: /OpenAI Official/ }),
     ).toBeNull();
@@ -282,7 +297,7 @@ describe("桌面工作流", () => {
       ["Gemini CLI", "gemini"],
     ]) {
       fireEvent.click(screen.getByRole("tab", { name }));
-      fireEvent.click(screen.getByText("添加服务", { selector: "button" }));
+      fireEvent.click(screen.getByRole("button", { name: "添加服务" }));
       fireEvent.click(
         screen.getByRole("button", {
           name:
