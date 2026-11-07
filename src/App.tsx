@@ -31,6 +31,7 @@ import "./style.css";
 import { ModelServices } from "./ModelServices";
 import { ProviderPage } from "./ProviderPage";
 import { ServiceEditor } from "./ServiceEditor";
+import { RecordPlayer } from "./RecordPlayer";
 import { protocolNames, tools } from "./catalog";
 import { ToolId } from "./types";
 
@@ -251,7 +252,7 @@ export function App() {
           <b>Edge Switch</b>
         </div>
         <div className="sub">板卡 AI 工作台</div>
-        <div className="nav-caption">工作空间</div>
+        <div className="nav-caption">YOUR LIBRARY / 工作空间</div>
         <nav aria-label="主导航">
           {navigation.map(({ id, label, icon }) => (
             <button
@@ -298,7 +299,7 @@ export function App() {
         </header>
         <div className="page-heading">
           <div>
-            <div className="eyebrow">EDGE SWITCH / WORKSPACE</div>
+            <div className="eyebrow">EDGE SWITCH / YOUR CREATIVE SPACE</div>
             <h1>{navigation.find((item) => item.id === tab)?.label}</h1>
             <p>{navigation.find((item) => item.id === tab)?.description}</p>
           </div>
@@ -312,20 +313,14 @@ export function App() {
         </div>
         {tab === "overview" && (
           <section>
-            <div className="hero">
-              <div>
-                <div className="eyebrow">你的远程 AI 工作台</div>
-                <h2>连接板卡，开始工作。</h2>
-                <p>选择环境 → 检查 SSH → 安装工具 → 配置模型</p>
-              </div>
-              {button("刷新设备", "diagnose")}
-            </div>
-            <div className="quick-launch" aria-label="快速启动">
-              {button("打开 VS Code", "vscode")}
-              {button("打开 Codex", "codex")}
-              {button("打开 Harness 网页", "harness")}
-              {button("打开 SSH 终端", "ssh_console")}
-            </div>
+            <RecordPlayer
+              current={current}
+              busy={busy}
+              connected={currentConnections.some(
+                ([, c]) => c.state === "已连接",
+              )}
+              run={run}
+            />
             <div className="grid">
               <Card
                 title="工程目录"

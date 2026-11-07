@@ -94,6 +94,23 @@ try {
     });
   }
   await checkVisuals("overview-initial");
+  await expect(page.locator(".vinyl")).toHaveCSS(
+    "animation-play-state",
+    "running",
+  );
+  await page.getByRole("button", { name: "暂停唱片动画" }).click();
+  await expect(page.locator(".vinyl")).toHaveCSS(
+    "animation-play-state",
+    "paused",
+  );
+  await page.getByRole("button", { name: "继续唱片动画" }).click();
+  await expect(page.locator(".vinyl")).toHaveCSS(
+    "animation-play-state",
+    "running",
+  );
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(page.locator(".vinyl")).toHaveCSS("animation-name", "none");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   const originalViewport = page.viewportSize();
   await page.setViewportSize({ width: 980, height: 660 });
   await checkVisuals("overview-compact");
@@ -181,7 +198,7 @@ try {
     .locator(".service-card")
     .filter({ has: page.getByText("冒烟 API", { exact: true }) });
   await page.mouse.move(0, 0);
-  await expect(row.locator(".service-actions")).toHaveCSS("opacity", "0");
+  await expect(row.locator(".service-actions")).toHaveCSS("opacity", "1");
   await row.hover();
   await expect(row.locator(".service-actions")).toHaveCSS("opacity", "1");
   await expect(
@@ -408,6 +425,7 @@ try {
           "native startup",
           "bundled logo and restored navigation/action icons",
           "all page images decode and compact layout has no horizontal overflow",
+          "vinyl pause/resume and system reduced-motion preference",
           "environment edit",
           "API CRUD and DPAPI",
           "active API synchronization",
