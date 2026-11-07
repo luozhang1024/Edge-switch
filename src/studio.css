@@ -59,6 +59,82 @@
   border: 0;
   background: transparent;
   box-shadow: none;
+  border-radius: 0;
+  outline: none;
+}
+.studio-app .studio-header select:focus-visible {
+  outline: none;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.window-behavior {
+  display: grid;
+  gap: 12px;
+}
+.behavior-switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card, #fafafa);
+  cursor: pointer;
+}
+.behavior-switch > span {
+  display: grid;
+  gap: 6px;
+}
+.behavior-switch small {
+  color: var(--muted);
+}
+.behavior-switch input {
+  position: absolute;
+  right: 20px;
+  width: 44px;
+  height: 26px;
+  opacity: 0;
+  cursor: pointer;
+}
+.behavior-switch > i {
+  width: 44px;
+  height: 26px;
+  border-radius: 20px;
+  background: #dcdde1;
+  flex-shrink: 0;
+  transition: background 160ms;
+}
+.behavior-switch > i::before {
+  content: "";
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  margin: 3px;
+  background: white;
+  box-shadow: 0 1px 4px #0002;
+  transition: transform 160ms;
+}
+.behavior-switch input:checked + i {
+  background: #10b981;
+}
+.behavior-switch input:checked + i::before {
+  transform: translateX(18px);
+}
+.behavior-switch input:focus-visible + i {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.behavior-switch input:disabled + i {
+  opacity: 0.5;
+}
+:root[data-theme="dark"] .behavior-switch {
+  background: #252e2c;
+}
+:root[lang="en"] .track-column h2 {
+  font-size: clamp(28px, 3.2vw, 42px);
 }
 .studio-app .studio-header select:focus:not(:focus-visible) {
   outline: none;

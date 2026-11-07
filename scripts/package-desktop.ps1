@@ -13,6 +13,15 @@ try {
     New-Item -ItemType Directory -Force $portable | Out-Null
     Copy-Item -LiteralPath 'src-tauri/target/release/edge-switch.exe' -Destination (Join-Path $portable 'EdgeSwitch.exe') -Force
     Copy-Item -LiteralPath 'LICENSE', 'README.md', 'README.en.md' -Destination $portable -Force
+    Copy-Item -LiteralPath 'scripts/portable/Launch-EdgeSwitch.cmd', 'scripts/portable/Launch-EdgeSwitch.ps1' -Destination $portable -Force
+    $bootstrapper = Join-Path $repo 'build/tauri/MicrosoftEdgeWebview2Setup.exe'
+    if (-not (Test-Path -LiteralPath $bootstrapper)) {
+        New-Item -ItemType Directory -Force (Split-Path -Parent $bootstrapper) | Out-Null
+        Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $bootstrapper -UseBasicParsing
+    }
+    $signature = Get-AuthenticodeSignature -LiteralPath $bootstrapper
+    if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { throw 'WebView2 bootstrapper signature verification failed' }
+    Copy-Item -LiteralPath $bootstrapper -Destination $portable -Force
     Copy-Item -LiteralPath 'image/providers/LICENSE' -Destination (Join-Path $portable 'LobeHub-Icons-LICENSE.txt') -Force
     $portableDocs = Join-Path $portable 'docs'
     New-Item -ItemType Directory -Force $portableDocs | Out-Null

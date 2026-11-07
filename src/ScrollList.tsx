@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import React, { useCallback, useEffect, useRef } from "react";
 
 export function ScrollList({
@@ -46,7 +47,7 @@ export function ScrollList({
       ref={ref}
       className={`scroll-list ${className}`}
       role="region"
-      aria-label={label}
+      aria-label={t(label)}
       tabIndex={0}
       onScroll={update}
       onFocusCapture={(event) => {

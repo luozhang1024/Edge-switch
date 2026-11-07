@@ -12,6 +12,7 @@ import {
 import { App } from "./App";
 import { version } from "../package.json";
 import { defaultPreferences, emptyProfile, Snapshot } from "./types";
+import { setLanguage } from "./i18n";
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   confirm: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
 }));
 let data: Snapshot;
 beforeEach(() => {
+  setLanguage("zh");
   vi.clearAllMocks();
   const p = {
     ...emptyProfile(),
@@ -82,6 +84,53 @@ async function refreshSnapshot() {
   });
 }
 describe("桌面工作流", () => {
+  it("通用设置保存窗口行为，界面语言即时切换并保留环境名称", async () => {
+    const original = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (name, args) => {
+      if (name === "save_preferences") {
+        data.preferences = structuredClone(args.preferences);
+        return null;
+      }
+      if (name === "autostart_status") return false;
+      return original(name, args);
+    });
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    const autostart = screen.getByRole("switch", { name: "开机自启" });
+    expect((autostart as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(autostart);
+    await waitFor(() => expect(data.preferences?.autostart).toBe(true));
+    fireEvent.click(screen.getByRole("switch", { name: "关闭时最小化到托盘" }));
+    await waitFor(() => expect(data.preferences?.close_to_tray).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    expect(await screen.findByRole("tab", { name: "General" })).toBeTruthy();
+    expect(screen.getByRole("switch", { name: "Start at login" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Logs" })).toBeTruthy();
+    expect(document.documentElement.lang).toBe("en");
+    await waitFor(() => expect(data.preferences?.language).toBe("en"));
+    fireEvent.click(screen.getByRole("button", { name: "← Back to studio" }));
+    expect(
+      screen.getByRole("button", { name: "Configure workspace" }),
+    ).toBeTruthy();
+    expect(screen.getByText("测试板卡", { selector: "h3" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "中文" }));
+    expect(await screen.findByRole("tab", { name: "通用" })).toBeTruthy();
+  });
+  it("保存语言失败时回滚语言和选中状态", async () => {
+    const original = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (name, args) => {
+      if (name === "save_preferences") throw new Error("磁盘不可写");
+      return original(name, args);
+    });
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    expect(
+      await screen.findByRole("dialog", { name: "操作未完成" }),
+    ).toBeTruthy();
+    expect(document.documentElement.lang).toBe("zh-CN");
+  });
   it("每个工具仅提供对应官方默认项，Harness 默认项可直接配置 API", async () => {
     data.services[data.selected_profile] = [];
     await models();

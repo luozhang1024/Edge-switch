@@ -67,11 +67,17 @@ export type Snapshot = {
   version: string;
 };
 export type Preferences = {
+  language: "zh" | "en";
+  autostart: boolean;
+  close_to_tray: boolean;
   theme: "light" | "dark" | "system";
   motion: boolean;
   home_tools: ToolId[];
 };
 export const defaultPreferences: Preferences = {
+  language: "zh",
+  autostart: false,
+  close_to_tray: true,
   theme: "system",
   motion: true,
   home_tools: ["codex", "claude", "harness", "gemini", "opencode"],

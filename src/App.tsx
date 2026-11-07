@@ -1,3 +1,4 @@
+import { t, setLanguage, useLanguage } from "./i18n";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -92,6 +93,7 @@ function AssetIcon({
 }
 
 export function App() {
+  useLanguage();
   const [data, setData] = useState<Snapshot | null>(null);
   const [connections, setConnections] = useState<Record<string, Connection>>(
     {},
@@ -118,7 +120,10 @@ export function App() {
   const [message, setMessage] = useState("就绪");
   const [pending, setPending] = useState(false);
   const refreshInFlight = useRef(false);
-  const preferences = data?.preferences || defaultPreferences;
+  const preferences = { ...defaultPreferences, ...data?.preferences };
+  useEffect(() => {
+    setLanguage(preferences.language);
+  }, [preferences.language]);
   useEffect(() => {
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");
     const apply = () => {
@@ -215,9 +220,9 @@ export function App() {
           <span data-tauri-drag-region>Edge Switch</span>
           <WindowControls onError={setMessage} />
         </div>
-        <p>正在启动 Edge Switch…</p>
-        <p role="status">{message}</p>
-        <button onClick={() => void load()}>重试</button>
+        <p>{t("正在启动 Edge Switch…")}</p>
+        <p role="status">{t(message)}</p>
+        <button onClick={() => void load()}>{t("重试")}</button>
       </div>
     );
   const current =
@@ -235,7 +240,7 @@ export function App() {
       onClick={() => void configureEnvironment(action)}
     >
       {actionIcons[action] && <AssetIcon src={actionIcons[action]} />}
-      {label}
+      {t(label)}
     </button>
   );
   const feedbackTask = data.tasks.find((t) => t.id === feedback?.id);
@@ -250,24 +255,26 @@ export function App() {
     if (
       payload.infer &&
       !(await confirm(
-        "将发送真实推理请求，可能消耗 API 余额或账号额度。是否继续？",
-        { title: "推理验证", kind: "warning" },
+        t("将发送真实推理请求，可能消耗 API 余额或账号额度。是否继续？"),
+        { title: t("推理验证"), kind: "warning" },
       ))
     )
       return;
     if (
       action === "harness_stop" &&
       !(await confirm(
-        "停止 Harness 会中断当前服务和可能进行中的任务。是否继续？",
-        { title: "停止 Harness", kind: "warning" },
+        t("停止 Harness 会中断当前服务和可能进行中的任务。是否继续？"),
+        { title: t("停止 Harness"), kind: "warning" },
       ))
     )
       return;
     if (
       action === "disconnect" &&
       !(await confirm(
-        "将断开网页和代理隧道，使用这些连接的工具会受影响；板卡后台服务保留。是否继续？",
-        { title: "断开连接", kind: "warning" },
+        t(
+          "将断开网页和代理隧道，使用这些连接的工具会受影响；板卡后台服务保留。是否继续？",
+        ),
+        { title: t("断开连接"), kind: "warning" },
       ))
     )
       return;
@@ -276,7 +283,7 @@ export function App() {
   const button = (label: string, action: string, payload = {}) => (
     <button disabled={busy} onClick={() => void run(action, payload)}>
       {actionIcons[action] && <AssetIcon src={actionIcons[action]} />}
-      {label}
+      {t(label)}
     </button>
   );
   async function choose(action: string) {
@@ -285,8 +292,8 @@ export function App() {
         multiple: false,
         title:
           action === "editor_pin"
-            ? "选择 VS Code 的 Code.exe"
-            : "选择 Server tar.gz 安装包",
+            ? t("选择 VS Code 的 Code.exe")
+            : t("选择 Server tar.gz 安装包"),
       });
       if (typeof path === "string")
         await configureEnvironment(action, { path });
@@ -299,7 +306,7 @@ export function App() {
     args: Record<string, unknown>,
     warning: string,
   ) => {
-    if (await confirm(warning, { title: "确认删除", kind: "warning" }))
+    if (await confirm(t(warning), { title: t("确认删除"), kind: "warning" }))
       await command(name, args);
   };
   function selectProvider(preset: Service | "official") {
@@ -321,8 +328,8 @@ export function App() {
             <b data-tauri-drag-region>Edge Switch</b>
             <button
               className="brand-action"
-              title="设置"
-              aria-label="设置"
+              title={t("设置")}
+              aria-label={t("设置")}
               onClick={() => {
                 setSettingsTab("general");
                 setCheckOnOpen(false);
@@ -333,8 +340,8 @@ export function App() {
             </button>
             <button
               className="brand-action upgrade-action"
-              title="检查更新"
-              aria-label="检查更新"
+              title={t("检查更新")}
+              aria-label={t("检查更新")}
               onClick={() => {
                 setSettingsTab("about");
                 setCheckOnOpen(true);
@@ -347,7 +354,7 @@ export function App() {
           </div>
           <label>
             <select
-              aria-label="切换工作环境"
+              aria-label={t("切换工作环境")}
               disabled={pending}
               value={current.id}
               onChange={(e) => {
@@ -404,10 +411,10 @@ export function App() {
                 className="return-studio"
                 onClick={() => setTab("overview")}
               >
-                ← 返回唱片台
+                {t("← 返回唱片台")}
               </button>
-              <div className="nav-caption">WORKSPACE / 工作空间</div>
-              <nav aria-label="主导航">
+              <div className="nav-caption">{t("WORKSPACE / 工作空间")}</div>
+              <nav aria-label={t("主导航")}>
                 {navigation.map(({ id, label, icon }) => (
                   <button
                     key={id}
@@ -416,14 +423,14 @@ export function App() {
                     onClick={() => setTab(id)}
                   >
                     <AssetIcon src={icon} />
-                    {label}
+                    {t(label)}
                   </button>
                 ))}
               </nav>
             </aside>
             <div className="management-content">
               <div className="management-notice" role="status">
-                {message}
+                {t(message)}
               </div>
               {tab === "settings" && (
                 <SettingsPage
@@ -453,52 +460,60 @@ export function App() {
                       {" "}
                       <section className="panel task-history">
                         <p className="task-environment">
-                          {current.name} · 任务与运行结果
+                          {current.name}
+                          {t(" · 任务与运行结果")}
                         </p>
-                        <ScrollList className="task-list" label="任务记录列表">
+                        <ScrollList
+                          className="task-list"
+                          label={t("任务记录列表")}
+                        >
                           {data.tasks
                             .filter((t) => t.profile_id === current.id)
                             .slice()
                             .reverse()
-                            .map((t) => (
+                            .map((task) => (
                               <details
                                 className="taskdetail"
-                                key={t.id}
-                                open={isRunning(t)}
+                                key={task.id}
+                                open={isRunning(task)}
                               >
                                 <summary>
                                   <span>
-                                    {t.label} · {t.state}
+                                    {t(task.label)} · {t(task.state)}
                                   </span>
                                   <small>
                                     {new Date(
-                                      t.started_at * 1000,
+                                      task.started_at * 1000,
                                     ).toLocaleTimeString()}
                                   </small>
                                 </summary>
-                                <p>{t.message}</p>
-                                {isRunning(t) && (
+                                <p>{t(task.message)}</p>
+                                {isRunning(task) && (
                                   <button
                                     onClick={async () => {
                                       if (
                                         await confirm(
-                                          "停止本地等待和 SSH 操作；远端操作可能仍在进行，请随后刷新设备核对。",
+                                          t(
+                                            "停止本地等待和 SSH 操作；远端操作可能仍在进行，请随后刷新设备核对。",
+                                          ),
                                           {
-                                            title: "取消任务",
+                                            title: t("取消任务"),
                                             kind: "warning",
                                           },
                                         )
                                       )
                                         await command("cancel_task", {
-                                          taskId: t.id,
+                                          taskId: task.id,
                                         });
                                     }}
                                   >
-                                    取消任务
+                                    {t("取消任务")}
                                   </button>
                                 )}
-                                {t.result != null && (
-                                  <pre>{JSON.stringify(t.result, null, 2)}</pre>
+                                {task.result != null && (
+                                  <pre>
+                                    {JSON.stringify(task.result, null, 2)}
+                                  </pre>
                                 )}
                               </details>
                             ))}
@@ -506,7 +521,9 @@ export function App() {
                             (t) => t.profile_id === current.id,
                           ) && (
                             <p className="empty">
-                              暂无任务。先检查设备，确认 SSH 连接和板卡状态。
+                              {t(
+                                "暂无任务。先检查设备，确认 SSH 连接和板卡状态。",
+                              )}
                             </p>
                           )}
                         </ScrollList>
@@ -519,27 +536,29 @@ export function App() {
                 <>
                   <div className="grid">
                     <Card
-                      title="工程目录"
+                      title={t("工程目录")}
                       value={current.project}
-                      detail={current.identity || "使用系统 SSH 身份"}
+                      detail={current.identity || t("使用系统 SSH 身份")}
                     />
                     <Card
-                      title="模型服务"
+                      title={t("模型服务")}
                       value={
                         current.codex_auth === "chatgpt"
                           ? "OpenAI Official"
-                          : current.model || "尚未配置"
+                          : current.model || t("尚未配置")
                       }
                       detail={current.base_url}
                     />
                     <Card
-                      title="连接"
+                      title={t("连接")}
                       value={
                         currentConnections
                           .map(([, c]) => c.state)
-                          .join(" / ") || "尚未建立隧道"
+                          .join(" / ") || t("尚未建立隧道")
                       }
-                      detail="这里只统计代理和网页隧道；SSH 终端独立连接，可检查设备验证 SSH 是否可用"
+                      detail={t(
+                        "这里只统计代理和网页隧道；SSH 终端独立连接，可检查设备验证 SSH 是否可用",
+                      )}
                     />
                   </div>
                   <p className="info-address">
@@ -550,13 +569,16 @@ export function App() {
               {tab === "connect" && (
                 <section className="panel">
                   <div className="panelhead">
-                    <h2>工作环境</h2>
+                    <h2>{t("工作环境")}</h2>
                     <button onClick={() => setEditing(emptyProfile())}>
                       <AssetIcon src={addIcon} />
-                      添加环境
+                      {t("添加环境")}
                     </button>
                   </div>
-                  <ScrollList className="profile-list" label="工作环境列表">
+                  <ScrollList
+                    className="profile-list"
+                    label={t("工作环境列表")}
+                  >
                     {ordered(data.profiles, data.list_order?.profiles).map(
                       (p) => (
                         <div
@@ -600,9 +622,11 @@ export function App() {
                           </div>
                           <div className="profile-actions">
                             <button
-                              title={p.id === current.id ? "使用中" : "使用"}
+                              title={
+                                p.id === current.id ? t("使用中") : t("使用")
+                              }
                               aria-label={
-                                p.id === current.id ? "使用中" : "使用"
+                                p.id === current.id ? t("使用中") : t("使用")
                               }
                               disabled={pending || p.id === current.id}
                               onClick={() =>
@@ -610,7 +634,9 @@ export function App() {
                               }
                             >
                               {p.id === current.id ? (
-                                <span className="active-badge">使用中</span>
+                                <span className="active-badge">
+                                  {t("使用中")}
+                                </span>
                               ) : (
                                 <ActionIcon name="activate" />
                               )}
@@ -619,15 +645,15 @@ export function App() {
                               disabled={data.tasks.some(
                                 (t) => t.profile_id === p.id && isRunning(t),
                               )}
-                              title="编辑"
-                              aria-label="编辑"
+                              title={t("编辑")}
+                              aria-label={t("编辑")}
                               onClick={() => setEditing({ ...p })}
                             >
                               <ActionIcon name="edit" />
                             </button>
                             <button
-                              title="删除"
-                              aria-label="删除"
+                              title={t("删除")}
+                              aria-label={t("删除")}
                               disabled={pending || data.profiles.length <= 1}
                               onClick={() =>
                                 void remove(
@@ -680,11 +706,11 @@ export function App() {
         </Modal>
       )}
       {editing && (
-        <Modal title="编辑工作环境" close={() => setEditing(null)}>
+        <Modal title={t("编辑工作环境")} close={() => setEditing(null)}>
           <div
             className="environment-tabs"
             role="tablist"
-            aria-label="编辑环境配置"
+            aria-label={t("编辑环境配置")}
           >
             {[
               ["connection", "SSH 与网络"],
@@ -697,18 +723,21 @@ export function App() {
                 aria-selected={editorTab === id}
                 onClick={() => setEditorTab(id)}
               >
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
           <div hidden={editorTab !== "tools"}>
-            <p>操作时先保存此环境的 SSH 与网络配置，随后在对应板卡执行。</p>
+            <p>
+              {t("操作时先保存此环境的 SSH 与网络配置，随后在对应板卡执行。")}
+            </p>
             <section>
               <div className="panel">
-                <h2>工具部署</h2>
+                <h2>{t("工具部署")}</h2>
                 <p>
-                  安装到当前环境专属目录，不替换系统
-                  Node.js。先查询版本，再选择安装。
+                  {t(
+                    "安装到当前环境专属目录，不替换系统 Node.js。先查询版本，再选择安装。",
+                  )}
                 </p>
                 <div className="buttons">
                   {editorButton("检查设备", "diagnose")}
@@ -726,7 +755,7 @@ export function App() {
                 />
               </div>
               <div className="panel">
-                <h2>启动与服务</h2>
+                <h2>{t("启动与服务")}</h2>
                 <div className="buttons">
                   {editorButton("打开 Codex", "codex")}
                   {editorButton("打开 Harness 网页", "harness")}
@@ -737,16 +766,17 @@ export function App() {
                 <p>
                   Harness：
                   {editing.harness_background
-                    ? "退出工作台后保留板卡后台服务"
-                    : "退出工作台时停止服务"}
-                  。关闭主窗口仅缩至托盘。
+                    ? t("退出工作台后保留板卡后台服务")
+                    : t("退出工作台时停止服务")}
+                  {t("。关闭主窗口仅缩至托盘。")}
                 </p>
               </div>
               <div className="panel">
-                <h2>编辑器维护</h2>
+                <h2>{t("编辑器维护")}</h2>
                 <p>
-                  选择已安装的 Code.exe 创建固定副本。独立设置不会覆盖日常 VS
-                  Code 配置，导入服务端仍需通过官方 SHA-256 校验。
+                  {t(
+                    "选择已安装的 Code.exe 创建固定副本。独立设置不会覆盖日常 VS Code 配置，导入服务端仍需通过官方 SHA-256 校验。",
+                  )}
                 </p>
                 <div className="buttons">
                   <button
@@ -754,14 +784,14 @@ export function App() {
                     onClick={() => void choose("editor_pin")}
                   >
                     <AssetIcon src={vscodeIcon} />
-                    选择并固定 Code.exe
+                    {t("选择并固定 Code.exe")}
                   </button>
                   <button
                     disabled={editingBusy}
                     onClick={() => void choose("import_server")}
                   >
                     <AssetIcon src={vscodeIcon} />
-                    导入 Server 安装包
+                    {t("导入 Server 安装包")}
                   </button>
                   {editorButton("读取连接诊断", "vscode_diagnostics")}
                 </div>
@@ -771,23 +801,26 @@ export function App() {
           <div hidden={editorTab !== "network"}>
             {" "}
             <section className="panel">
-              <h2>代理网络</h2>
+              <h2>{t("代理网络")}</h2>
               <p>
-                电脑下载：
-                {editing.proxy ? `127.0.0.1:${editing.proxy_port}` : "直连"}
+                {t("电脑下载：")}
+                {editing.proxy
+                  ? t(`127.0.0.1:${editing.proxy_port}`)
+                  : t("直连")}
                 ；Codex：
                 {(editing.codex_proxy ?? editing.proxy)
-                  ? "电脑代理"
-                  : "板卡直连"}
+                  ? t("电脑代理")
+                  : t("板卡直连")}
                 ；Harness：
                 {(editing.harness_proxy ?? editing.proxy)
-                  ? "电脑代理"
-                  : "板卡直连"}
+                  ? t("电脑代理")
+                  : t("板卡直连")}
                 。
               </p>
               <p>
-                电脑代理通过 SSH
-                反向转发到板卡，中断后自动尝试重连。修改设置前先断开本地连接。
+                {t(
+                  "电脑代理通过 SSH 反向转发到板卡，中断后自动尝试重连。修改设置前先断开本地连接。",
+                )}
               </p>
               <div className="buttons">
                 {editorButton("连接代理", "proxy_start")}
@@ -797,9 +830,15 @@ export function App() {
                 .filter(([id]) => id.startsWith(`${editing.id}:`))
                 .map(([id, c]) => (
                   <div className="profile" key={id}>
-                    <b>{c.kind === "proxy" ? "代理隧道" : "Harness 网页"}</b>
+                    <b>
+                      {c.kind === "proxy" ? t("代理隧道") : t("Harness 网页")}
+                    </b>
                     <span>
-                      {c.state} · 电脑 {c.local_port} ↔ 板卡 {c.remote_port}
+                      {t(c.state)}
+                      {t(" · 电脑")}
+                      {c.local_port}
+                      {t(" ↔ 板卡")}
+                      {c.remote_port}
                     </span>
                   </div>
                 ))}
@@ -817,7 +856,7 @@ export function App() {
               {(["name", "host", "user", "project"] as const).map(
                 (field, i) => (
                   <label key={field}>
-                    {["名称", "主机地址", "Linux 用户", "工程绝对路径"][i]}
+                    {t(["名称", "主机地址", "Linux 用户", "工程绝对路径"][i])}
                     <input
                       required
                       value={editing[field]}
@@ -830,7 +869,7 @@ export function App() {
               )}
               {(["port", "proxy_port"] as const).map((field, i) => (
                 <label key={field}>
-                  {["SSH 端口", "电脑代理端口"][i]}
+                  {t(["SSH 端口", "电脑代理端口"][i])}
                   <input
                     required
                     type="number"
@@ -847,7 +886,7 @@ export function App() {
                 </label>
               ))}
               <label className="wide">
-                SSH 私钥（空值使用系统身份）
+                {t("SSH 私钥（空值使用系统身份）")}
                 <input
                   value={editing.identity}
                   onChange={(e) =>
@@ -869,24 +908,24 @@ export function App() {
                     }
                   }}
                 >
-                  选择私钥
+                  {t("选择私钥")}
                 </button>
               </label>
               <label>
-                电脑下载线路
+                {t("电脑下载线路")}
                 <select
                   value={String(editing.proxy)}
                   onChange={(e) =>
                     setEditing({ ...editing, proxy: e.target.value === "true" })
                   }
                 >
-                  <option value="false">直连</option>
-                  <option value="true">电脑代理</option>
+                  <option value="false">{t("直连")}</option>
+                  <option value="true">{t("电脑代理")}</option>
                 </select>
               </label>
               {(["codex_proxy", "harness_proxy"] as const).map((field, i) => (
                 <label key={field}>
-                  {["Codex 线路", "Harness 线路"][i]}
+                  {t(["Codex 线路", "Harness 线路"][i])}
                   <select
                     value={
                       editing[field] == null
@@ -903,14 +942,14 @@ export function App() {
                       })
                     }
                   >
-                    <option value="inherit">跟随电脑下载线路</option>
-                    <option value="false">板卡直连</option>
-                    <option value="true">电脑代理</option>
+                    <option value="inherit">{t("跟随电脑下载线路")}</option>
+                    <option value="false">{t("板卡直连")}</option>
+                    <option value="true">{t("电脑代理")}</option>
                   </select>
                 </label>
               ))}
               <label>
-                退出策略
+                {t("退出策略")}
                 <select
                   value={String(editing.harness_background)}
                   onChange={(e) =>
@@ -920,17 +959,17 @@ export function App() {
                     })
                   }
                 >
-                  <option value="true">保留 Harness 后台服务</option>
-                  <option value="false">退出时停止 Harness</option>
+                  <option value="true">{t("保留 Harness 后台服务")}</option>
+                  <option value="false">{t("退出时停止 Harness")}</option>
                 </select>
               </label>
             </div>
             <div className="actions">
               <button type="button" onClick={() => setEditing(null)}>
-                取消
+                {t("取消")}
               </button>
               <button disabled={editingBusy} className="primary">
-                保存
+                {t("保存")}
               </button>
             </div>
           </form>
@@ -997,7 +1036,7 @@ export function App() {
           >
             <div className="form">
               <label>
-                账号名称
+                {t("账号名称")}
                 <input
                   required
                   value={official.name || ""}
@@ -1007,7 +1046,7 @@ export function App() {
                 />
               </label>
               <label>
-                备注
+                {t("备注")}
                 <input
                   value={official.note || ""}
                   onChange={(e) =>
@@ -1030,8 +1069,9 @@ export function App() {
               </label>
               <b>auth.json (JSON)</b>
               <p className="provider-help">
-                导入官方 OAuth 凭据，或在“设置 →
-                认证”中完成设备码登录。凭据在本机加密保存，同步时写入远程设备。
+                {t(
+                  "导入官方 OAuth 凭据，或在“设置 → 认证”中完成设备码登录。凭据在本机加密保存，同步时写入远程设备。",
+                )}
               </p>
               <button
                 type="button"
@@ -1047,16 +1087,16 @@ export function App() {
                   }
                 }}
               >
-                选择 auth.json
+                {t("选择 auth.json")}
               </button>
-              <p>{authPath || "未选择文件，保留已有凭据"}</p>
+              <p>{authPath || t("未选择文件，保留已有凭据")}</p>
             </section>
             <div className="actions">
               <button type="button" onClick={() => setOfficial(null)}>
-                取消
+                {t("取消")}
               </button>
               <button disabled={pending} className="primary">
-                保存账号
+                {t("保存账号")}
               </button>
             </div>
           </form>
@@ -1092,10 +1132,10 @@ export function App() {
                   void command("cancel_task", { taskId: feedbackTask.id })
                 }
               >
-                取消任务
+                {t("取消任务")}
               </button>
             )}
-            <button onClick={() => setFeedback(null)}>关闭</button>
+            <button onClick={() => setFeedback(null)}>{t("关闭")}</button>
           </div>
         </Modal>
       )}
@@ -1130,7 +1170,8 @@ function ToolInstaller({
         <label key={tool}>
           <span className="tool-label">
             <AssetIcon src={icon} />
-            {name} 版本
+            {name}
+            {t(" 版本")}
           </span>
           <select
             disabled={disabled}
@@ -1142,7 +1183,7 @@ function ToolInstaller({
               })
             }
           >
-            <option value="">请先查询并选择版本</option>
+            <option value="">{t("请先查询并选择版本")}</option>
             {versions?.[tool]?.versions.map((v) => (
               <option key={v} value={v}>
                 {v}
@@ -1153,7 +1194,7 @@ function ToolInstaller({
             disabled={disabled || !selected[`${profileId}:${tool}`]}
             onClick={() => install(tool, selected[`${profileId}:${tool}`])}
           >
-            安装选定版本
+            {t("安装选定版本")}
           </button>
         </label>
       ))}
@@ -1192,7 +1233,7 @@ function Modal({
     <dialog
       ref={ref}
       className={`dialog studio-dialog ${className}`}
-      aria-label={title}
+      aria-label={t(title)}
       onCancel={(event) => {
         event.preventDefault();
         close();
@@ -1214,19 +1255,19 @@ function Modal({
         className="panelhead"
         data-tauri-drag-region={windowError ? true : undefined}
       >
-        <h2>{title}</h2>
+        <h2>{t(title)}</h2>
         {settings && (
           <button
             className="brand-action"
-            title="设置"
-            aria-label="设置"
+            title={t("设置")}
+            aria-label={t("设置")}
             onClick={settings}
           >
             <ActionIcon name="settings" />
           </button>
         )}
         {!windowError && (
-          <button aria-label="关闭" onClick={close}>
+          <button aria-label={t("关闭")} onClick={close}>
             ×
           </button>
         )}
@@ -1250,17 +1291,17 @@ function Card({
       <small className="card-label">
         <AssetIcon
           src={
-            title === "工程目录"
+            title === t("工程目录")
               ? environmentIcon
-              : title === "模型服务"
+              : title === t("模型服务")
                 ? modelIcon
                 : connectIcon
           }
         />
-        {title}
+        {t(title)}
       </small>
       <strong>{value}</strong>
-      <span title={detail}>{detail}</span>
+      <span title={t(detail)}>{t(detail)}</span>
     </div>
   );
 }

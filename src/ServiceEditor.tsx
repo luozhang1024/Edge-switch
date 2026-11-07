@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Service } from "./types";
@@ -114,16 +115,16 @@ export function ServiceEditor({
     >
       <div className="form">
         <label>
-          服务名称
+          {t("服务名称")}
           <input
             required
             value={service.name}
-            placeholder="例如：公司专用 API"
+            placeholder={t("例如：公司专用 API")}
             onChange={(e) => onChange({ ...service, name: e.target.value })}
           />
         </label>
         <label>
-          API请求地址
+          {t("API请求地址")}
           <input
             required
             type="url"
@@ -134,31 +135,33 @@ export function ServiceEditor({
         </label>
         <div className="wide model-field">
           <div className="field-heading">
-            <label htmlFor="model-name">模型名称</label>
+            <label htmlFor="model-name">{t("模型名称")}</label>
             <button
               type="button"
               className="text-button"
               disabled={fetching || loadingKey || !service.base_url}
               onClick={() => void fetchModels()}
             >
-              {fetching ? "正在获取…" : "获取模型列表"}
+              {fetching ? t("正在获取…") : t("获取模型列表")}
             </button>
           </div>
           <input
             id="model-name"
             required
             value={service.model}
-            placeholder="填写或选择供应商提供的模型名称"
+            placeholder={t("填写或选择供应商提供的模型名称")}
             onChange={(e) => onChange({ ...service, model: e.target.value })}
           />
           {models.length > 0 && (
             <select
-              aria-label="选择模型"
+              aria-label={t("选择模型")}
               value={models.includes(service.model) ? service.model : ""}
               onChange={(e) => onChange({ ...service, model: e.target.value })}
             >
               <option value="" disabled>
-                选择模型（{models.length} 个）
+                {t("选择模型（")}
+                {models.length}
+                {t(" 个）")}
               </option>
               {models.map((name) => (
                 <option key={name}>{name}</option>
@@ -175,7 +178,9 @@ export function ServiceEditor({
               autoComplete="off"
               value={key}
               disabled={loadingKey}
-              placeholder={loadingKey ? "正在读取已保存密钥…" : "填写 API Key"}
+              placeholder={
+                loadingKey ? t("正在读取已保存密钥…") : t("填写 API Key")
+              }
               onChange={(e) => {
                 revision.current++;
                 queryRevision.current++;
@@ -186,8 +191,8 @@ export function ServiceEditor({
             />
             <button
               type="button"
-              title={visible ? "隐藏 API Key" : "显示 API Key"}
-              aria-label={visible ? "隐藏 API Key" : "显示 API Key"}
+              title={visible ? t("隐藏 API Key") : t("显示 API Key")}
+              aria-label={visible ? t("隐藏 API Key") : t("显示 API Key")}
               onClick={() => setVisible(!visible)}
             >
               <ActionIcon name={visible ? "hidden" : "eye"} />
@@ -195,8 +200,10 @@ export function ServiceEditor({
           </div>
           <small className="provider-help">
             {original
-              ? "已保存的密钥在此处遮罩显示；留空保留原密钥，更换请求地址需填写对应密钥。"
-              : "默认遮罩显示，点击眼睛查看明文。"}
+              ? t(
+                  "已保存的密钥在此处遮罩显示；留空保留原密钥，更换请求地址需填写对应密钥。",
+                )
+              : t("默认遮罩显示，点击眼睛查看明文。")}
           </small>
         </div>
         <label className="check wide">
@@ -205,7 +212,7 @@ export function ServiceEditor({
             checked={remember}
             onChange={(e) => setRemember(e.target.checked)}
           />
-          使用 Windows DPAPI 加密保存
+          {t("使用 Windows DPAPI 加密保存")}
         </label>
         {error && (
           <p className="wide form-error" role="alert">
@@ -213,9 +220,9 @@ export function ServiceEditor({
           </p>
         )}
       </div>
-      <section className="config-previews" aria-label="生成配置预览">
+      <section className="config-previews" aria-label={t("生成配置预览")}>
         <p className="provider-help">
-          以下配置由表单自动生成；同步到远程设备后生效。
+          {t("以下配置由表单自动生成；同步到远程设备后生效。")}
         </p>
         {configPreview(service, visible ? key : key ? "••••••••" : "").map(
           (config) => (
@@ -234,10 +241,10 @@ export function ServiceEditor({
       </section>
       <div className="actions">
         <button type="button" onClick={close}>
-          取消
+          {t("取消")}
         </button>
         <button disabled={busy || loadingKey} className="primary">
-          保存服务
+          {t("保存服务")}
         </button>
       </div>
     </form>

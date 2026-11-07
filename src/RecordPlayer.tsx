@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import React, { useState } from "react";
 import { Preferences, Profile, ToolId } from "./types";
 import { ScrollList } from "./ScrollList";
@@ -40,24 +41,25 @@ export function RecordPlayer({
       preferences.home_tools.includes(action as ToolId),
   );
   return (
-    <section className="listening-room" aria-label="远程开发唱片台">
+    <section className="listening-room" aria-label={t("远程开发唱片台")}>
       <div className="track-column">
         <div className="edition-label">THE WORKSPACE COLLECTION</div>
         <h2>
-          让灵感，
+          {t("让灵感，")}
           <br />
-          开始转动<span>。</span>
+          {t("开始转动")}
+          <span>。</span>
         </h2>
-        <p className="room-intro">连接你的板卡，进入创造的节奏。</p>
+        <p className="room-intro">{t("连接你的板卡，进入创造的节奏。")}</p>
         <div className="track-heading">
-          <span>A SIDE / 快速启动</span>
+          <span>{t("A SIDE / 快速启动")}</span>
           <span>{String(tracks.length).padStart(2, "0")} TRACKS</span>
         </div>
-        <ScrollList className="launch-tracks" label="快速启动列表">
+        <ScrollList className="launch-tracks" label={t("快速启动列表")}>
           {tracks.map(([number, name, detail, action]) => (
             <button
               key={action}
-              aria-label={`打开 ${name}`}
+              aria-label={t(`打开 ${name}`)}
               disabled={busy}
               onClick={() => void run(action)}
             >
@@ -77,8 +79,8 @@ export function RecordPlayer({
                       : "›_"}
               </span>
               <span className="track-title">
-                <b>{name}</b>
-                <small>{detail}</small>
+                <b>{t(name)}</b>
+                <small>{t(detail)}</small>
               </span>
               <span className="track-play" aria-hidden="true">
                 ↗
@@ -86,15 +88,15 @@ export function RecordPlayer({
             </button>
           ))}
         </ScrollList>
-        <span className="scroll-hint">滚动探索更多工具 ↓</span>
+        <span className="scroll-hint">{t("滚动探索更多工具 ↓")}</span>
       </div>
       <div className="turntable">
         <span className="turntable-caption">EDGE SWITCH — v{version}</span>
         <button
           type="button"
           className="record-platter"
-          title="工作环境"
-          aria-label="配置工作环境"
+          title={t("工作环境")}
+          aria-label={t("配置工作环境")}
           onClick={onEnvironment}
         >
           <div
@@ -119,23 +121,23 @@ export function RecordPlayer({
           className="spin-control"
           disabled={!preferences.motion}
           aria-pressed={!spinning}
-          aria-label={spinning ? "暂停唱片动画" : "继续唱片动画"}
+          aria-label={spinning ? t("暂停唱片动画") : t("继续唱片动画")}
           onClick={() => setSpinning(!spinning)}
         >
           <span aria-hidden="true">{spinning ? "Ⅱ" : "▷"}</span>
           {!preferences.motion
-            ? "动画已关闭"
+            ? t("动画已关闭")
             : spinning
-              ? "暂停转动"
-              : "继续转动"}
+              ? t("暂停转动")
+              : t("继续转动")}
         </button>
       </div>
       <div className="sleeve-column">
         <button
           type="button"
           className="album-cover"
-          title="配置模型服务"
-          aria-label="配置模型服务"
+          title={t("配置模型服务")}
+          aria-label={t("配置模型服务")}
           onClick={onNavigate}
         >
           <span>
@@ -152,22 +154,24 @@ export function RecordPlayer({
           <b>01</b>
         </button>
         <div className="sleeve-meta">
-          <span>当前工作环境</span>
+          <span>{t("当前工作环境")}</span>
           <span>↗ SSH</span>
         </div>
         <h3>{current.name}</h3>
         <p className="sleeve-address">
-          {current.user}@{current.host || "待配置主机"}:{current.port}
+          {current.user}@{current.host || t("待配置主机")}:{current.port}
         </p>
         <div className="sleeve-note">
-          <span className="edition-label">LINER NOTES / 环境信息</span>
+          <span className="edition-label">{t("LINER NOTES / 环境信息")}</span>
           <p>{current.project}</p>
           <span
             className="connection-indicator"
-            title="这里只统计应用维护的代理和网页隧道；外部 SSH 终端独立连接，不以隧道状态判断 SSH 是否可用。"
+            title={t(
+              "这里只统计应用维护的代理和网页隧道；外部 SSH 终端独立连接，不以隧道状态判断 SSH 是否可用。",
+            )}
           >
             <i className={connected ? "connected" : ""} />
-            {connected ? "代理 / 网页隧道已连接" : "SSH 终端按需连接"}
+            {connected ? t("代理 / 网页隧道已连接") : t("SSH 终端按需连接")}
           </span>
         </div>
         <button
@@ -175,22 +179,23 @@ export function RecordPlayer({
           disabled={busy}
           onClick={() => void run("diagnose")}
         >
-          检查设备 <span aria-hidden="true">↗</span>
+          {t("检查设备 ")}
+          <span aria-hidden="true">↗</span>
         </button>
       </div>
       <div className="record-strip">
         <button
           className="strip-symbol"
-          aria-label="打开导航"
-          title="打开工作台导航"
+          aria-label={t("打开导航")}
+          title={t("打开工作台导航")}
           onClick={onNavigate}
         >
           ↗
         </button>
-        <span>为下一次创造，准备就绪。</span>
+        <span>{t("为下一次创造，准备就绪。")}</span>
         <button
           className={`waveform ${preferences.motion ? "waveform-animated" : ""}`}
-          aria-label="打开 GitHub 项目"
+          aria-label={t("打开 GitHub 项目")}
           title="GitHub · luozhang1024/Edge-switch"
           onClick={onProject}
         >
@@ -206,7 +211,8 @@ export function RecordPlayer({
         </button>
         <div className="studio-actions">
           <button onClick={onInfo}>
-            环境详情 <span aria-hidden="true">↗</span>
+            {t("环境详情 ")}
+            <span aria-hidden="true">↗</span>
           </button>
         </div>
       </div>

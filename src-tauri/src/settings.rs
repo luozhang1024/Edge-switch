@@ -9,6 +9,9 @@ pub struct Preferences {
     pub theme: String,
     pub motion: bool,
     pub home_tools: Vec<String>,
+    pub language: String,
+    pub autostart: bool,
+    pub close_to_tray: bool,
 }
 impl Default for Preferences {
     fn default() -> Self {
@@ -16,11 +19,17 @@ impl Default for Preferences {
             theme: "system".into(),
             motion: true,
             home_tools: store::TOOLS.iter().map(|s| s.to_string()).collect(),
+            language: "zh".into(),
+            autostart: false,
+            close_to_tray: true,
         }
     }
 }
 impl Preferences {
     fn validate(&self) -> Result<(), String> {
+        if !["zh", "en"].contains(&self.language.as_str()) {
+            return Err("界面语言无效".into());
+        }
         if !["light", "dark", "system"].contains(&self.theme.as_str()) {
             return Err("主题无效".into());
         }
@@ -54,12 +63,74 @@ pub async fn save_preferences(
         let mut live = core.store.lock().unwrap();
         let mut next = live.clone();
         next.data["preferences"] = json!(preferences);
-        next.save()?;
+        let previous_autostart = autostart_status()?;
+        let startup_changed = preferences.autostart != previous_autostart;
+        if startup_changed {
+            set_autostart(preferences.autostart)?;
+        }
+        if let Err(error) = next.save() {
+            if startup_changed {
+                let _ = set_autostart(previous_autostart);
+            }
+            return Err(error);
+        }
         *live = next;
         Ok(())
     })
     .await
     .map_err(|error| error.to_string())?
+}
+
+const STARTUP_KEY: &str = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+fn startup_command(executable: &std::path::Path) -> String {
+    format!("\"{}\"", executable.display())
+}
+fn registry(args: &[&str]) -> Result<std::process::Output, String> {
+    let mut command = std::process::Command::new("reg.exe");
+    command.args(args);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+    command
+        .output()
+        .map_err(|error| format!("无法更新开机启动设置：{error}"))
+}
+fn set_autostart(enabled: bool) -> Result<(), String> {
+    let result = if enabled {
+        let executable = std::env::current_exe().map_err(|e| e.to_string())?;
+        registry(&[
+            "add",
+            STARTUP_KEY,
+            "/v",
+            "EdgeSwitch",
+            "/t",
+            "REG_SZ",
+            "/d",
+            &startup_command(&executable),
+            "/f",
+        ])?
+    } else {
+        if !registry(&["query", STARTUP_KEY, "/v", "EdgeSwitch"])?
+            .status
+            .success()
+        {
+            return Ok(());
+        }
+        registry(&["delete", STARTUP_KEY, "/v", "EdgeSwitch", "/f"])?
+    };
+    if !result.status.success() {
+        return Err("无法更新开机启动设置，请检查当前 Windows 用户权限".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn autostart_status() -> Result<bool, String> {
+    Ok(registry(&["query", STARTUP_KEY, "/v", "EdgeSwitch"])?
+        .status
+        .success())
 }
 const RELEASES_URL: &str = "https://github.com/luozhang1024/Edge-switch/releases";
 #[tauri::command]
@@ -139,6 +210,29 @@ mod tests {
         assert!(p.validate().is_err());
         p.home_tools = vec!["codex".into(), "codex".into()];
         assert!(p.validate().is_err());
+    }
+    #[test]
+    fn old_preferences_keep_safe_window_defaults_and_language_is_validated() {
+        let old: Preferences =
+            serde_json::from_value(json!({"theme":"dark","motion":false,"home_tools":["codex"]}))
+                .unwrap();
+        assert_eq!(old.language, "zh");
+        assert!(!old.autostart);
+        assert!(old.close_to_tray);
+        let mut english = old;
+        english.language = "en".into();
+        assert!(english.validate().is_ok());
+        english.language = "invalid".into();
+        assert!(english.validate().is_err());
+    }
+    #[test]
+    fn startup_path_is_quoted_when_it_contains_spaces() {
+        assert_eq!(
+            startup_command(std::path::Path::new(
+                "C:\\Program Files\\Edge Switch\\EdgeSwitch.exe"
+            )),
+            "\"C:\\Program Files\\Edge Switch\\EdgeSwitch.exe\""
+        );
     }
     #[test]
     fn compares_prereleases_numerically_and_ignores_drafts() {

@@ -55,7 +55,7 @@ try {
       official: {},
       saved_keys: [],
       tasks: [],
-      version: "2.0.0-alpha.5",
+      version: "2.0.0-alpha.6",
       preferences: {
         theme: "light",
         motion: true,
@@ -221,6 +221,35 @@ try {
   await expect(page.locator(".service-info b")).toHaveText("Claude Official");
   await page.screenshot({ path: resolve(output, "claude-official.png") });
   await page.getByRole("button", { name: "设置", exact: true }).click();
+  await expect(
+    page.getByRole("switch", { name: "开机自启" }),
+  ).not.toBeChecked();
+  await expect(
+    page.getByRole("switch", { name: "关闭时最小化到托盘" }),
+  ).toBeChecked();
+  await page.screenshot({ path: resolve(output, "settings-general.png") });
+  await page.getByRole("button", { name: "English", exact: true }).click();
+  await expect(
+    page.getByRole("tab", { name: "General", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("switch", { name: "Start at login" }),
+  ).toBeVisible();
+  await page.screenshot({ path: resolve(output, "settings-english.png") });
+  await page
+    .getByRole("button", { name: "← Back to studio", exact: true })
+    .click();
+  await page.getByRole("combobox", { name: "Switch workspace" }).click();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("combobox", { name: "Switch workspace" }),
+  ).toHaveCSS("border-radius", "0px");
+  await expect(
+    page.getByRole("combobox", { name: "Switch workspace" }),
+  ).toHaveCSS("outline-style", "none");
+  await page.screenshot({ path: resolve(output, "home-english.png") });
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "中文", exact: true }).click();
   await page.getByRole("tab", { name: "日志", exact: true }).click();
   await expect(page.locator(".task-history")).toContainText("检查设备");
   await page.setViewportSize({ width: 980, height: 660 });

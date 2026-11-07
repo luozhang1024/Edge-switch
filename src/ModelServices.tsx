@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import React, { useState } from "react";
 import { ActionIcon } from "./ActionIcon";
 import { ScrollList } from "./ScrollList";
@@ -121,7 +122,11 @@ export function ModelServices({
     <section className="model-workspace">
       <div className="model-toolbar">
         <h2>{selected.name}</h2>
-        <div className="tool-switcher" role="tablist" aria-label="板卡 AI 工具">
+        <div
+          className="tool-switcher"
+          role="tablist"
+          aria-label={t("板卡 AI 工具")}
+        >
           {tools.map((t) => (
             <button
               key={t.id}
@@ -138,8 +143,8 @@ export function ModelServices({
         </div>
         <button
           className="add-service"
-          aria-label="添加服务"
-          title="添加新供应商"
+          aria-label={t("添加服务")}
+          title={t("添加新供应商")}
           disabled={busy}
           onClick={() =>
             onEdit({
@@ -151,10 +156,10 @@ export function ModelServices({
           }
         >
           <img src={addIcon} alt="" />
-          <span className="sr-only">添加服务</span>
+          <span className="sr-only">{t("添加服务")}</span>
         </button>
       </div>
-      <ScrollList className="service-list" label="供应商列表">
+      <ScrollList className="service-list" label={t("供应商列表")}>
         {rows.map((s) => {
           if (s.id === "official" && tool === "codex")
             return (
@@ -173,17 +178,18 @@ export function ModelServices({
                   <b>OpenAI Official</b>
                   <span
                     className="service-url"
-                    title="ChatGPT 官方账号 · 无需 API Key"
+                    title={t("ChatGPT 官方账号 · 无需 API Key")}
                   >
                     https://chatgpt.com/codex
                   </span>
                   <small>
-                    {data.official[current.id]?.name || "官方 ChatGPT 账号"} ·{" "}
+                    {data.official[current.id]?.name || t("官方 ChatGPT 账号")}{" "}
+                    ·{" "}
                     {data.official[current.id]?.has_credentials
-                      ? "已保存导入凭据"
+                      ? t("已保存导入凭据")
                       : data.official[current.id]?.remote_authenticated
-                        ? "已确认板卡账号登录"
-                        : "请先在设置中认证"}
+                        ? t("已确认板卡账号登录")
+                        : t("请先在设置中认证")}
                   </small>
                   {data.official[current.id]?.note && (
                     <small>{data.official[current.id]?.note}</small>
@@ -191,14 +197,14 @@ export function ModelServices({
                 </div>
                 <div className="service-actions">
                   <button
-                    title={official ? "使用中" : "启用官方账号"}
-                    aria-label={official ? "使用中" : "启用官方账号"}
+                    title={official ? t("使用中") : t("启用官方账号")}
+                    aria-label={official ? t("使用中") : t("启用官方账号")}
                     className="primary activate-service"
                     disabled={busy || official || !officialReady}
                     onClick={() => void activate("official")}
                   >
                     {official ? (
-                      <span className="active-badge">使用中</span>
+                      <span className="active-badge">{t("使用中")}</span>
                     ) : (
                       <ActionIcon name="activate" />
                     )}
@@ -206,15 +212,15 @@ export function ModelServices({
                   {!officialReady && (
                     <button
                       className="authenticate-link"
-                      title="前往设置认证"
-                      aria-label="前往设置认证"
+                      title={t("前往设置认证")}
+                      aria-label={t("前往设置认证")}
                       onClick={onAuthenticate}
                     >
                       <ActionIcon name="login" />
                     </button>
                   )}
                   <button
-                    title="编辑 / 导入 auth.json"
+                    title={t("编辑 / 导入 auth.json")}
                     disabled={busy}
                     onClick={() =>
                       onOfficial({
@@ -224,11 +230,13 @@ export function ModelServices({
                     }
                   >
                     <ActionIcon name="edit" />
-                    <span className="sr-only">编辑 / 导入 auth.json</span>
+                    <span className="sr-only">
+                      {t("编辑 / 导入 auth.json")}
+                    </span>
                   </button>
                   <button
-                    title="复制账号信息"
-                    aria-label="复制账号信息"
+                    title={t("复制账号信息")}
+                    aria-label={t("复制账号信息")}
                     disabled={busy}
                     onClick={async () => {
                       try {
@@ -253,8 +261,8 @@ export function ModelServices({
                     <ActionIcon name="copy" />
                   </button>
                   <button
-                    title="测试官方账号"
-                    aria-label="测试官方账号"
+                    title={t("测试官方账号")}
+                    aria-label={t("测试官方账号")}
                     disabled={busy}
                     onClick={() =>
                       void run("official_test", { tool, infer: false })
@@ -264,7 +272,7 @@ export function ModelServices({
                   </button>
                   <button
                     className="danger-text"
-                    title="删除本机账号信息"
+                    title={t("删除本机账号信息")}
                     disabled={busy || !data.official[current.id]}
                     onClick={() =>
                       void remove(
@@ -275,7 +283,7 @@ export function ModelServices({
                     }
                   >
                     <ActionIcon name="delete" />
-                    <span className="sr-only">删除本机账号信息</span>
+                    <span className="sr-only">{t("删除本机账号信息")}</span>
                   </button>
                 </div>
               </article>
@@ -292,25 +300,31 @@ export function ModelServices({
                 </div>
                 <div className="service-info">
                   <b>{officialName}</b>
-                  <span>使用 {selected.name} 官方账号</span>
-                  <small>在板卡终端完成授权，凭据保留在此环境专属目录</small>
+                  <span>
+                    {t("使用")}
+                    {selected.name}
+                    {t(" 官方账号")}
+                  </span>
+                  <small>
+                    {t("在板卡终端完成授权，凭据保留在此环境专属目录")}
+                  </small>
                 </div>
                 <div className="service-actions">
                   <button
-                    title={official ? "使用中" : "启用官方账号"}
-                    aria-label={official ? "使用中" : "启用官方账号"}
+                    title={official ? t("使用中") : t("启用官方账号")}
+                    aria-label={official ? t("使用中") : t("启用官方账号")}
                     disabled={busy || official}
                     onClick={() => void activate("official")}
                   >
                     {official ? (
-                      <span className="active-badge">使用中</span>
+                      <span className="active-badge">{t("使用中")}</span>
                     ) : (
                       <ActionIcon name="activate" />
                     )}
                   </button>
                   <button
-                    title="登录官方账号"
-                    aria-label="登录官方账号"
+                    title={t("登录官方账号")}
+                    aria-label={t("登录官方账号")}
                     disabled={busy}
                     onClick={async () => {
                       if (
@@ -326,8 +340,8 @@ export function ModelServices({
                     <ActionIcon name="login" />
                   </button>
                   <button
-                    title={`打开 ${selected.name}`}
-                    aria-label={`打开官方 ${selected.name}`}
+                    title={t(`打开 ${selected.name}`)}
+                    aria-label={t(`打开官方 ${selected.name}`)}
                     disabled={busy || !official}
                     onClick={() => void run(tool)}
                   >
@@ -345,12 +359,12 @@ export function ModelServices({
                 <div className="service-info">
                   <b>DeepSeek API</b>
                   <span>https://api.deepseek.com/v1</span>
-                  <small>配置模型与 API Key 后使用</small>
+                  <small>{t("配置模型与 API Key 后使用")}</small>
                 </div>
                 <div className="service-actions">
                   <button
-                    title="配置 API"
-                    aria-label="配置 API"
+                    title={t("配置 API")}
+                    aria-label={t("配置 API")}
                     disabled={busy}
                     onClick={() =>
                       onEdit({
@@ -384,36 +398,38 @@ export function ModelServices({
                 <b>
                   {s.name}
                   {s.scope === "universal" && (
-                    <small className="universal-tag">New API · 统一</small>
+                    <small className="universal-tag">
+                      {t("New API · 统一")}
+                    </small>
                   )}
                 </b>
                 <span className="service-url" title={s.base_url}>
                   {s.base_url}
                 </span>
                 <small>
-                  {s.model || "未设置模型"} ·{" "}
+                  {s.model || t("未设置模型")} ·{" "}
                   {protocolNames[s.protocol] || s.protocol} ·{" "}
                   {data.saved_keys.includes(s.id)
-                    ? "已加密保存密钥"
-                    : "未持久保存密钥"}
+                    ? t("已加密保存密钥")
+                    : t("未持久保存密钥")}
                 </small>
               </div>
               <div className="service-actions">
                 <button
-                  title={isActive ? "使用中" : "启用"}
-                  aria-label={isActive ? "使用中" : "启用"}
+                  title={isActive ? t("使用中") : t("启用")}
+                  aria-label={isActive ? t("使用中") : t("启用")}
                   className="primary activate-service"
                   disabled={busy || isActive}
                   onClick={() => void activate(s.id)}
                 >
                   {isActive ? (
-                    <span className="active-badge">使用中</span>
+                    <span className="active-badge">{t("使用中")}</span>
                   ) : (
                     <ActionIcon name="activate" />
                   )}
                 </button>
                 <button
-                  title="编辑"
+                  title={t("编辑")}
                   disabled={busy}
                   onClick={() =>
                     onEdit({
@@ -423,11 +439,11 @@ export function ModelServices({
                   }
                 >
                   <ActionIcon name="edit" />
-                  <span className="sr-only">编辑</span>
+                  <span className="sr-only">{t("编辑")}</span>
                 </button>
                 <button
-                  title="复制"
-                  aria-label="复制"
+                  title={t("复制")}
+                  aria-label={t("复制")}
                   disabled={busy}
                   onClick={() =>
                     void command("duplicate_service", {
@@ -439,8 +455,8 @@ export function ModelServices({
                   <ActionIcon name="copy" />
                 </button>
                 <button
-                  title="测试"
-                  aria-label="测试"
+                  title={t("测试")}
+                  aria-label={t("测试")}
                   disabled={busy}
                   onClick={() =>
                     void run("api_test", {
@@ -454,7 +470,7 @@ export function ModelServices({
                 </button>
                 <button
                   className="danger-text"
-                  title="删除"
+                  title={t("删除")}
                   disabled={busy}
                   onClick={() =>
                     void remove(
@@ -465,7 +481,7 @@ export function ModelServices({
                   }
                 >
                   <ActionIcon name="delete" />
-                  <span className="sr-only">删除</span>
+                  <span className="sr-only">{t("删除")}</span>
                 </button>
               </div>
             </article>
@@ -474,23 +490,29 @@ export function ModelServices({
       </ScrollList>
       {copyStatus && (
         <p className="provider-help" role="status">
-          {copyStatus}
+          {t(copyStatus)}
         </p>
       )}
       <details className="panel sync-panel">
-        <summary>验证与同步 · {selected.name}</summary>
+        <summary>
+          {t("验证与同步 ·")}
+          {selected.name}
+        </summary>
         <div>
-          <h2>验证与同步 · {selected.name}</h2>
+          <h2>
+            {t("验证与同步 ·")}
+            {selected.name}
+          </h2>
           <p>
-            当前：
-            {official ? officialName : active?.name || "尚未选择服务"}
-            。保存和使用仅更新本地配置，同步后才写入板卡。
+            {t("当前：")}
+            {official ? officialName : active?.name || t("尚未选择服务")}
+            {t("。保存和使用仅更新本地配置，同步后才写入板卡。")}
           </p>
         </div>
         <div className="buttons">
           {tool === "codex" && (
             <button disabled={busy} onClick={onAuthenticate}>
-              账号认证设置
+              {t("账号认证设置")}
             </button>
           )}
           <button
@@ -499,7 +521,7 @@ export function ModelServices({
             }
             onClick={() => void run("sync_api", { tool })}
           >
-            同步到板卡
+            {t("同步到板卡")}
           </button>
           <button
             disabled={
@@ -512,7 +534,7 @@ export function ModelServices({
               })
             }
           >
-            连通性检查
+            {t("连通性检查")}
           </button>
           <button
             disabled={
@@ -525,20 +547,22 @@ export function ModelServices({
               })
             }
           >
-            推理验证（消耗额度）
+            {t("推理验证（消耗额度）")}
           </button>
           <button
             className="primary"
             disabled={busy || (!official && !active)}
             onClick={() => void run(tool)}
           >
-            打开 {selected.name}
+            {t("打开 ")}
+            {selected.name}
           </button>
         </div>
         {currentTask && (
           <p className="last-result">
-            最近任务：{currentTask.label} · {currentTask.state}{" "}
-            {currentTask.message}
+            {t("最近任务：")}
+            {t(currentTask.label)} · {t(currentTask.state)}{" "}
+            {t(currentTask.message)}
           </p>
         )}
       </details>

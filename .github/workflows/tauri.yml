@@ -3,12 +3,13 @@
 on:
   push:
     branches: [main]
+    tags: ['v2.*']
   pull_request:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows:
@@ -30,15 +31,36 @@ jobs:
           workspaces: src-tauri
       - run: npm ci
       - run: npm test
+      - run: npm run test:ui
       - run: npm run build
       - run: npx prettier --check src scripts package.json tsconfig.json vite.config.ts vitest.config.ts src-tauri/tauri.conf.json src-tauri/capabilities/main.json
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --lib -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
-      - name: Build alpha installer and portable archive (no release publication)
+      - name: Verify release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag does not match source version' }
+      - name: Build installer and portable archive
         run: npm run desktop:build
       - name: Exercise packaged desktop through WebView2
         run: npm run test:desktop
+      - name: Publish verified prerelease assets
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          git archive --format=zip --output="dist/tauri/EdgeSwitch-$($tag.TrimStart('v'))-source.zip" HEAD
+          $assets = Get-ChildItem 'dist/tauri' -File | Where-Object { $_.Extension -in '.exe', '.zip' }
+          $lines = $assets | ForEach-Object { '{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name }
+          [IO.File]::WriteAllLines((Join-Path $PWD 'dist/tauri/SHA256SUMS.txt'), $lines, [Text.UTF8Encoding]::new($false))
+          $uploads = @($assets | ForEach-Object { $_.FullName }) + @((Resolve-Path 'dist/tauri/SHA256SUMS.txt').Path)
+          gh release create $tag @uploads --verify-tag --prerelease --title "Edge Switch $tag" --notes-file "docs/releases/$tag.md"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

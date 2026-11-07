@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import React, { useEffect, useRef } from "react";
 import { detectProvider, serviceTemplate, tools } from "./catalog";
 import { Service, ToolId } from "./types";
@@ -53,7 +54,7 @@ export function ProviderPage({
     <dialog
       ref={dialog}
       className="provider-page"
-      aria-label={title}
+      aria-label={t(title)}
       onCancel={(e) => {
         e.preventDefault();
         close();
@@ -62,16 +63,20 @@ export function ProviderPage({
       <header className="provider-page-header">
         <button
           type="button"
-          aria-label="返回"
-          title="返回供应商列表"
+          aria-label={t("返回")}
+          title={t("返回供应商列表")}
           onClick={close}
         >
           ←
         </button>
-        <h2>{title}</h2>
+        <h2>{t(title)}</h2>
       </header>
       <div className="provider-page-body">
-        <div className="provider-scope" role="tablist" aria-label="供应商类型">
+        <div
+          className="provider-scope"
+          role="tablist"
+          aria-label={t("供应商类型")}
+        >
           <button
             type="button"
             role="tab"
@@ -86,7 +91,8 @@ export function ProviderPage({
                 });
             }}
           >
-            {selected.name} 供应商
+            {selected.name}
+            {t(" 供应商")}
           </button>
           <button
             type="button"
@@ -103,12 +109,12 @@ export function ProviderPage({
                 });
             }}
           >
-            统一供应商 · New API
+            {t("统一供应商 · New API")}
           </button>
         </div>
         <section className="provider-form-panel">
-          <p className="preset-label">预设供应商</p>
-          <div className="preset-chips" aria-label="预设供应商">
+          <p className="preset-label">{t("预设供应商")}</p>
+          <div className="preset-chips" aria-label={t("预设供应商")}>
             {unified ? (
               <button type="button" aria-pressed="true">
                 New API
@@ -131,17 +137,21 @@ export function ProviderPage({
                       alt=""
                     />
                   )}
-                  {p.name}
+                  {t(p.name)}
                 </button>
               ))
             )}
           </div>
           <p className="preset-hint">
             {unified
-              ? "同一份 New API 配置可供各 CLI 工具使用；应用按工具生成请求格式，接口需支持对应工具。"
+              ? t(
+                  "同一份 New API 配置可供各 CLI 工具使用；应用按工具生成请求格式，接口需支持对应工具。",
+                )
               : official
-                ? "使用 ChatGPT 官方账号，无需填写 API Key"
-                : "应用根据当前 CLI 工具自动配置接口格式，填写供应商提供的请求地址和模型名称。"}
+                ? t("使用 ChatGPT 官方账号，无需填写 API Key")
+                : t(
+                    "应用根据当前 CLI 工具自动配置接口格式，填写供应商提供的请求地址和模型名称。",
+                  )}
           </p>
           <ProviderIconUpload
             icon={icon}

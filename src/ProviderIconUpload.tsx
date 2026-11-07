@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import React, { useRef, useState } from "react";
 
 export function ProviderIconUpload({
@@ -16,12 +17,12 @@ export function ProviderIconUpload({
       <button
         type="button"
         className="icon-upload"
-        title="上传供应商图标"
-        aria-label="上传供应商图标"
+        title={t("上传供应商图标")}
+        aria-label={t("上传供应商图标")}
         onClick={() => input.current?.click()}
       >
         {icon || fallback ? (
-          <img src={icon || fallback} alt="供应商图标" />
+          <img src={icon || fallback} alt={t("供应商图标")} />
         ) : (
           "P"
         )}
@@ -30,7 +31,7 @@ export function ProviderIconUpload({
         ref={input}
         type="file"
         accept="image/png,image/jpeg,image/webp"
-        aria-label="选择供应商图标文件"
+        aria-label={t("选择供应商图标文件")}
         className="sr-only"
         onChange={async (e) => {
           const file = e.target.files?.[0];
@@ -67,14 +68,14 @@ export function ProviderIconUpload({
           }
         }}
       />
-      <small>点击上传图标</small>
+      <small>{t("点击上传图标")}</small>
       {icon && (
         <button
           type="button"
           className="text-button"
           onClick={() => onChange("")}
         >
-          恢复默认图标
+          {t("恢复默认图标")}
         </button>
       )}
       {error && <p role="alert">{error}</p>}

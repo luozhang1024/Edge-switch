@@ -1,275 +1,108 @@
 <div align="center">
-
-**简体中文** | [English](README.en.md)
-
-<img src="image/EdgeAI.png" alt="Edge Switch" width="96" />
+  <img src="image/EdgeAI.png" alt="Edge Switch" width="96" />
 
 # Edge Switch
 
-**面向 Linux 板卡的远程 AI 开发工作台**
+通过 SSH，为 Linux 板卡配置 AI 开发工具、代理网络与模型 API。
 
-在 Windows 上管理 SSH 工作环境、网络代理与模型服务，让 Codex、DeepSeek Harness 更容易部署和使用。
+[中文](README.md) · [English](README.en.md) · [下载 v2.0.0-alpha.6](https://github.com/luozhang1024/Edge-switch/releases/tag/v2.0.0-alpha.6)
 
-[![Version](https://img.shields.io/badge/version-2.0.0--alpha.2-blue)](https://github.com/luozhang52/Edge-switch/releases)
-[![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey)](#环境要求)
-[![Built with](https://img.shields.io/badge/built%20with-Tauri%202%20%2B%20Rust%20%2B%20React-3776AB)](#新版开发与构建)
-[![Target](https://img.shields.io/badge/target-Linux%20ARM64%20%7C%20x86__64-34C759)](#环境要求)
-[![Downloads](https://img.shields.io/github/downloads/luozhang52/Edge-switch/total?label=downloads&color=007AFF)](https://github.com/luozhang52/Edge-switch/releases)
-[![Stars](https://img.shields.io/github/stars/luozhang52/Edge-switch?style=flat&color=F5A623)](https://github.com/luozhang52/Edge-switch/stargazers)
+[![Version](https://img.shields.io/badge/version-2.0.0--alpha.6-blue)](https://github.com/luozhang1024/Edge-switch/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
-
-[下载安装](#下载安装) · [快速开始](#快速开始) · [常见问题](#常见问题) · [Star History](#star-history) · [支持项目](#支持项目)
 
 </div>
 
-> 当前主分支正在迁移到 Tauri 2＋Rust＋React＋TypeScript；稳定版仍为 [v1.1.3](https://github.com/luozhang52/Edge-switch/releases/tag/v1.1.3)。新版尚未完成真实板卡验收，也未发布 Release。新版开发、构建和迁移说明见 [Tauri 迁移文档](docs/tauri-migration.md)。下文历史截图与 Python 开发流程保留供旧版参考。
-
-模型服务支持按 Codex、Claude Code、DeepSeek Harness、Gemini CLI、OpenCode 分别配置供应商 API，详见[模型服务说明](docs/model-services.md)。
-
 ## 项目简介
 
-Edge Switch 将板卡 AI 开发中分散的连接、安装、代理和认证操作集中到一个桌面界面。为不同设备或工程创建工作环境，切换官方 ChatGPT 账号与自定义 API，再从工作台打开 VS Code 或 Harness 网页。
+Edge Switch 是运行在 Windows 上的远程开发工作台，使用 Tauri 2、Rust、React 和 TypeScript。AI CLI 工具安装并运行在 SSH 连接的 Linux 板卡上，应用负责安装、启动、代理转发、官方账号登录和模型 API 供应商切换。
 
-程序窗口、托盘和安装包统一使用 **Edge Switch**，当前源码版本 **2.0.0-alpha.5**。为兼容旧版，本机配置目录保留 `EdgeSSHAI`。桌面端运行于 Windows，AI 工具运行于通过 SSH 连接的 Linux 设备。中英文文档可从首页顶部切换，当前程序界面为中文。
+当前为 **2.0.0-alpha.6 预发布版**。已完成本地自动化与界面验证，尚未完成本版本的真实板卡及所有 Windows 环境验收。旧版 Python 桌面的说明见[历史文档](docs/历史说明.md)，迁移细节见 [Tauri 文档](docs/tauri-migration.md)。
 
-## 功能亮点
+## 这一版有什么变化
 
-| 功能 | 使用体验 |
+- **工作环境**：创建或编辑具体板卡时配置 SSH、代理和 AI 工具，支持拖动排序。
+- **模型服务**：各 CLI 默认显示自己的官方入口；Harness 默认提供待配置的 DeepSeek API。供应商操作悬停显示，选中后显示“使用中”，支持拖动排序。
+- **通用设置**：选择开机自启、关闭窗口时是否隐藏到托盘，以及中文 / English 界面；语言立即切换并持久保存。
+- **任务反馈**：检查设备、安装和同步等任务直接弹出进度、结果与错误；历史记录位于“设置 → 日志”。
+- **便携版启动诊断**：附带微软 WebView2 引导安装程序和诊断启动脚本；应用启动失败时显示错误并记录日志。
+
+开机自启作用于当前 Windows 用户登录，不需要管理员权限。便携版启用后请保持 EXE 所在目录不变；移动后重新关闭、开启一次自启以更新路径。关闭到托盘默认开启，关闭此选项后点击关闭按钮或 Alt+F4 会退出应用；任务进行中会提示先完成或取消。
+
+## 界面预览
+
+| 首页 | 通用设置 |
 | --- | --- |
-| 多工作环境 | 卡片式管理设备、SSH 身份和工程目录，按需切换，记住上次选择 |
-| 首次 SSH 配置 | 为当前电脑创建密钥，在终端输入板卡密码完成公钥授权，不保存 SSH 密码 |
-| 工具部署 | 安装独立 Node.js，后台读取 Codex / Harness 版本，从下拉列表选择安装 |
-| 多模型服务 | 添加、编辑和切换 API；默认提供 OpenAI Official 官方账号入口 |
-| 官方账号管理 | 支持设备码登录、导入本人 `auth.json`，与 API 凭据分别保存 |
-| 测试与验证 | 区分连通性测试和实际推理验证，推理前提示额度消耗 |
-| 独立网络配置 | Codex 与 Harness 分别选择板卡直连或电脑代理，SSH 隧道支持断线重连 |
-| VS Code 接入 | 检查 Remote SSH 与远程 Codex 扩展，配置当前环境的专属启动入口 |
-| Harness 网页 | 通过 SSH 转发访问，重开现有服务，支持在板卡后台继续运行 |
-| 托盘与安装包 | 关闭窗口后缩至系统托盘，提供无需预装 Python 的 Windows 安装包 |
-
-### 界面预览
-
-以下为历史版本截图，布局与按钮以当前版本为准。
-
-<table>
-  <tr>
-    <td align="center"><img src="docs/workbench-0.10-environments.png" alt="工作环境列表" width="480" /><br />工作环境</td>
-    <td align="center"><img src="docs/workbench-0.10-tools.png" alt="AI 工具安装与启动" width="480" /><br />AI 工具</td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/workbench-0.9-api.png" alt="模型服务卡片列表" width="480" /><br />模型服务</td>
-    <td align="center"><img src="docs/workbench-0.5-overview.png" alt="设备资源与运行状态" width="480" /><br />设备总览</td>
-  </tr>
-</table>
-
-## 环境要求
-
-| 组件 | 要求 |
-| --- | --- |
-| 本地电脑 | Windows x64，安装系统 OpenSSH 客户端 |
-| 远程开发 | 安装 VS Code，并确保 `code` 命令可用 |
-| Linux 设备 | ARM64 / x86_64、glibc ≥ 2.28、Python ≥ 3.8，已启用 SSH 服务 |
-| 存储与权限 | 可写用户目录，以及足够的工具安装空间；安装运行环境时检查剩余空间 |
-| 网络 | 电脑至板卡 SSH 可达；下载、扩展市场和模型服务分别需要可用网络 |
-
-已实机验证：**LPB3568 / ARM64 / glibc 2.31**。ARMv7、RISC-V、musl / Alpine、Android 等环境尚未适配；不同发行版仍需满足 VS Code Server 和上游工具的依赖。
+| ![唱片工作台](docs/current/home.png) | ![窗口行为与界面语言](docs/current/settings-general.png) |
+| ![English interface](docs/current/home-english.png) | ![任务结果](docs/current/task-result.png) |
 
 ## 下载安装
 
-在 [Releases](https://github.com/luozhang52/Edge-switch/releases) 查看已发布版本与附件。如发布页尚无附件，可按下方步骤从源码构建。
+从 [v2.0.0-alpha.6 Release](https://github.com/luozhang1024/Edge-switch/releases/tag/v2.0.0-alpha.6) 下载：
 
-| 方式 | 当前构建产物 | 说明 |
-| --- | --- | --- |
-| 安装版 | `EdgeSwitch-Setup-1.1.3.exe` | 安装到当前 Windows 用户，支持快捷方式与卸载 |
-| 便携版 | `EdgeSwitch-1.1.3-Windows-x64.zip` | 解压后运行 EXE，附带许可与中英文说明 |
-| 对应源码 | `EdgeSwitch-1.1.3-source.zip` | 本次构建的源码快照，含构建脚本与资源 |
-| 源码运行 | `Start-Workbench.cmd` / `start_workbench.py` | 需要 Python 与项目依赖 |
+| 文件 | 用途 |
+| --- | --- |
+| `Edge Switch_2.0.0-alpha.6_x64-setup.exe` | 推荐。当前用户安装，自动检查、按需下载 WebView2，支持卸载 |
+| `EdgeSwitch-2.0.0-alpha.6-Windows-x64.zip` | 完整解压到本地目录后运行 `Launch-EdgeSwitch.cmd`，检查 WebView2 后启动 |
+| `EdgeSwitch.exe` | 单独的主程序，需要已安装 WebView2；首次使用推荐安装版或完整便携包 |
+| `EdgeSwitch-2.0.0-alpha.6-source.zip` | 对应版本源码 |
+| `SHA256SUMS.txt` | 发布附件的 SHA-256 校验值 |
 
-升级前，请从侧栏或托盘菜单选择 **退出程序**，再安装新版。安装包不携带开发者的设备配置、API Key、SSH 私钥或官方账号凭据。给同事使用时，每台电脑分别完成 SSH 授权和模型认证。
+要求 **Windows 10/11 x64** 和 **Microsoft Edge WebView2 Runtime**。当前不提供 Windows 7/8、32 位或 ARM 原生构建。WebView2 引导安装程序需要联网下载运行时；离线电脑请先安装微软官方对应架构的 WebView2 离线运行时。
 
-发布附件另提供 `SHA256SUMS.txt` 校验文件。版本号遵循 `主版本.次版本.修订版本`，本次发布标签为 `v1.1.3`。版本号不表示所有 Linux 设备或上游工具版本均已验证。
+升级前从系统托盘退出旧实例。安装包和 ZIP 不包含开发者的板卡配置、密钥或登录凭据；同事需要在自己的电脑上完成 SSH 授权，在对应板卡工作环境中完成模型账号认证。
 
-> 仅点击窗口右上角关闭按钮会缩至托盘，程序仍在运行。
+### 双击没反应或一闪而过
+
+1. 把 **整个 ZIP 解压**，不要直接在压缩软件的临时目录里运行。
+2. 双击解压目录中的 `Launch-EdgeSwitch.cmd`。它会显示系统信息、检查 WebView2，缺少时打开微软引导安装程序；失败时保留窗口。
+3. 查看 `%LOCALAPPDATA%\EdgeSSHAI\portable-launch.log` 和 `startup.log`，提交错误信息。日志不存在时，请记录 Windows 的安全拦截或系统错误提示。
+4. 已有程序可能隐藏在系统托盘中。先从托盘退出旧实例，再启动新版。
+
+Microsoft Defender SmartScreen 可能因程序尚无代码签名而显示提示。请核对下载来源、SHA-256 和提示内容；无需关闭安全软件。仅凭“双击无反应”无法判断是运行时缺失、系统不兼容还是安全拦截。
 
 ## 快速开始
 
-### 1. 建立工作环境
+1. 点击首页唱片进入 **工作环境**，创建板卡环境；在 **SSH 与网络** 中填写主机、Linux 用户、端口、工程目录和私钥。
+2. 在该环境的 **编辑 → AI 工具** 中检查设备、查询版本，安装独立 Node.js 和所需 CLI；已有工具可验证后复用，不替换系统 Node.js。
+3. 按需配置电脑代理端口和工具线路。板卡使用电脑代理时通过 SSH 反向转发；修改配置前先断开已有隧道。
+4. 点击首页矩形封面进入 **模型服务**。CLI 工具和 API 供应商是两个概念：先选工具，再选择其官方账号或添加自己的 API。统一 New API 供应商可供多个工具复用。
+5. Codex 的 OpenAI Official 在 **设置 → 认证** 中登录或导入 `auth.json`；Claude、Gemini、OpenCode 的官方卡片提供终端登录入口。Harness 配置模型名称与 API Key。
+6. 悬停供应商，点击第一个图标启用；自定义 API 通过 **验证与同步** 写入板卡。回到首页启动 Codex、VS Code、Harness 或 SSH 终端。
 
-进入 **工作环境**，添加设备地址、Linux 用户、SSH 端口和工程目录。示例地址可使用 `192.168.1.100`，工程目录应填写实际代码位置，例如 `/home/developer/project`。
+工具安装、官方登录能力和订阅要求取决于上游 CLI。打开登录终端不等于授权成功。Codex 自定义 API 需要兼容的 Responses 接口；应用自动选择工具需要的格式，服务端仍须支持对应接口。推理验证可能消耗余额，执行前会确认。
 
-首次使用点击 **配置 SSH 登录**，在终端核验主机指纹并输入板卡密码。连接测试成功、设备信息可读取后，再继续下一步。已有授权密钥可在编辑窗口直接选择私钥文件。
-
-### 2. 选择网络线路
-
-进入 **代理网络**，为 Codex、Harness 分别选择板卡直连或使用电脑代理。如果服务可以直连，此步骤可跳过。
-
-使用电脑代理时，先运行 FlClash 等兼容工具，再填写实际 HTTP / mixed 端口。运行环境下载与版本查询有独立网络选项；工具安装使用各工具的网络设置。
-
-```text
-板卡 AI 工具 → SSH 反向隧道 → 电脑 HTTP / mixed 代理 → 模型服务
-```
-
-浏览器账号授权使用电脑浏览器自身的网络，板卡的代理开关不会替浏览器设置代理。
-
-### 3. 安装 AI 工具
-
-进入 **AI 工具**，先点击 **检测板卡工具**。同一 Linux 账号已安装工具时可点击 **使用已有工具**，版本验证通过后复用程序，无需重复下载；账号与任务仍独立。未发现已有安装时，先安装受管 Node.js，再选择版本安装 Codex 或 Harness。版本列表在后台获取，操作结果可在底部 **运行记录** 查看。独立运行环境不替换板卡系统 Node.js。
-
-### 4. 启用模型服务
-
-**官方账号：** 在 **模型服务** 中启用 **OpenAI Official**。未登录时，在编辑窗口选择 **账号登录**，按终端提示在浏览器完成设备码授权；也可导入你本人已登录的 Codex `auth.json`。无需填写 API Key。
-
-**自定义 API：** 点击加号，填写名称、HTTPS 地址、准确模型 ID、协议和 API Key。Codex 需要 **Responses** 协议；Chat Completions 服务可保存和测试。保存后，将鼠标移至卡片，点击 **启用**，成功后显示 **使用中**。
-
-| 图标操作 | 自定义 API | OpenAI Official |
-| --- | --- | --- |
-| 编辑 | 修改地址、模型、协议和密钥 | 修改名称、备注，导入凭据或发起账号登录 |
-| 测试 | 检查接口连通与模型列表 | 检查官方网页连通与 CLI 登录识别 |
-| 验证 | 发送最小推理请求 | 通过官方 Codex 发送最小推理请求 |
-| 删除 | 删除本机服务记录与保存密钥 | 内置服务不可删除，图标置灰 |
-
-测试通过不代表推理一定成功。点击 **验证** 会先提示可能消耗 API 余额或账号额度；只有完整模型回答才报告推理通过。官方账号的权限与额度由账号套餐及服务可用性决定。
-
-### 5. 开始远程开发
-
-- **Codex / VS Code：** 点击 **打开 VS Code**，使用工作台打开的远程窗口。若已有窗口仍读取旧配置，保存文件后执行 `Developer: Reload Window`；Codex 终端需要重新打开。
-- **Codex 终端：** 在 **AI 工具 → Codex** 点击 **打开终端**。
-- **Harness：** 点击 **打开网页**，在网页 **Settings → Models** 配置模型服务。Harness 模型配置由其自身管理，不会自动复制工作台中的 API Key。
-
-关闭 Harness 网页不会停止后台服务，再次打开会尝试接回已有服务。需要结束任务时点击 **停止**。
+板卡需支持 SSH、Python 3、可写用户目录及上游工具要求的 Linux 运行库。既往实机验证平台为 **LPB3568 / ARM64 / glibc 2.31**；这不代表所有板卡、工具版本和供应商均已验收。
 
 ## 配置与数据
 
-| 位置 | 内容 |
-| --- | --- |
-| `%LOCALAPPDATA%\EdgeSSHAI` | 本机环境配置、加密凭据、SSH 密钥、缓存与专属 VS Code 设置 |
-| `%LOCALAPPDATA%\Programs\Edge Switch` | 全新安装路径；升级旧版时沿用原安装位置 |
-| `~/.local/share/edge-ssh-ai/<环境标识>/` | 板卡运行环境、工具、模型配置和后台服务状态 |
+- 本地目录：`%LOCALAPPDATA%\EdgeSSHAI`，保留旧版名称用于兼容。
+- API Key 可用当前 Windows 用户的 DPAPI 加密保存；不勾选保存时只在当前进程内保留。
+- 官方登录和自定义 API 使用工具、工作环境各自的远程配置目录，避免串用凭据；不会替换共享 `~/.codex` 或修改 `.bashrc`。
+- “SSH 终端按需连接”不表示 SSH 失败：首页只统计应用维护的代理和网页隧道，外部终端独立连接。用 **检查设备** 验证设备状态。
+- 不要把本地配置、SSH 私钥、API Key 或 `auth.json` 发给同事。共享 Linux 账号时，其他同账号进程仍可能读到凭据；强隔离请使用不同 Linux 用户。
 
-API Key 在勾选保存后通过 Windows DPAPI 加密，绑定当前 Windows 用户。导入的官方凭据也在本机加密保存；同步到板卡时通过 SSH 传递，认证文件权限为 `0600`。官方账号与 API 使用独立配置目录，切换后保留各自凭据。同一导入快照不会反复覆盖 Codex 已刷新的令牌。
+更多供应商与认证说明见[模型服务文档](docs/model-services.md)。
 
-卸载保留本机用户配置和板卡文件。手工清理前请核对环境标识，只处理对应的专属目录。
+## 开发与构建
 
-### 多人共用一个 Linux 账号
-
-每台电脑为每个工作环境生成独立标识，分别管理配置、启动器和连接。工作台不修改共享 `~/.codex`、`.bashrc` / `.profile`，不自动重启共享 VS Code Server，也不按进程名批量停止其他人的任务。
-
-这是配置和连接管理，**不是用户权限隔离**：同一 Linux 账号仍可访问彼此文件，并共享 CPU、内存和磁盘。v1.1.0 起，工作台为各环境准备独立 VS Code Server 目录。不要将本机环境配置整体复制到另一台电脑后同时使用，否则可能复用同一环境身份。
-
-## 常见问题
-
-<details>
-<summary><strong>能避免系统 VS Code 更新导致板卡反复下载吗？</strong></summary>
-
-可以。v1.1.0 起，首次打开会从电脑现有 VS Code 创建独立副本；之后固定使用该副本，不跟随系统 VS Code 更新。专属窗口关闭编辑器和扩展自动更新，本机 Remote SSH 扩展也使用独立目录。想升级时，在 **AI 工具 → 编辑器版本** 主动切换为系统当前版本或选择另一套已有的 `Code.exe`。切换前保存并关闭工作台打开的远程窗口；新版本可能需要匹配服务端和扩展。固定版本会额外占用本机磁盘，需自行安排后续升级以获得修复和兼容性更新。
-
-板卡已有同一 commit 的可运行服务端时，工作台复制其程序文件到当前环境，无需联网下载；凭据、扩展和安装锁不复制。电脑和板卡缺少匹配文件的首次部署仍需要安装一次。Codex 终端与 Harness 不依赖 VS Code Server。
-
-</details>
-
-<details>
-<summary><strong>每次开机或远程连接，都要重新下载 VS Code Server 吗？</strong></summary>
-
-不需要。板卡已安装与电脑 VS Code commit 匹配的服务端时，直接启动；电脑和板卡重启都不会清除它。v1.1.0 起，电脑还在 `%LOCALAPPDATA%\EdgeSSHAI\downloads\vscode` 保存校验过的安装包，新环境可从缓存上传，无需重复访问下载站。下载失败会保留完成的分块，重试可复用。电脑 VS Code 更新、新环境首次安装或文件被清除时，才需要准备相应版本。服务端缓存不代替模型 API 网络连接。
-
-</details>
-
-<details>
-<summary><strong>同事打开 VS Code 提示 Permission denied (publickey,password)</strong></summary>
-
-这是 SSH 身份验证失败，与 API Key 无关。在同事电脑上点击 **工作环境 → 配置 SSH 登录**，使用该电脑自己的密钥完成公钥授权；或选择已有且获板卡授权的 SSH 私钥。
-
-</details>
-
-<details>
-<summary><strong>官方授权链接提示 unsupported_country_region_territory</strong></summary>
-
-先检查电脑浏览器的网络线路和官方地区支持。浏览器网络与板卡工具网络分别配置，只开启工作台的板卡代理选项不会改变浏览器线路。导入 `auth.json` 也不保证改变服务端的地区或账号限制。
-
-</details>
-
-<details>
-<summary><strong>模型列表能读取，但推理失败</strong></summary>
-
-列表读取与推理是不同请求。核对供应商返回的准确模型 ID、账号分组权限、余额和上游渠道，不要把展示名称直接当作模型 ID。需要实际验证时点击 **验证** 图标。
-
-</details>
-
-<details>
-<summary><strong>VS Code 中仍显示未登录，或切换后没有生效</strong></summary>
-
-从工作台重新打开 VS Code，并在已有窗口执行 `Developer: Reload Window`。若一直停留在“正在打开”，点击模型服务页的 **连接诊断** 查看本环境的 Remote - SSH 结果；首次连接检查 VS Code 登录终端提示。确认使用的是当前工作环境的窗口，其他入口打开的 VS Code 不会自动采用工作台专属配置。扩展升级后可重新打开以同步启动器。
-
-</details>
-
-<details>
-<summary><strong>退出工作台后，Harness 还能继续使用吗？</strong></summary>
-
-勾选后台运行后，Harness 进程可在板卡继续运行，但工作台退出会关闭其管理的 SSH 连接。如果 Harness 使用电脑代理，模型请求需要等待工作台重新连接；板卡直连不依赖这条代理链路。后台运行不包含板卡重启后自动启动。
-
-</details>
-
-<details>
-<summary><strong>SSH 偶发超时，或者 VS Code 连接不稳定</strong></summary>
-
-检查局域网、SSH 服务及板卡 CPU / 内存负载。工程目录应指向实际项目，避免选择 `/` 导致大范围文件扫描。连接失败不等于需要删除 VS Code Server，请先查看运行记录和设备状态。
-
-</details>
-
-## 新版开发与构建
-
-安装 Node.js 24、Rust stable、MSVC Build Tools 和 WebView2 后，执行 `npm.cmd ci`、`npm.cmd run tauri dev`。使用 `npm.cmd run desktop:build` 构建新版安装包和便携版，输出位于 `dist/tauri/`，不入库。完整检查与回退步骤见 [迁移文档](docs/tauri-migration.md)。
-
-## 旧版 Python 开发与构建
-
-源码运行需要 **Windows Python 3.10+（含 tkinter）**：
+Windows 构建需要 Node.js 24、Rust stable、MSVC Build Tools 和 WebView2。
 
 ```powershell
-git clone https://github.com/luozhang52/Edge-switch.git
-cd Edge-switch
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe start_workbench.py
+npm ci
+npm test
+npm run test:ui
+npm run build
+cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
+npm run desktop:build
 ```
 
-构建前在已安装依赖的 Python 环境中安装 PyInstaller。安装包构建另需 Inno Setup 6，可安装到系统目录或 `build/toolchain/inno`。
+输出在 `dist/tauri/`，不会提交到 Git。`npm run test:desktop` 需要先退出已有实例；它通过 WebView2 检查桌面安装包中的实际页面。`npm run test:ui` 使用模拟板卡数据验证浏览器交互，不代表真实板卡验收。
 
-```powershell
-.\.venv\Scripts\Activate.ps1
-python -m pip install pyinstaller
-.\Build-Workbench.cmd
-.\Build-Installer.cmd
-```
+推送 `v2.*` 标签会触发 Windows 构建和检查，全部通过后自动发布预发布版、附件及校验文件。旧版 Python 代码和回归测试保留用于迁移验证；其构建入口不用于 2.x Release。
 
-| 模块 | 职责 |
-| --- | --- |
-| `workbench/app.py` | 界面交互与后台任务 |
-| `workbench/layout.py`、`workbench/ui.py` | 页面布局与通用组件 |
-| `workbench/core.py` | 本机配置、DPAPI、OpenSSH 与隧道 |
-| `workbench/api_ui.py`、`workbench/official_ui.py` | API 卡片与官方账号编辑 |
-| `workbench/remote_agent.py` | 经 SSH 执行的板卡操作 |
-| `workbench/harness_service.py` | Harness 后台服务管理 |
+## 反馈
 
-基本检查：
-
-```powershell
-python start_workbench.py --self-check
-python -m unittest test_auth test_reopen test_workbench test_repair test_lifecycle
-python -m unittest test_api_services
-python -m unittest test_official_card
-python -m unittest test_official_import.OfficialImportTests
-```
-
-`verify_board_05.py` 和 `verify_board_06.py` 为可选板卡集成检查，需要已配置的真实设备和受管工具；它们创建临时环境并清理，不自动发送模型推理。回归检查通过不代表已验证你所用账号、供应商或板卡的全部能力。
-
-## 版本与项目反馈
-
-- [发布版本与安装包](https://github.com/luozhang52/Edge-switch/releases)
-- [问题反馈与功能建议](https://github.com/luozhang52/Edge-switch/issues)
-- [历史版本说明](docs/历史说明.md)
-- [验证记录](docs/第一版验证记录.md)
-
-反馈时请附版本号、系统与板卡架构、复现步骤和脱敏日志，勿上传 API Key、SSH 私钥或 `auth.json` 登录令牌。
+请在 [Issues](https://github.com/luozhang1024/Edge-switch/issues) 附上软件版本、Windows 版本、CPU 架构、具体提示和脱敏日志。程序无法启动时优先附上启动日志；不要上传密钥和账号令牌。
 
 ## 致谢
 
@@ -291,7 +124,7 @@ Copyright © 2026 luozhang。Edge Switch 的项目原创代码采用 **GNU Affer
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=luozhang52/Edge-switch&type=Date)](https://www.star-history.com/#luozhang52/Edge-switch&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=luozhang1024/Edge-switch&type=Date)](https://www.star-history.com/#luozhang1024/Edge-switch&Date)
 
 ## 支持项目
 

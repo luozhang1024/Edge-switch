@@ -4,6 +4,7 @@ mod providers;
 mod resources;
 mod secrets;
 mod settings;
+pub mod startup;
 mod store;
 mod tasks;
 mod transport;
@@ -673,11 +674,26 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                let _ = window.hide();
+                let core = window.state::<State>().0.clone();
+                let preferences = serde_json::from_value::<settings::Preferences>(
+                    core.store.lock().unwrap().data["preferences"].clone(),
+                )
+                .unwrap_or_default();
+                if preferences.close_to_tray {
+                    let _ = window.hide();
+                } else {
+                    let app = window.app_handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(error) = shutdown(app.clone(), core).await {
+                            let _ = app.emit("app-error", error);
+                        }
+                    });
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
             settings::save_preferences,
+            settings::autostart_status,
             settings::check_update,
             settings::open_release_page,
             settings::open_project_page,
@@ -700,7 +716,10 @@ pub fn run() {
             quit_app
         ])
         .run(tauri::generate_context!())
-        .expect("Edge Switch 启动失败");
+        .unwrap_or_else(|error| {
+            startup::report(&error.to_string());
+            std::process::exit(1);
+        });
 }
 
 #[cfg(test)]
