@@ -1,4 +1,5 @@
 mod editor;
+mod ordering;
 mod providers;
 mod resources;
 mod secrets;
@@ -376,13 +377,16 @@ async fn activate_service(
             return Err("工具无效".into());
         }
         if service_id == "official" {
-            if tool != "codex" {
-                return Err("ChatGPT 官方账号登录仅用于 Codex；其他工具请使用 API Key".into());
+            if ["claude", "gemini", "opencode"].contains(&tool) {
+                p.tool_services.insert(tool.into(), "official".into());
+            } else if tool == "codex" {
+                if !s.official_ready(&p) {
+                    return Err("请先在设置 → 认证中登录官方账号或导入凭据".into());
+                }
+                p.codex_auth = "chatgpt".into();
+            } else {
+                return Err("此工具需要配置 API".into());
             }
-            if !s.official_ready(&p) {
-                return Err("请先在设置 → 认证中登录官方账号或导入凭据".into());
-            }
-            p.codex_auth = "chatgpt".into();
         } else {
             let entry = s.data["services"][&profile_id]
                 .as_array()
@@ -676,6 +680,8 @@ pub fn run() {
             settings::save_preferences,
             settings::check_update,
             settings::open_release_page,
+            settings::open_project_page,
+            ordering::reorder_items,
             snapshot,
             connection_status,
             save_profile,

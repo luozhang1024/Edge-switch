@@ -130,14 +130,15 @@ try {
     node.scrollTop = 0;
   });
   await expect(page.locator(".task-history")).toHaveCount(0);
-  await page.getByRole("button", { name: "任务记录", exact: true }).click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByRole("tab", { name: "日志", exact: true }).click();
   await expect(
-    page.getByRole("dialog", { name: "日志", exact: true }),
+    page.getByRole("dialog", { name: "设置", exact: true }),
   ).toBeVisible();
   await checkVisuals("task-history-dialog");
   await page.keyboard.press("Escape");
   await expect(
-    page.getByRole("button", { name: "任务记录", exact: true }),
+    page.getByRole("button", { name: "设置", exact: true }),
   ).toBeFocused();
   await expect(page.locator(".vinyl")).toHaveCSS(
     "animation-play-state",
@@ -191,11 +192,11 @@ try {
   };
   await ipc("save_profile", { profile });
   await navigate("工作环境");
-  await page.getByRole("button", { name: "刷新", exact: true }).click();
   await expect(
     page.locator(".profile b").filter({ hasText: "桌面冒烟环境" }),
   ).toBeVisible();
   await checkVisuals("environments");
+  await page.locator(".profile-list .profile").first().hover();
   await page.getByRole("button", { name: "编辑", exact: true }).click();
   await checkVisuals("environment-dialog");
   await page.getByLabel("SSH 端口", { exact: true }).fill("2222");
@@ -263,7 +264,7 @@ try {
     .locator(".service-card")
     .filter({ has: page.getByText("冒烟 API", { exact: true }) });
   await page.mouse.move(0, 0);
-  await expect(row.locator(".service-actions")).toHaveCSS("opacity", "1");
+  await expect(row.locator(".service-actions")).toHaveCSS("opacity", "0");
   await row.hover();
   await expect(row.locator(".service-actions")).toHaveCSS("opacity", "1");
   await expect(
@@ -301,7 +302,6 @@ try {
     await ipc("get_service_key", { profileId: profile.id, serviceId: copy.id }),
   ).toBe("smoke-only-not-a-real-key");
   await ipc("delete_service", { profileId: profile.id, serviceId: copy.id });
-  await page.getByRole("button", { name: "刷新", exact: true }).click();
   expect(JSON.stringify(snapshot)).not.toContain("smoke-only-not-a-real-key");
   await ipc("activate_service", {
     profileId: profile.id,
@@ -342,7 +342,10 @@ try {
     remember: true,
   });
   expect((await ipc("snapshot")).profiles[0].model).toBe("updated-smoke-model");
-  await page.getByRole("button", { name: "刷新", exact: true }).click();
+  await expect(page.locator(".service-card")).toContainText([
+    "OpenAI Official",
+    "updated-smoke-model",
+  ]);
   await checkVisuals("models");
   await ipc("delete_service", { profileId: profile.id, serviceId: service.id });
   expect((await ipc("snapshot")).saved_keys).not.toContain(service.id);
@@ -369,9 +372,9 @@ try {
       .locator("dialog:not(.workspace-sheet)")
       .getByRole("button", {
         name: {
-          claude: "Anthropic Official",
+          claude: "Claude Official",
           harness: "DeepSeek Official",
-          gemini: "Google Official",
+          gemini: "Gemini Official",
           opencode: "OpenCode Zen",
         }[tool],
         exact: true,
@@ -385,11 +388,14 @@ try {
     await page.getByLabel("使用 Windows DPAPI 加密保存").check();
     await page.getByRole("button", { name: "保存服务", exact: true }).click();
     await expect(page.locator("dialog:not(.workspace-sheet)")).toHaveCount(0);
-    await expect(page.locator(".service-info b")).toHaveText([`smoke-${tool}`]);
-    await page.locator(".service-card").hover();
+    const toolRow = page
+      .locator(".service-card")
+      .filter({ has: page.getByText(`smoke-${tool}`, { exact: true }) });
+    await expect(toolRow).toBeVisible();
+    await toolRow.hover();
     await page.getByRole("button", { name: "启用", exact: true }).click();
     await expect(page.locator(".service-card .active-badge")).toHaveText(
-      "当前使用",
+      "使用中",
     );
     const state = await ipc("snapshot");
     const entry = state.services[profile.id].find(
@@ -414,7 +420,7 @@ try {
     .click();
   await expect(page.locator(".service-info b")).toHaveText(["smoke-harness"]);
   await expect(page.locator(".service-card .active-badge")).toHaveText(
-    "当前使用",
+    "使用中",
   );
   await page.getByRole("button", { name: "添加服务", exact: true }).click();
   await page
@@ -447,7 +453,7 @@ try {
       .filter({ has: page.getByText("New API · 统一", { exact: true }) });
     await sharedRow.hover();
     await sharedRow.getByRole("button", { name: "启用", exact: true }).click();
-    await expect(sharedRow.locator(".active-badge")).toHaveText("当前使用");
+    await expect(sharedRow.locator(".active-badge")).toHaveText("使用中");
     const p = (await ipc("snapshot")).profiles[0];
     expect(tool === "codex" ? p.active_api : p.tool_services[tool]).toBe(
       shared.id,
@@ -463,18 +469,21 @@ try {
     (await ipc("snapshot")).profiles[0].tool_services.opencode,
   ).toBeUndefined();
   await navigate("工作环境");
+  await page.locator(".profile-list .profile").first().hover();
+  await page.getByRole("button", { name: "编辑", exact: true }).click();
   await page.getByRole("tab", { name: "AI 工具", exact: true }).click();
   await expect(
     page
-      .locator(".workspace-sheet")
+      .getByRole("dialog", { name: "编辑工作环境", exact: true })
       .getByRole("button", { name: "打开 VS Code", exact: true }),
   ).toBeVisible();
   await checkVisuals("tools");
-  await page.getByRole("tab", { name: "代理网络", exact: true }).click();
+  await page.getByRole("tab", { name: "代理连接", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "连接代理", exact: true }),
   ).toBeVisible();
   await checkVisuals("proxy");
+  await page.getByRole("button", { name: "取消", exact: true }).click();
   await page.getByRole("button", { name: "← 返回唱片台", exact: true }).click();
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await expect(

@@ -62,6 +62,14 @@ pub async fn save_preferences(
     .map_err(|error| error.to_string())?
 }
 const RELEASES_URL: &str = "https://github.com/luozhang1024/Edge-switch/releases";
+#[tauri::command]
+pub fn open_project_page() -> Result<(), String> {
+    std::process::Command::new("explorer.exe")
+        .arg("https://github.com/luozhang1024/Edge-switch")
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
 fn release_info(releases: &[Value], current: &str) -> Result<Value, String> {
     let current = semver::Version::parse(current).map_err(|_| "当前版本格式无效")?;
     let latest = releases

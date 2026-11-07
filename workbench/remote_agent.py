@@ -918,6 +918,18 @@ def tool_credentials(p):
 def configure_tool(p):
     """Write tool-specific private configuration; no model request or shared-home mutation."""
     tool = p.get('tool')
+    if p.get('auth_mode') == 'official':
+        if tool not in ('claude', 'gemini', 'opencode'):
+            raise ValueError('此工具需要配置 API')
+        if not Path(p['project']).is_dir():
+            raise ValueError('工程目录不存在')
+        root = scope(p)
+        (root / (tool + '-official-home')).mkdir(mode=0o700, parents=True, exist_ok=True)
+        if not (root / 'tools' / tool / 'current.json').is_file():
+            reuse_tools(dict(p, tools=[tool]))
+        private_write(root / (tool + '-api.json'), json.dumps(dict(auth_mode='official', project=p['project'], proxy=p.get('proxy', ''))))
+        private_write(root / ('run-' + tool + '.py'), TOOL_LAUNCHER.replace('__TOOL__', tool))
+        return dict(message='已准备官方登录环境，请在终端完成账号授权', tool=tool)
     protocols = {'claude': ('anthropic',), 'gemini': ('gemini',),
                  'opencode': ('chat', 'responses', 'anthropic', 'gemini'),
                  'harness': ('chat', 'responses', 'anthropic')}
@@ -1001,7 +1013,14 @@ if p['proxy']:
 env.update(NO_PROXY='localhost,127.0.0.1,::1', no_proxy='localhost,127.0.0.1,::1')
 env['PATH'] = str(root / 'runtime/bin') + os.pathsep + env.get('PATH', '')
 args = []
-if tool == 'claude':
+if p.get('auth_mode') == 'official':
+    if tool == 'claude':
+        env['CLAUDE_CONFIG_DIR'] = str(root / 'claude-official-home')
+    elif tool == 'gemini':
+        env['GEMINI_CLI_HOME'] = str(root / 'gemini-official-home')
+    elif tool == 'opencode':
+        env.update(XDG_CONFIG_HOME=str(root / 'opencode-official-home/config'), XDG_DATA_HOME=str(root / 'opencode-official-home/data'), XDG_CACHE_HOME=str(root / 'opencode-official-home/cache'))
+elif tool == 'claude':
     env.update(CLAUDE_CONFIG_DIR=str(root / 'claude-home'), ANTHROPIC_API_KEY=p['key'], ANTHROPIC_BASE_URL=p['base_url'], ANTHROPIC_MODEL=p['model'])
     args = ['--model', p['model']]
 elif tool == 'gemini':

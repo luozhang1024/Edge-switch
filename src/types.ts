@@ -53,6 +53,10 @@ export type Task = {
   started_at: number;
 };
 export type Snapshot = {
+  list_order?: {
+    profiles?: string[];
+    services?: Record<string, Partial<Record<ToolId, string[]>>>;
+  };
   preferences?: Preferences;
   profiles: Profile[];
   selected_profile: string;

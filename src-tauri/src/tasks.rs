@@ -61,6 +61,7 @@ pub async fn start_task(
         "codex" => "打开 Codex",
         "login" => "登录官方账号",
         "auth_status" => "检测官方登录状态",
+        "tool_login" => "打开工具官方登录",
         "harness" => "打开 Harness",
         "claude" => "打开 Claude Code",
         "gemini" => "打开 Gemini CLI",
@@ -268,6 +269,20 @@ async fn configure_tool(
     scope: &str,
     tool: &str,
 ) -> Result<Value, String> {
+    if ["claude", "gemini", "opencode"].contains(&tool)
+        && p.tool_services.get(tool).is_none_or(|id| id == "official")
+    {
+        let proxy = core.route(p, tool).await?;
+        return core
+            .call(
+                p,
+                scope,
+                "configure_tool",
+                json!({"tool":tool,"auth_mode":"official","project":p.project,"proxy":proxy}),
+                120,
+            )
+            .await;
+    }
     let selected = tool_profile(core, p, tool)?;
     if tool == "codex" {
         return configure(core, &selected, scope, true).await;
@@ -460,6 +475,33 @@ async fn execute(
             )
         }
         "setup_ssh" => setup_ssh(&core, app, id, p, scope).await,
+        "tool_login" => {
+            let tool = v["tool"]
+                .as_str()
+                .filter(|t| ["claude", "gemini", "opencode"].contains(t))
+                .ok_or("此工具不支持官方终端登录")?;
+            let mut official = p.clone();
+            official
+                .tool_services
+                .insert(tool.into(), "official".into());
+            configure_tool(&core, &official, scope, tool).await?;
+            let args = match tool {
+                "claude" => " auth login",
+                "opencode" => " auth login",
+                _ => "",
+            };
+            console(
+                p,
+                Some(format!(
+                    "python3 ~/.local/share/edge-ssh-ai/{scope}/run-{tool}.py{args}"
+                )),
+                false,
+            )
+            .await?;
+            Ok(
+                json!({"message":"已打开板卡官方登录终端，请在终端按提示完成授权；打开终端不代表登录已完成"}),
+            )
+        }
         "ssh_console" => {
             console(p, None, false).await?;
             Ok(json!({"message":"已打开 SSH 终端"}))

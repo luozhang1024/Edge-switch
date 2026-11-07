@@ -11,13 +11,14 @@ import {
 } from "./types";
 
 export type SettingsTab =
-  "general" | "routing" | "auth" | "advanced" | "usage" | "about";
+  "general" | "routing" | "auth" | "advanced" | "usage" | "logs" | "about";
 const tabs: [SettingsTab, string][] = [
   ["general", "通用"],
   ["routing", "路由"],
   ["auth", "认证"],
   ["advanced", "高级"],
   ["usage", "使用统计"],
+  ["logs", "日志"],
   ["about", "关于"],
 ];
 type Props = {
@@ -33,6 +34,7 @@ type Props = {
   onTasks: () => void;
   onModels: () => void;
   checkOnOpen: boolean;
+  logs: React.ReactNode;
 };
 export function SettingsPage({
   data,
@@ -47,6 +49,7 @@ export function SettingsPage({
   onTasks,
   onModels,
   checkOnOpen,
+  logs,
 }: Props) {
   const [prefs, setPrefs] = useState(data.preferences || defaultPreferences);
   const saving = useRef(false);
@@ -112,6 +115,7 @@ export function SettingsPage({
         role="tabpanel"
         aria-label={tabs.find(([id]) => id === tab)?.[1]}
       >
+        {tab === "logs" && logs}
         {tab === "general" && (
           <>
             <SettingsField

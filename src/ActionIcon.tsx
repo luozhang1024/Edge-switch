@@ -13,12 +13,16 @@ export function ActionIcon({
     | "hidden"
     | "settings"
     | "logs"
+    | "login"
+    | "launch"
     | "upgrade";
 }) {
   const paths = {
+    login: "M14 3h7v18h-7M3 12h13M11 7l5 5-5 5",
+    launch: "M14 3h7v7M21 3 10 14M10 3H3v18h18v-7",
     logs: "M6 3h9l4 4v14H5V3ZM14 3v5h5M8 12h8M8 16h8",
     settings:
-      "m9 3-1 3-3 1 1 3-2 2 2 2-1 3 3 1 1 3h4l1-3 3-1-1-3 2-2-2-2 1-3-3-1-1-3ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0",
+      "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM10 2h4l.7 3 2 .9 2.7-.9 2 3.5-2.2 2.1v2.8l2.2 2.1-2 3.5-2.7-.9-2 .9-.7 3h-4l-.7-3-2-.9-2.7.9-2-3.5 2.2-2.1v-2.8L2.6 8.5l2-3.5 2.7.9 2-.9Z",
     upgrade: "M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM12 16V8M8 12l4-4 4 4",
     activate: "m8 4 12 8-12 8Z",
     edit: "m16 3 5 5-12 12H4v-5ZM14 5l5 5M12 4H4v16h16v-8",

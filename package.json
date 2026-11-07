@@ -11,6 +11,7 @@
     "test": "vitest run",
     "desktop:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-desktop.ps1",
     "test:desktop": "node scripts/smoke-desktop.mjs",
+    "test:ui": "node scripts/verify-ui.mjs",
     "format:check": "prettier --check src scripts package.json tsconfig.json vite.config.ts vitest.config.ts src-tauri/tauri.conf.json src-tauri/capabilities/main.json"
   },
   "dependencies": {

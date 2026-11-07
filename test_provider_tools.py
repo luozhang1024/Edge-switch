@@ -29,6 +29,23 @@ class ProviderToolTests(unittest.TestCase):
             result = agent.configure_tool(p)
         return p, result
 
+    def test_official_launchers_keep_credentials_isolated_and_clear_api_environment(self):
+        for tool in ('claude', 'gemini', 'opencode'):
+            with self.subTest(tool=tool):
+                agent.configure_tool(dict(scope='a' * 32, project=str(self.root), tool=tool, auth_mode='official'))
+                value = json.loads((self.root / (tool + '-api.json')).read_text())
+                self.assertEqual(value['auth_mode'], 'official')
+                self.assertNotIn('key', value)
+                launcher = self.root / ('run-' + tool + '.py')
+                namespace = {'__file__': str(launcher)}
+                with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'wrong-key', 'GEMINI_API_KEY': 'wrong-key', 'OPENCODE_CONFIG': '/wrong/config.json'}), patch.object(os, 'execvpe') as launch, patch.object(os, 'chdir'), patch.object(os, 'umask'):
+                    exec(compile(launcher.read_text(), str(launcher), 'exec'), namespace)
+                env = launch.call_args.args[2]
+                for key in ('ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENCODE_CONFIG'):
+                    self.assertNotIn(key, env)
+                setting = {'claude': 'CLAUDE_CONFIG_DIR', 'gemini': 'GEMINI_CLI_HOME', 'opencode': 'XDG_DATA_HOME'}[tool]
+                self.assertIn(tool + '-official-home', env[setting])
+
     def test_harness_openai_patch_and_credentials_are_separate_from_codex(self):
         agent.private_write(self.root / 'launch.json', '{"key":"codex-key"}')
         original = (self.root / 'launch.json').read_bytes()

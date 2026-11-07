@@ -256,6 +256,10 @@ impl Store {
         for value in profiles {
             let id = value["id"].as_str().unwrap();
             if data["services"].get(id).is_none() {
+                if !exists {
+                    data["services"][id] = json!([]);
+                    continue;
+                }
                 let active = value["active_api"]
                     .as_str()
                     .filter(|s| !s.is_empty())
@@ -333,6 +337,7 @@ impl Store {
             }
         }
         json!({"profiles": self.data["profiles"], "selected_profile": self.data["selected_profile"],
+            "list_order":self.data["list_order"],
             "services": self.data["services"], "official": official,
             "saved_keys": self.data["secrets"].as_object().unwrap().keys().collect::<Vec<_>>(),
             "preferences":serde_json::from_value::<crate::settings::Preferences>(self.data["preferences"].clone()).unwrap_or_default(),

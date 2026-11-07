@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ActionIcon } from "./ActionIcon";
 import { ScrollList } from "./ScrollList";
+import { ordered, moveItem } from "./listOrder";
 import { defaultProtocol } from "./providerConfig";
 import officialIcon from "../image/providers/openai-official.svg";
 import addIcon from "../image/加.png";
@@ -42,11 +43,15 @@ export function ModelServices({
   run,
   remove,
 }: Props) {
+  const [dragged, setDragged] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState("");
   const selected = tools.find((t) => t.id === tool)!;
   const activeId =
     tool === "codex" ? current.active_api : current.tool_services?.[tool];
-  const official = tool === "codex" && current.codex_auth === "chatgpt";
+  const official =
+    tool === "codex"
+      ? current.codex_auth === "chatgpt"
+      : tool !== "harness" && (!activeId || activeId === "official");
   const officialReady = !!(
     data.official[current.id]?.has_credentials ||
     data.official[current.id]?.remote_authenticated
@@ -54,6 +59,53 @@ export function ModelServices({
   const services = (data.services[current.id] || []).filter(
     (s) => s.scope === "universal" || (s.tool || "codex") === tool,
   );
+  const officialName = {
+    codex: "OpenAI Official",
+    claude: "Claude Official",
+    gemini: "Gemini Official",
+    opencode: "OpenCode Zen",
+    harness: "DeepSeek API",
+  }[tool];
+  const rows = ordered(
+    [
+      ...(tool !== "harness"
+        ? [{ id: "official" } as Service]
+        : services.length
+          ? []
+          : [{ id: "default-api" } as Service]),
+      ...services,
+    ],
+    data.list_order?.services?.[current.id]?.[tool],
+  );
+  function dragProps(id: string) {
+    return {
+      draggable: !busy,
+      onDragStart: (e: React.DragEvent) => {
+        setDragged(id);
+        e.dataTransfer.setData("text/plain", id);
+        e.dataTransfer.effectAllowed = "move";
+      },
+      onDragOver: (e: React.DragEvent) => {
+        if (dragged) e.preventDefault();
+      },
+      onDragEnd: () => setDragged(null),
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        if (dragged)
+          void command("reorder_items", {
+            kind: "services",
+            profileId: current.id,
+            tool,
+            ids: moveItem(
+              rows.map((r) => r.id),
+              dragged,
+              id,
+            ),
+          });
+        setDragged(null);
+      },
+    };
+  }
   const active = services.find((s) => s.id === activeId);
   const currentTask = data.tasks
     .filter((t) => t.profile_id === current.id)
@@ -103,129 +155,223 @@ export function ModelServices({
         </button>
       </div>
       <ScrollList className="service-list" label="供应商列表">
-        {tool === "codex" && (
-          <article className={`service-card ${official ? "selected" : ""}`}>
-            <div className="provider-avatar">
-              <img
-                src={data.official[current.id]?.icon || officialIcon}
-                alt="OpenAI Official"
-              />
-            </div>
-            <div className="service-info">
-              <b>OpenAI Official</b>
-              <span
-                className="service-url"
-                title="ChatGPT 官方账号 · 无需 API Key"
+        {rows.map((s) => {
+          if (s.id === "official" && tool === "codex")
+            return (
+              <article
+                key="official"
+                {...dragProps("official")}
+                className={`service-card ${official ? "selected" : ""}`}
               >
-                https://chatgpt.com/codex
-              </span>
-              <small>
-                {data.official[current.id]?.name || "官方 ChatGPT 账号"} ·{" "}
-                {data.official[current.id]?.has_credentials
-                  ? "已保存导入凭据"
-                  : data.official[current.id]?.remote_authenticated
-                    ? "已确认板卡账号登录"
-                    : "请先在设置中认证"}
-              </small>
-              {data.official[current.id]?.note && (
-                <small>{data.official[current.id]?.note}</small>
-              )}
-            </div>
-            {official && <span className="active-badge">当前使用</span>}
-            <div className="service-actions">
-              <button
-                title="启用官方账号"
-                className="primary activate-service"
-                disabled={busy || official || !officialReady}
-                onClick={() => void activate("official")}
+                <div className="provider-avatar">
+                  <img
+                    src={data.official[current.id]?.icon || officialIcon}
+                    alt="OpenAI Official"
+                  />
+                </div>
+                <div className="service-info">
+                  <b>OpenAI Official</b>
+                  <span
+                    className="service-url"
+                    title="ChatGPT 官方账号 · 无需 API Key"
+                  >
+                    https://chatgpt.com/codex
+                  </span>
+                  <small>
+                    {data.official[current.id]?.name || "官方 ChatGPT 账号"} ·{" "}
+                    {data.official[current.id]?.has_credentials
+                      ? "已保存导入凭据"
+                      : data.official[current.id]?.remote_authenticated
+                        ? "已确认板卡账号登录"
+                        : "请先在设置中认证"}
+                  </small>
+                  {data.official[current.id]?.note && (
+                    <small>{data.official[current.id]?.note}</small>
+                  )}
+                </div>
+                <div className="service-actions">
+                  <button
+                    title={official ? "使用中" : "启用官方账号"}
+                    aria-label={official ? "使用中" : "启用官方账号"}
+                    className="primary activate-service"
+                    disabled={busy || official || !officialReady}
+                    onClick={() => void activate("official")}
+                  >
+                    {official ? (
+                      <span className="active-badge">使用中</span>
+                    ) : (
+                      <ActionIcon name="activate" />
+                    )}
+                  </button>
+                  {!officialReady && (
+                    <button
+                      className="authenticate-link"
+                      title="前往设置认证"
+                      aria-label="前往设置认证"
+                      onClick={onAuthenticate}
+                    >
+                      <ActionIcon name="login" />
+                    </button>
+                  )}
+                  <button
+                    title="编辑 / 导入 auth.json"
+                    disabled={busy}
+                    onClick={() =>
+                      onOfficial({
+                        name: "OpenAI Official",
+                        ...data.official[current.id],
+                      })
+                    }
+                  >
+                    <ActionIcon name="edit" />
+                    <span className="sr-only">编辑 / 导入 auth.json</span>
+                  </button>
+                  <button
+                    title="复制账号信息"
+                    aria-label="复制账号信息"
+                    disabled={busy}
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(
+                          JSON.stringify(
+                            {
+                              name:
+                                data.official[current.id]?.name ||
+                                "OpenAI Official",
+                              note: data.official[current.id]?.note || "",
+                            },
+                            null,
+                            2,
+                          ),
+                        );
+                        setCopyStatus("已复制账号名称和备注");
+                      } catch {
+                        setCopyStatus("复制未完成，请检查系统剪贴板权限");
+                      }
+                    }}
+                  >
+                    <ActionIcon name="copy" />
+                  </button>
+                  <button
+                    title="测试官方账号"
+                    aria-label="测试官方账号"
+                    disabled={busy}
+                    onClick={() =>
+                      void run("official_test", { tool, infer: false })
+                    }
+                  >
+                    <ActionIcon name="test" />
+                  </button>
+                  <button
+                    className="danger-text"
+                    title="删除本机账号信息"
+                    disabled={busy || !data.official[current.id]}
+                    onClick={() =>
+                      void remove(
+                        "delete_official",
+                        { profileId: current.id },
+                        "删除本机保存的官方账号信息和导入凭据？板卡上已有登录状态保留。",
+                      )
+                    }
+                  >
+                    <ActionIcon name="delete" />
+                    <span className="sr-only">删除本机账号信息</span>
+                  </button>
+                </div>
+              </article>
+            );
+          if (s.id === "official")
+            return (
+              <article
+                key="official"
+                {...dragProps("official")}
+                className={`service-card ${official ? "selected" : ""}`}
               >
-                <ActionIcon name="activate" />
-                <span className="sr-only">启用官方账号</span>
-              </button>
-              {!officialReady && (
-                <button
-                  className="authenticate-link"
-                  title="前往设置认证"
-                  aria-label="前往设置认证"
-                  onClick={onAuthenticate}
-                >
-                  认证
-                </button>
-              )}
-              <button
-                title="编辑 / 导入 auth.json"
-                disabled={busy}
-                onClick={() =>
-                  onOfficial({
-                    name: "OpenAI Official",
-                    ...data.official[current.id],
-                  })
-                }
-              >
-                <ActionIcon name="edit" />
-                <span className="sr-only">编辑 / 导入 auth.json</span>
-              </button>
-              <button
-                title="复制账号信息"
-                aria-label="复制账号信息"
-                disabled={busy}
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(
-                      JSON.stringify(
-                        {
-                          name:
-                            data.official[current.id]?.name ||
-                            "OpenAI Official",
-                          note: data.official[current.id]?.note || "",
-                        },
-                        null,
-                        2,
-                      ),
-                    );
-                    setCopyStatus("已复制账号名称和备注");
-                  } catch {
-                    setCopyStatus("复制未完成，请检查系统剪贴板权限");
-                  }
-                }}
-              >
-                <ActionIcon name="copy" />
-              </button>
-              <button
-                title="测试官方账号"
-                aria-label="测试官方账号"
-                disabled={busy}
-                onClick={() =>
-                  void run("official_test", { tool, infer: false })
-                }
-              >
-                <ActionIcon name="test" />
-              </button>
-              <button
-                className="danger-text"
-                title="删除本机账号信息"
-                disabled={busy || !data.official[current.id]}
-                onClick={() =>
-                  void remove(
-                    "delete_official",
-                    { profileId: current.id },
-                    "删除本机保存的官方账号信息和导入凭据？板卡上已有登录状态保留。",
-                  )
-                }
-              >
-                <ActionIcon name="delete" />
-                <span className="sr-only">删除本机账号信息</span>
-              </button>
-            </div>
-          </article>
-        )}
-        {services.map((s) => {
+                <div className="provider-avatar">
+                  <img src={selected.icon} alt="" />
+                </div>
+                <div className="service-info">
+                  <b>{officialName}</b>
+                  <span>使用 {selected.name} 官方账号</span>
+                  <small>在板卡终端完成授权，凭据保留在此环境专属目录</small>
+                </div>
+                <div className="service-actions">
+                  <button
+                    title={official ? "使用中" : "启用官方账号"}
+                    aria-label={official ? "使用中" : "启用官方账号"}
+                    disabled={busy || official}
+                    onClick={() => void activate("official")}
+                  >
+                    {official ? (
+                      <span className="active-badge">使用中</span>
+                    ) : (
+                      <ActionIcon name="activate" />
+                    )}
+                  </button>
+                  <button
+                    title="登录官方账号"
+                    aria-label="登录官方账号"
+                    disabled={busy}
+                    onClick={async () => {
+                      if (
+                        await command("activate_service", {
+                          profileId: current.id,
+                          serviceId: "official",
+                          tool,
+                        })
+                      )
+                        await run("tool_login", { tool });
+                    }}
+                  >
+                    <ActionIcon name="login" />
+                  </button>
+                  <button
+                    title={`打开 ${selected.name}`}
+                    aria-label={`打开官方 ${selected.name}`}
+                    disabled={busy || !official}
+                    onClick={() => void run(tool)}
+                  >
+                    <ActionIcon name="launch" />
+                  </button>
+                </div>
+              </article>
+            );
+          if (s.id === "default-api")
+            return (
+              <article key={s.id} {...dragProps(s.id)} className="service-card">
+                <div className="provider-avatar">
+                  <img src={selected.icon} alt="" />
+                </div>
+                <div className="service-info">
+                  <b>DeepSeek API</b>
+                  <span>https://api.deepseek.com/v1</span>
+                  <small>配置模型与 API Key 后使用</small>
+                </div>
+                <div className="service-actions">
+                  <button
+                    title="配置 API"
+                    aria-label="配置 API"
+                    disabled={busy}
+                    onClick={() =>
+                      onEdit({
+                        ...serviceTemplate(tool, "deepseek"),
+                        name: "DeepSeek API",
+                        preset: "official",
+                      })
+                    }
+                  >
+                    <ActionIcon name="edit" />
+                  </button>
+                </div>
+              </article>
+            );
           const provider = detectProvider(s);
-          const selected = !official && activeId === s.id;
+          const isActive = !official && activeId === s.id;
           return (
             <article
               key={s.id}
-              className={`service-card ${selected ? "selected" : ""}`}
+              {...dragProps(s.id)}
+              className={`service-card ${isActive ? "selected" : ""}`}
             >
               <div className="provider-avatar">
                 {s.icon || provider.icon ? (
@@ -252,16 +398,19 @@ export function ModelServices({
                     : "未持久保存密钥"}
                 </small>
               </div>
-              {selected && <span className="active-badge">当前使用</span>}
               <div className="service-actions">
                 <button
-                  title="启用"
+                  title={isActive ? "使用中" : "启用"}
+                  aria-label={isActive ? "使用中" : "启用"}
                   className="primary activate-service"
-                  disabled={busy || selected}
+                  disabled={busy || isActive}
                   onClick={() => void activate(s.id)}
                 >
-                  <ActionIcon name="activate" />
-                  <span className="sr-only">启用</span>
+                  {isActive ? (
+                    <span className="active-badge">使用中</span>
+                  ) : (
+                    <ActionIcon name="activate" />
+                  )}
                 </button>
                 <button
                   title="编辑"
@@ -322,19 +471,6 @@ export function ModelServices({
             </article>
           );
         })}
-        {!services.length && tool !== "codex" && (
-          <div className="provider-empty">
-            <img src={selected.icon} alt="" />
-            <h3>为 {selected.name} 添加第一个模型服务</h3>
-            <p>选择供应商，填写 API 地址、模型名称 和密钥，然后同步到板卡。</p>
-            <button
-              onClick={() => onEdit(serviceTemplate(tool, "custom"))}
-              disabled={busy}
-            >
-              添加自定义 API
-            </button>
-          </div>
-        )}
       </ScrollList>
       {copyStatus && (
         <p className="provider-help" role="status">
@@ -347,7 +483,7 @@ export function ModelServices({
           <h2>验证与同步 · {selected.name}</h2>
           <p>
             当前：
-            {official ? "OpenAI Official" : active?.name || "尚未选择服务"}
+            {official ? officialName : active?.name || "尚未选择服务"}
             。保存和使用仅更新本地配置，同步后才写入板卡。
           </p>
         </div>
@@ -358,13 +494,17 @@ export function ModelServices({
             </button>
           )}
           <button
-            disabled={busy || (!official && !active)}
+            disabled={
+              busy || (official && tool !== "codex") || (!official && !active)
+            }
             onClick={() => void run("sync_api", { tool })}
           >
             同步到板卡
           </button>
           <button
-            disabled={busy || (!official && !active)}
+            disabled={
+              busy || (official && tool !== "codex") || (!official && !active)
+            }
             onClick={() =>
               void run(official ? "official_test" : "api_test", {
                 tool,
@@ -375,7 +515,9 @@ export function ModelServices({
             连通性检查
           </button>
           <button
-            disabled={busy || (!official && !active)}
+            disabled={
+              busy || (official && tool !== "codex") || (!official && !active)
+            }
             onClick={() =>
               void run(official ? "official_test" : "api_test", {
                 tool,

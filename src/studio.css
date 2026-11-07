@@ -740,6 +740,14 @@
   min-height: 26px;
   background: transparent;
   color: #777d81;
+  width: 28px;
+  flex: 0 0 28px;
+}
+.brand-action svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  aspect-ratio: 1;
 }
 .brand-action:hover {
   color: #5551ff;
@@ -1231,4 +1239,90 @@
   .usage-counters {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* Row actions appear on pointer hover or keyboard focus. */
+.studio-app .service-actions,
+.studio-app .profile-actions {
+  opacity: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 140ms;
+}
+.studio-app .service-card:hover .service-actions,
+.studio-app .service-card:focus-within .service-actions,
+.studio-app .profile:hover .profile-actions,
+.studio-app .profile:focus-within .profile-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.studio-app .profile-actions button {
+  padding: 5px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.studio-app .service-actions .active-badge,
+.studio-app .profile-actions .active-badge {
+  white-space: nowrap;
+  font-size: 10px;
+}
+.studio-app .service-actions button:has(.active-badge) {
+  width: auto;
+}
+.service-card[draggable="true"],
+.profile[draggable="true"] {
+  cursor: grab;
+}
+.service-card[draggable="true"]:active,
+.profile[draggable="true"]:active {
+  cursor: grabbing;
+}
+.studio-app .waveform {
+  padding: 0;
+  align-items: center;
+  border: 0;
+  min-height: 40px;
+  background: transparent;
+  box-shadow: none;
+}
+.waveform-animated i {
+  animation: waveform-pulse 1.4s ease-in-out infinite alternate;
+  transform-origin: center;
+}
+@keyframes waveform-pulse {
+  from {
+    transform: scaleY(0.35);
+  }
+  to {
+    transform: scaleY(1.15);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .waveform-animated i {
+    animation: none;
+  }
+}
+@media (hover: none) {
+  .studio-app .service-actions,
+  .studio-app .profile-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+.task-feedback {
+  width: min(720px, calc(100vw - 40px));
+}
+.task-feedback pre {
+  max-height: 50vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.task-progress-log {
+  max-height: 24vh;
+  overflow: auto;
+  line-height: 1.8;
 }

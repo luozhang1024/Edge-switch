@@ -12,8 +12,8 @@ export const defaultProtocol = (tool: ToolId) =>
 export function cliPresets(tool: ToolId) {
   const official = {
     codex: ["OpenAI Official", "openai"],
-    claude: ["Anthropic Official", "anthropic"],
-    gemini: ["Google Official", "google"],
+    claude: ["Claude Official", "anthropic"],
+    gemini: ["Gemini Official", "google"],
     harness: ["DeepSeek Official", "deepseek"],
     opencode: ["OpenCode Zen", "custom"],
   }[tool];

@@ -2,6 +2,7 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
+  act,
   fireEvent,
   render,
   screen,
@@ -15,10 +16,16 @@ const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   confirm: vi.fn(),
   open: vi.fn(),
+  events: {} as Record<string, (e: { payload: unknown }) => void>,
 }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
 vi.mock("@tauri-apps/api/event", () => ({
-  listen: vi.fn().mockResolvedValue(() => {}),
+  listen: vi.fn(
+    async (name: string, listener: (e: { payload: unknown }) => void) => {
+      mocks.events[name] = listener;
+      return () => {};
+    },
+  ),
 }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   confirm: mocks.confirm,
@@ -69,8 +76,152 @@ async function models() {
   fireEvent.click(await screen.findByRole("button", { name: "打开导航" }));
   fireEvent.click(await screen.findByText("模型服务", { selector: "button" }));
 }
+async function refreshSnapshot() {
+  await act(async () => {
+    mocks.events["task-finished"]({ payload: {} });
+  });
+}
 describe("桌面工作流", () => {
-  it("首页提供环境与模型快捷入口，导航仅保留四项", async () => {
+  it("每个工具仅提供对应官方默认项，Harness 默认项可直接配置 API", async () => {
+    data.services[data.selected_profile] = [];
+    await models();
+    expect(document.querySelectorAll(".service-card").length).toBe(1);
+    expect(screen.getByText("OpenAI Official", { selector: "b" })).toBeTruthy();
+    for (const [tool, name] of [
+      ["Claude Code", "Claude Official"],
+      ["Gemini CLI", "Gemini Official"],
+      ["OpenCode", "OpenCode Zen"],
+    ]) {
+      fireEvent.click(screen.getByRole("tab", { name: tool }));
+      expect(document.querySelectorAll(".service-card").length).toBe(1);
+      expect(screen.getByText(name, { selector: "b" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "登录官方账号" })).toBeTruthy();
+    }
+    fireEvent.click(screen.getByRole("tab", { name: "DeepSeek Harness" }));
+    expect(document.querySelectorAll(".service-card").length).toBe(1);
+    fireEvent.click(screen.getByRole("button", { name: "配置 API" }));
+    expect(
+      (screen.getByLabelText("API请求地址") as HTMLInputElement).value,
+    ).toBe("https://api.deepseek.com/v1");
+  });
+  it("检查设备直接打开进度弹窗，任务结束后显示结果", async () => {
+    const original = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (name, args) => {
+      if (name === "start_task") {
+        const task = {
+          id: "diagnose-task",
+          profile_id: data.selected_profile,
+          label: "检查设备",
+          state: "运行中",
+          message: "正在连接板卡",
+          result: null,
+          started_at: 1,
+        };
+        data.tasks.push(task);
+        return structuredClone(task);
+      }
+      return original(name, args);
+    });
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "检查设备" }));
+    const progress = await screen.findByRole("dialog", { name: "检查设备" });
+    expect(
+      await within(progress).findByText("运行中 · 正在连接板卡"),
+    ).toBeTruthy();
+    data.tasks[0] = {
+      ...data.tasks[0],
+      state: "已完成",
+      message: "设备正常",
+      result: { arch: "aarch64" },
+    };
+    await refreshSnapshot();
+    expect(within(progress).getByText("已完成 · 设备正常")).toBeTruthy();
+    expect(within(progress).getByText(/aarch64/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "刷新" })).toBeNull();
+  });
+  it("提交失败立即显示错误，GitHub 波浪调用项目入口", async () => {
+    const original = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (name, args) => {
+      if (name === "start_task") throw new Error("SSH 无法连接");
+      return original(name, args);
+    });
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "打开 GitHub 项目" }),
+    );
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith("open_project_page", {}),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "检查设备" }));
+    expect(
+      await screen.findByRole("dialog", { name: "操作未完成" }),
+    ).toBeTruthy();
+    expect(screen.getByText(/SSH 无法连接/)).toBeTruthy();
+    expect(document.querySelector(".studio-status")).toBeNull();
+  });
+  it("拖动环境和供应商可保存排序并在刷新后保持", async () => {
+    const second = {
+      ...emptyProfile(),
+      name: "第二块板卡",
+      host: "second.local",
+    };
+    data.profiles.push(second);
+    data.services[second.id] = [];
+    const original = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (name, args) => {
+      if (name === "reorder_items") {
+        data.list_order ||= {};
+        if (args.kind === "profiles") data.list_order.profiles = args.ids;
+        else
+          data.list_order.services = {
+            [data.selected_profile]: { codex: args.ids },
+          };
+        return null;
+      }
+      return original(name, args);
+    });
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "配置工作环境" }),
+    );
+    const transfer = { setData: vi.fn(), effectAllowed: "" };
+    fireEvent.dragStart(
+      screen.getByText("第二块板卡", { selector: "b" }).closest(".profile")!,
+      { dataTransfer: transfer },
+    );
+    fireEvent.drop(
+      screen.getByText("测试板卡", { selector: "b" }).closest(".profile")!,
+      { dataTransfer: transfer },
+    );
+    await waitFor(() =>
+      expect(
+        document.querySelector(".profile-list .profile b")?.textContent,
+      ).toBe("第二块板卡"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "模型服务" }));
+    fireEvent.dragStart(
+      screen.getByText("测试 API", { selector: "b" }).closest("article")!,
+      { dataTransfer: transfer },
+    );
+    fireEvent.drop(
+      screen
+        .getByText("OpenAI Official", { selector: "b" })
+        .closest("article")!,
+      { dataTransfer: transfer },
+    );
+    await waitFor(() =>
+      expect(
+        document.querySelector(".service-list article b")?.textContent,
+      ).toBe("测试 API"),
+    );
+    expect(mocks.invoke).toHaveBeenCalledWith("reorder_items", {
+      kind: "services",
+      profileId: data.selected_profile,
+      tool: "codex",
+      ids: [data.profiles[0].active_api, "official"],
+    });
+  });
+  it("首页提供环境与模型快捷入口，导航仅保留两项，配置仅在环境编辑内", async () => {
     render(<App />);
     expect(await screen.findByText(`EDGE SWITCH — v${version}`)).toBeTruthy();
     expect(screen.getByText("SSH 终端按需连接")).toBeTruthy();
@@ -83,11 +234,14 @@ describe("桌面工作流", () => {
       within(sidebar)
         .getAllByRole("button")
         .map((b) => b.textContent?.trim()),
-    ).toEqual(["← 返回唱片台", "工作环境", "模型服务", "日志", "设置"]);
-    fireEvent.click(screen.getByRole("tab", { name: "代理网络" }));
+    ).toEqual(["← 返回唱片台", "工作环境", "模型服务"]);
+    expect(screen.queryByRole("tab", { name: "AI 工具" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "编辑" }));
+    fireEvent.click(screen.getByRole("tab", { name: "代理连接" }));
     expect(screen.getByRole("button", { name: "连接代理" })).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "AI 工具" }));
     expect(screen.getByRole("button", { name: "查询可用版本" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
     fireEvent.click(screen.getByRole("button", { name: "← 返回唱片台" }));
     fireEvent.click(screen.getByRole("button", { name: "配置模型服务" }));
     expect(screen.getByRole("tab", { name: "Codex" })).toBeTruthy();
@@ -166,7 +320,7 @@ describe("桌面工作流", () => {
       name: "官方账号",
       remote_authenticated: true,
     };
-    fireEvent.click(screen.getByRole("button", { name: "刷新" }));
+    await refreshSnapshot();
     const enable = screen.getByRole("button", { name: "启用官方账号" });
     await waitFor(() =>
       expect((enable as HTMLButtonElement).disabled).toBe(false),
@@ -263,7 +417,7 @@ describe("桌面工作流", () => {
     const before = mocks.invoke.mock.calls.filter(
       ([n]) => n === "snapshot",
     ).length;
-    fireEvent.click(screen.getByRole("button", { name: "刷新" }));
+    await refreshSnapshot();
     await waitFor(() =>
       expect(
         mocks.invoke.mock.calls.filter(([n]) => n === "snapshot").length,
@@ -355,7 +509,8 @@ describe("桌面工作流", () => {
       },
     ];
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: /任务记录/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    fireEvent.click(screen.getByRole("tab", { name: "日志" }));
     expect(await screen.findByText("正在上传")).toBeTruthy();
     fireEvent.click(screen.getByText("取消任务"));
     await waitFor(() =>
@@ -430,8 +585,8 @@ describe("桌面工作流", () => {
   it("Claude 和 Gemini 自动保存各自原生请求格式", async () => {
     await models();
     for (const [name, official, protocol] of [
-      ["Claude Code", "Anthropic Official", "anthropic"],
-      ["Gemini CLI", "Google Official", "gemini"],
+      ["Claude Code", "Claude Official", "anthropic"],
+      ["Gemini CLI", "Gemini Official", "gemini"],
     ]) {
       fireEvent.click(screen.getByRole("tab", { name }));
       fireEvent.click(screen.getByRole("button", { name: "添加服务" }));
@@ -482,7 +637,7 @@ describe("桌面工作流", () => {
       ([name]) => name === "save_service",
     )!;
     data.services[data.selected_profile].push(call[1].entry);
-    fireEvent.click(screen.getByRole("button", { name: "刷新" }));
+    await refreshSnapshot();
     await screen.findByText("New API · 统一");
     fireEvent.click(screen.getByRole("tab", { name: "Claude Code" }));
     expect(screen.getByText("New API · 统一")).toBeTruthy();

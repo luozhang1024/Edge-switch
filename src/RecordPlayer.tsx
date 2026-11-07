@@ -10,9 +10,8 @@ export function RecordPlayer({
   run,
   onNavigate,
   onEnvironment,
-  onTasks,
+  onProject,
   onInfo,
-  taskCount,
   preferences,
 }: {
   current: Profile;
@@ -22,9 +21,8 @@ export function RecordPlayer({
   run: (action: string) => Promise<void>;
   onNavigate: () => void;
   onEnvironment: () => void;
-  onTasks: () => void;
+  onProject: () => void;
   onInfo: () => void;
-  taskCount: number;
   preferences: Preferences;
 }) {
   const [spinning, setSpinning] = useState(true);
@@ -190,21 +188,25 @@ export function RecordPlayer({
           ↗
         </button>
         <span>为下一次创造，准备就绪。</span>
-        <div className="waveform" aria-hidden="true">
+        <button
+          className={`waveform ${preferences.motion ? "waveform-animated" : ""}`}
+          aria-label="打开 GitHub 项目"
+          title="GitHub · luozhang1024/Edge-switch"
+          onClick={onProject}
+        >
           {Array.from({ length: 48 }, (_, i) => (
             <i
               key={i}
-              style={{ height: `${5 + ((i * 17 + i * i * 3) % 29)}px` }}
+              style={{
+                height: `${5 + ((i * 17 + i * i * 3) % 29)}px`,
+                animationDelay: `${-i * 0.13}s`,
+              }}
             />
           ))}
-        </div>
+        </button>
         <div className="studio-actions">
           <button onClick={onInfo}>
             环境详情 <span aria-hidden="true">↗</span>
-          </button>
-          <button onClick={onTasks}>
-            任务记录 {taskCount > 0 && <i>{taskCount}</i>}{" "}
-            <span aria-hidden="true">↗</span>
           </button>
         </div>
       </div>
