@@ -66,6 +66,7 @@ beforeEach(() => {
 afterEach(cleanup);
 async function models() {
   render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "打开导航" }));
   fireEvent.click(await screen.findByText("模型服务", { selector: "button" }));
 }
 describe("桌面工作流", () => {
@@ -97,7 +98,7 @@ describe("桌面工作流", () => {
   it("预设可填入网关地址，返回不保存，工具标签仅切换列表", async () => {
     await models();
     fireEvent.click(screen.getByRole("tab", { name: "Codex" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "添加新供应商" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "添加服务" }));
     fireEvent.click(screen.getByRole("button", { name: "OpenRouter" }));
     expect(
@@ -105,7 +106,7 @@ describe("桌面工作流", () => {
     ).toBe("https://openrouter.ai/api/v1");
     expect(screen.queryByLabelText("协议")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "返回" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "添加新供应商" })).toBeNull();
     expect(
       mocks.invoke.mock.calls.some(
         ([n]) => n === "save_service" || n === "activate_service",
@@ -121,7 +122,7 @@ describe("桌面工作流", () => {
     const before = mocks.invoke.mock.calls.filter(
       ([n]) => n === "snapshot",
     ).length;
-    fireEvent.click(screen.getByText("刷新", { selector: "button" }));
+    fireEvent.click(screen.getByRole("button", { name: "刷新" }));
     await waitFor(() =>
       expect(
         mocks.invoke.mock.calls.filter(([n]) => n === "snapshot").length,
@@ -213,6 +214,7 @@ describe("桌面工作流", () => {
       },
     ];
     render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /任务记录/ }));
     expect(await screen.findByText("正在上传")).toBeTruthy();
     fireEvent.click(screen.getByText("取消任务"));
     await waitFor(() =>
@@ -305,7 +307,11 @@ describe("桌面工作流", () => {
           }),
         ),
       );
-      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "添加新供应商" }),
+        ).toBeNull(),
+      );
     }
   });
   it("New API 可切换并保存为统一供应商，在其他工具列表复用", async () => {
@@ -335,7 +341,7 @@ describe("桌面工作流", () => {
       ([name]) => name === "save_service",
     )!;
     data.services[data.selected_profile].push(call[1].entry);
-    fireEvent.click(screen.getByText("刷新", { selector: "button" }));
+    fireEvent.click(screen.getByRole("button", { name: "刷新" }));
     await screen.findByText("New API · 统一");
     fireEvent.click(screen.getByRole("tab", { name: "Claude Code" }));
     expect(screen.getByText("New API · 统一")).toBeTruthy();

@@ -28,10 +28,13 @@ import {
   Snapshot,
 } from "./types";
 import "./style.css";
+import "./studio.css";
 import { ModelServices } from "./ModelServices";
 import { ProviderPage } from "./ProviderPage";
 import { ServiceEditor } from "./ServiceEditor";
 import { RecordPlayer } from "./RecordPlayer";
+import { WindowControls } from "./WindowControls";
+import { ScrollList } from "./ScrollList";
 import { protocolNames, tools } from "./catalog";
 import { ToolId } from "./types";
 
@@ -109,6 +112,7 @@ export function App() {
     {},
   );
   const [tab, setTab] = useState("overview");
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const [modelTool, setModelTool] = useState<ToolId>("codex");
   const [editing, setEditing] = useState<Profile | null>(null);
   const [service, setService] = useState<Service | null>(null);
@@ -165,6 +169,10 @@ export function App() {
   if (!data)
     return (
       <div className="loading">
+        <div className="loading-titlebar" data-tauri-drag-region>
+          <span data-tauri-drag-region>Edge Switch</span>
+          <WindowControls onError={setMessage} />
+        </div>
         <p>正在启动 Edge Switch…</p>
         <p role="status">{message}</p>
         <button onClick={() => void load()}>重试</button>
@@ -245,35 +253,60 @@ export function App() {
     }
   }
   return (
-    <div className="app">
-      <aside>
-        <div className="brand">
-          <img src={logo} alt="Edge Switch" />
-          <b>Edge Switch</b>
-        </div>
-        <div className="sub">板卡 AI 工作台</div>
-        <div className="nav-caption">YOUR LIBRARY / 工作空间</div>
-        <nav aria-label="主导航">
-          {navigation.map(({ id, label, icon }) => (
+    <div className="app studio-app">
+      {navigationOpen && (
+        <Modal
+          title="工作台导航"
+          className="navigation-drawer"
+          close={() => setNavigationOpen(false)}
+        >
+          <aside>
+            <div className="brand">
+              <img src={logo} alt="Edge Switch" />
+              <b>Edge Switch</b>
+            </div>
+            <div className="sub">板卡 AI 工作台</div>
+            <div className="nav-caption">YOUR LIBRARY / 工作空间</div>
+            <nav aria-label="主导航">
+              {navigation.map(({ id, label, icon }) => (
+                <button
+                  key={id}
+                  className={tab === id ? "nav active" : "nav"}
+                  aria-current={tab === id ? "page" : undefined}
+                  onClick={() => {
+                    setTab(id);
+                    setNavigationOpen(false);
+                  }}
+                >
+                  <AssetIcon src={icon} />
+                  {label}
+                </button>
+              ))}
+            </nav>
             <button
-              key={id}
-              className={tab === id ? "nav active" : "nav"}
-              aria-current={tab === id ? "page" : undefined}
-              onClick={() => setTab(id)}
+              className="drawer-task-link"
+              onClick={() => {
+                setTab("tasks");
+                setNavigationOpen(false);
+              }}
             >
-              <AssetIcon src={icon} />
-              {label}
+              任务记录
             </button>
-          ))}
-        </nav>
-        <div className="sidefoot">
-          v{data.version}
-          <span>关闭窗口后保留在托盘</span>
-          <button onClick={() => void command("quit_app")}>退出程序</button>
-        </div>
-      </aside>
+            <div className="sidefoot">
+              v{data.version}
+              <span>关闭窗口后保留在托盘</span>
+              <button onClick={() => void command("quit_app")}>退出程序</button>
+            </div>
+          </aside>
+        </Modal>
+      )}
       <main>
-        <header>
+        <header className="studio-header" data-tauri-drag-region>
+          <div className="studio-brand" data-tauri-drag-region>
+            <img src={logo} alt="" />
+            <b data-tauri-drag-region>Edge Switch</b>
+            <span data-tauri-drag-region>REMOTE AI STUDIO</span>
+          </div>
           <label>
             当前环境{" "}
             <select
@@ -293,292 +326,327 @@ export function App() {
               ))}
             </select>
           </label>
-          <span>
-            {current.user}@{current.host}:{current.port}
-          </span>
+          <WindowControls onError={setMessage} />
         </header>
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">EDGE SWITCH / YOUR CREATIVE SPACE</div>
-            <h1>{navigation.find((item) => item.id === tab)?.label}</h1>
-            <p>{navigation.find((item) => item.id === tab)?.description}</p>
-          </div>
-          <span className="environment-badge">{current.name}</span>
+        <RecordPlayer
+          current={current}
+          busy={busy}
+          connected={currentConnections.some(([, c]) => c.state === "已连接")}
+          run={run}
+          onNavigate={() => setNavigationOpen(true)}
+          onTasks={() => setTab("tasks")}
+          onInfo={() => setTab("info")}
+          taskCount={
+            data.tasks.filter(
+              (t) => t.profile_id === current.id && isRunning(t),
+            ).length
+          }
+        />
+        <div className="studio-status" role="status">
+          <i className={busy ? "is-busy" : ""} />
+          {busy && ["就绪", "操作已提交"].includes(message)
+            ? "任务进行中 · 可打开任务记录查看"
+            : message}
+          {tab === "overview" && (
+            <button
+              aria-label="刷新"
+              title="刷新工作台状态"
+              onClick={() => void load()}
+            >
+              ↻
+            </button>
+          )}
         </div>
-        <div
-          role="status"
-          className={message === "就绪" ? "notice quiet" : "notice"}
+      </main>
+      {tab !== "overview" && (
+        <Modal
+          title={
+            navigation.find((item) => item.id === tab)?.label ||
+            (tab === "tasks" ? "任务记录" : "环境详情")
+          }
+          className="workspace-sheet"
+          refresh={() => void load()}
+          close={() => setTab("overview")}
         >
-          {message}
-        </div>
-        {tab === "overview" && (
-          <section>
-            <RecordPlayer
+          {tab === "info" && (
+            <>
+              <div className="grid">
+                <Card
+                  title="工程目录"
+                  value={current.project}
+                  detail={current.identity || "使用系统 SSH 身份"}
+                />
+                <Card
+                  title="模型服务"
+                  value={
+                    current.codex_auth === "chatgpt"
+                      ? "OpenAI Official"
+                      : current.model || "尚未配置"
+                  }
+                  detail={current.base_url}
+                />
+                <Card
+                  title="连接"
+                  value={
+                    currentConnections.map(([, c]) => c.state).join(" / ") ||
+                    "尚未建立隧道"
+                  }
+                  detail="SSH 通道按需建立，请查看任务结果确认设备状态"
+                />
+              </div>
+              <p className="info-address">
+                {current.user}@{current.host}:{current.port}
+              </p>
+            </>
+          )}
+          {tab === "connect" && (
+            <section className="panel">
+              <div className="panelhead">
+                <h2>工作环境</h2>
+                <button onClick={() => setEditing(emptyProfile())}>
+                  <AssetIcon src={addIcon} />
+                  添加环境
+                </button>
+              </div>
+              <ScrollList className="profile-list" label="工作环境列表">
+                {data.profiles.map((p) => (
+                  <div
+                    className={
+                      p.id === current.id ? "profile selected" : "profile"
+                    }
+                    key={p.id}
+                  >
+                    <div>
+                      <b>{p.name}</b>
+                      <p>
+                        {p.user}@{p.host}:{p.port}
+                      </p>
+                      <small>{p.project}</small>
+                    </div>
+                    <div className="buttons">
+                      <button
+                        disabled={pending || p.id === current.id}
+                        onClick={() =>
+                          void command("select_profile", { id: p.id })
+                        }
+                      >
+                        <AssetIcon src={activateIcon} />
+                        使用
+                      </button>
+                      <button
+                        disabled={data.tasks.some(
+                          (t) => t.profile_id === p.id && isRunning(t),
+                        )}
+                        onClick={() => setEditing({ ...p })}
+                      >
+                        <AssetIcon src={editIcon} />
+                        编辑
+                      </button>
+                      <button
+                        disabled={pending || data.profiles.length <= 1}
+                        onClick={() =>
+                          void remove(
+                            "delete_profile",
+                            { id: p.id },
+                            `删除「${p.name}」及本地保存的服务和凭据？板卡文件保留。`,
+                          )
+                        }
+                      >
+                        <AssetIcon src={deleteIcon} />
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </ScrollList>
+              <div className="buttons">
+                {button("配置 SSH 登录", "setup_ssh")}
+                {button("打开 SSH 终端", "ssh_console")}
+                {button("检查设备", "diagnose")}
+              </div>
+            </section>
+          )}
+          {tab === "models" && (
+            <ModelServices
+              data={data}
               current={current}
+              tool={modelTool}
               busy={busy}
-              connected={currentConnections.some(
-                ([, c]) => c.state === "已连接",
-              )}
+              onTool={setModelTool}
+              command={command}
               run={run}
+              remove={remove}
+              onEdit={(entry) => {
+                setService(entry);
+              }}
+              onOfficial={(entry) => {
+                setAuthPath("");
+                setOfficial(entry);
+              }}
             />
-            <div className="grid">
-              <Card
-                title="工程目录"
-                value={current.project}
-                detail={current.identity || "使用系统 SSH 身份"}
-              />
-              <Card
-                title="模型服务"
-                value={
-                  current.codex_auth === "chatgpt"
-                    ? "OpenAI Official"
-                    : current.model || "尚未配置"
-                }
-                detail={current.base_url}
-              />
-              <Card
-                title="连接"
-                value={
-                  currentConnections.map(([, c]) => c.state).join(" / ") ||
-                  "尚未建立隧道"
-                }
-                detail="SSH 通道按需建立，请查看任务结果确认设备状态"
-              />
-            </div>
-          </section>
-        )}
-        {tab === "connect" && (
-          <section className="panel">
-            <div className="panelhead">
-              <h2>工作环境</h2>
-              <button onClick={() => setEditing(emptyProfile())}>
-                <AssetIcon src={addIcon} />
-                添加环境
-              </button>
-            </div>
-            {data.profiles.map((p) => (
-              <div
-                className={p.id === current.id ? "profile selected" : "profile"}
-                key={p.id}
-              >
-                <div>
-                  <b>{p.name}</b>
-                  <p>
-                    {p.user}@{p.host}:{p.port}
-                  </p>
-                  <small>{p.project}</small>
+          )}
+          {tab === "proxy" && (
+            <section className="panel">
+              <h2>代理网络</h2>
+              <p>
+                电脑下载：
+                {current.proxy ? `127.0.0.1:${current.proxy_port}` : "直连"}
+                ；Codex：
+                {(current.codex_proxy ?? current.proxy)
+                  ? "电脑代理"
+                  : "板卡直连"}
+                ；Harness：
+                {(current.harness_proxy ?? current.proxy)
+                  ? "电脑代理"
+                  : "板卡直连"}
+                。
+              </p>
+              <p>
+                电脑代理通过 SSH
+                反向转发到板卡，中断后自动尝试重连。修改设置前先断开本地连接。
+              </p>
+              <div className="buttons">
+                <button
+                  disabled={busy}
+                  onClick={() => setEditing({ ...current })}
+                >
+                  <AssetIcon src={editIcon} />
+                  编辑网络设置
+                </button>
+                {button("连接代理", "proxy_start")}
+                {button("断开本地连接", "disconnect")}
+              </div>
+              {currentConnections.map(([id, c]) => (
+                <div className="profile" key={id}>
+                  <b>{c.kind === "proxy" ? "代理隧道" : "Harness 网页"}</b>
+                  <span>
+                    {c.state} · 电脑 {c.local_port} ↔ 板卡 {c.remote_port}
+                  </span>
                 </div>
+              ))}
+            </section>
+          )}
+          {tab === "tools" && (
+            <section>
+              <div className="panel">
+                <h2>工具部署</h2>
+                <p>
+                  安装到当前环境专属目录，不替换系统
+                  Node.js。先查询版本，再选择安装。
+                </p>
+                <div className="buttons">
+                  {button("检查设备", "diagnose")}
+                  {button("查询可用版本", "versions")}
+                  {button("安装独立 Node.js", "install_runtime")}
+                  {button("复用已有工具", "reuse_tools")}
+                </div>
+                <ToolInstaller
+                  data={data}
+                  profileId={current.id}
+                  disabled={busy}
+                  install={(tool, version) =>
+                    void run("install_tool", { tool, version })
+                  }
+                />
+              </div>
+              <div className="panel">
+                <h2>启动与服务</h2>
+                <div className="buttons">
+                  {button("打开 Codex", "codex")}
+                  {button("打开 Harness 网页", "harness")}
+                  {button("停止 Harness", "harness_stop")}
+                  {button("打开 VS Code", "vscode")}
+                  {button("打开 SSH 终端", "ssh_console")}
+                </div>
+                <p>
+                  Harness：
+                  {current.harness_background
+                    ? "退出工作台后保留板卡后台服务"
+                    : "退出工作台时停止服务"}
+                  。关闭主窗口仅缩至托盘。
+                </p>
+              </div>
+              <div className="panel">
+                <h2>编辑器维护</h2>
+                <p>
+                  选择已安装的 Code.exe 创建固定副本。独立设置不会覆盖日常 VS
+                  Code 配置，导入服务端仍需通过官方 SHA-256 校验。
+                </p>
                 <div className="buttons">
                   <button
-                    disabled={pending || p.id === current.id}
-                    onClick={() => void command("select_profile", { id: p.id })}
+                    disabled={busy}
+                    onClick={() => void choose("editor_pin")}
                   >
-                    <AssetIcon src={activateIcon} />
-                    使用
+                    <AssetIcon src={vscodeIcon} />
+                    选择并固定 Code.exe
                   </button>
                   <button
-                    disabled={data.tasks.some(
-                      (t) => t.profile_id === p.id && isRunning(t),
-                    )}
-                    onClick={() => setEditing({ ...p })}
+                    disabled={busy}
+                    onClick={() => void choose("import_server")}
                   >
-                    <AssetIcon src={editIcon} />
-                    编辑
+                    <AssetIcon src={vscodeIcon} />
+                    导入 Server 安装包
                   </button>
-                  <button
-                    disabled={pending || data.profiles.length <= 1}
-                    onClick={() =>
-                      void remove(
-                        "delete_profile",
-                        { id: p.id },
-                        `删除「${p.name}」及本地保存的服务和凭据？板卡文件保留。`,
-                      )
-                    }
-                  >
-                    <AssetIcon src={deleteIcon} />
-                    删除
-                  </button>
+                  {button("读取连接诊断", "vscode_diagnostics")}
                 </div>
               </div>
-            ))}
-            <div className="buttons">
-              {button("配置 SSH 登录", "setup_ssh")}
-              {button("打开 SSH 终端", "ssh_console")}
-              {button("检查设备", "diagnose")}
-            </div>
-          </section>
-        )}
-        {tab === "models" && (
-          <ModelServices
-            data={data}
-            current={current}
-            tool={modelTool}
-            busy={busy}
-            onTool={setModelTool}
-            command={command}
-            run={run}
-            remove={remove}
-            onEdit={(entry) => {
-              setService(entry);
-            }}
-            onOfficial={(entry) => {
-              setAuthPath("");
-              setOfficial(entry);
-            }}
-          />
-        )}
-        {tab === "proxy" && (
-          <section className="panel">
-            <h2>代理网络</h2>
-            <p>
-              电脑下载：
-              {current.proxy ? `127.0.0.1:${current.proxy_port}` : "直连"}
-              ；Codex：
-              {(current.codex_proxy ?? current.proxy) ? "电脑代理" : "板卡直连"}
-              ；Harness：
-              {(current.harness_proxy ?? current.proxy)
-                ? "电脑代理"
-                : "板卡直连"}
-              。
-            </p>
-            <p>
-              电脑代理通过 SSH
-              反向转发到板卡，中断后自动尝试重连。修改设置前先断开本地连接。
-            </p>
-            <div className="buttons">
-              <button
-                disabled={busy}
-                onClick={() => setEditing({ ...current })}
-              >
-                <AssetIcon src={editIcon} />
-                编辑网络设置
-              </button>
-              {button("连接代理", "proxy_start")}
-              {button("断开本地连接", "disconnect")}
-            </div>
-            {currentConnections.map(([id, c]) => (
-              <div className="profile" key={id}>
-                <b>{c.kind === "proxy" ? "代理隧道" : "Harness 网页"}</b>
-                <span>
-                  {c.state} · 电脑 {c.local_port} ↔ 板卡 {c.remote_port}
-                </span>
-              </div>
-            ))}
-          </section>
-        )}
-        {tab === "tools" && (
-          <section>
-            <div className="panel">
-              <h2>工具部署</h2>
-              <p>
-                安装到当前环境专属目录，不替换系统
-                Node.js。先查询版本，再选择安装。
-              </p>
-              <div className="buttons">
-                {button("检查设备", "diagnose")}
-                {button("查询可用版本", "versions")}
-                {button("安装独立 Node.js", "install_runtime")}
-                {button("复用已有工具", "reuse_tools")}
-              </div>
-              <ToolInstaller
-                data={data}
-                profileId={current.id}
-                disabled={busy}
-                install={(tool, version) =>
-                  void run("install_tool", { tool, version })
-                }
-              />
-            </div>
-            <div className="panel">
-              <h2>启动与服务</h2>
-              <div className="buttons">
-                {button("打开 Codex", "codex")}
-                {button("打开 Harness 网页", "harness")}
-                {button("停止 Harness", "harness_stop")}
-                {button("打开 VS Code", "vscode")}
-                {button("打开 SSH 终端", "ssh_console")}
-              </div>
-              <p>
-                Harness：
-                {current.harness_background
-                  ? "退出工作台后保留板卡后台服务"
-                  : "退出工作台时停止服务"}
-                。关闭主窗口仅缩至托盘。
-              </p>
-            </div>
-            <div className="panel">
-              <h2>编辑器维护</h2>
-              <p>
-                选择已安装的 Code.exe 创建固定副本。独立设置不会覆盖日常 VS Code
-                配置，导入服务端仍需通过官方 SHA-256 校验。
-              </p>
-              <div className="buttons">
-                <button
-                  disabled={busy}
-                  onClick={() => void choose("editor_pin")}
-                >
-                  <AssetIcon src={vscodeIcon} />
-                  选择并固定 Code.exe
-                </button>
-                <button
-                  disabled={busy}
-                  onClick={() => void choose("import_server")}
-                >
-                  <AssetIcon src={vscodeIcon} />
-                  导入 Server 安装包
-                </button>
-                {button("读取连接诊断", "vscode_diagnostics")}
-              </div>
-            </div>
-          </section>
-        )}
-        <section className="panel">
-          <div className="panelhead">
-            <h2>任务记录 · {current.name}</h2>
-            <button onClick={() => void load()}>刷新</button>
-          </div>
-          {data.tasks
-            .filter((t) => t.profile_id === current.id)
-            .slice()
-            .reverse()
-            .map((t) => (
-              <details className="taskdetail" key={t.id} open={isRunning(t)}>
-                <summary>
-                  <span>
-                    {t.label} · {t.state}
-                  </span>
-                  <small>
-                    {new Date(t.started_at * 1000).toLocaleTimeString()}
-                  </small>
-                </summary>
-                <p>{t.message}</p>
-                {isRunning(t) && (
-                  <button
-                    onClick={async () => {
-                      if (
-                        await confirm(
-                          "停止本地等待和 SSH 操作；远端操作可能仍在进行，请随后刷新设备核对。",
-                          { title: "取消任务", kind: "warning" },
-                        )
-                      )
-                        await command("cancel_task", { taskId: t.id });
-                    }}
-                  >
-                    取消任务
-                  </button>
-                )}
-                {t.result != null && (
-                  <pre>{JSON.stringify(t.result, null, 2)}</pre>
-                )}
-              </details>
-            ))}
-          {!data.tasks.some((t) => t.profile_id === current.id) && (
-            <p className="empty">
-              暂无任务。先检查设备，确认 SSH 连接和板卡状态。
-            </p>
+            </section>
           )}
-        </section>
-      </main>
+          {tab === "tasks" && (
+            <section className="panel task-history">
+              <p className="task-environment">
+                {current.name} · 任务与运行结果
+              </p>
+              <ScrollList className="task-list" label="任务记录列表">
+                {data.tasks
+                  .filter((t) => t.profile_id === current.id)
+                  .slice()
+                  .reverse()
+                  .map((t) => (
+                    <details
+                      className="taskdetail"
+                      key={t.id}
+                      open={isRunning(t)}
+                    >
+                      <summary>
+                        <span>
+                          {t.label} · {t.state}
+                        </span>
+                        <small>
+                          {new Date(t.started_at * 1000).toLocaleTimeString()}
+                        </small>
+                      </summary>
+                      <p>{t.message}</p>
+                      {isRunning(t) && (
+                        <button
+                          onClick={async () => {
+                            if (
+                              await confirm(
+                                "停止本地等待和 SSH 操作；远端操作可能仍在进行，请随后刷新设备核对。",
+                                { title: "取消任务", kind: "warning" },
+                              )
+                            )
+                              await command("cancel_task", { taskId: t.id });
+                          }}
+                        >
+                          取消任务
+                        </button>
+                      )}
+                      {t.result != null && (
+                        <pre>{JSON.stringify(t.result, null, 2)}</pre>
+                      )}
+                    </details>
+                  ))}
+                {!data.tasks.some((t) => t.profile_id === current.id) && (
+                  <p className="empty">
+                    暂无任务。先检查设备，确认 SSH 连接和板卡状态。
+                  </p>
+                )}
+              </ScrollList>
+            </section>
+          )}
+        </Modal>
+      )}
       {editing && (
         <Modal title="编辑工作环境" close={() => setEditing(null)}>
           <form
@@ -902,28 +970,63 @@ function Modal({
   title,
   close,
   children,
+  className = "",
+  refresh,
 }: {
   title: string;
   close: () => void;
   children: React.ReactNode;
+  className?: string;
+  refresh?: () => void;
 }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const node = ref.current!;
+    const trigger = document.activeElement as HTMLElement | null;
+    if (node.showModal) node.showModal();
+    else node.setAttribute("open", "");
+    return () => {
+      if (node.close) node.close();
+      queueMicrotask(() => {
+        if (trigger?.isConnected) trigger.focus();
+      });
+    };
+  }, []);
   return (
-    <div className="modal">
-      <div
-        className="dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-      >
-        <div className="panelhead">
-          <h2>{title}</h2>
-          <button aria-label="关闭" onClick={close}>
-            ×
+    <dialog
+      ref={ref}
+      className={`dialog studio-dialog ${className}`}
+      aria-label={title}
+      onCancel={(event) => {
+        event.preventDefault();
+        close();
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          const rect = event.currentTarget.getBoundingClientRect();
+          if (
+            event.clientX < rect.left ||
+            event.clientX > rect.right ||
+            event.clientY < rect.top ||
+            event.clientY > rect.bottom
+          )
+            close();
+        }
+      }}
+    >
+      <div className="panelhead">
+        <h2>{title}</h2>
+        {refresh && (
+          <button className="sheet-refresh" aria-label="刷新" onClick={refresh}>
+            ↻
           </button>
-        </div>
-        {children}
+        )}
+        <button aria-label="关闭" onClick={close}>
+          ×
+        </button>
       </div>
-    </div>
+      {children}
+    </dialog>
   );
 }
 function Card({

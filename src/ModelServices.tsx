@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ActionIcon } from "./ActionIcon";
+import { ScrollList } from "./ScrollList";
 import { defaultProtocol } from "./providerConfig";
 import officialIcon from "../image/providers/openai-official.svg";
 import addIcon from "../image/加.png";
@@ -95,7 +96,7 @@ export function ModelServices({
           <span className="sr-only">添加服务</span>
         </button>
       </div>
-      <div className="service-list">
+      <ScrollList className="service-list" label="供应商列表">
         {tool === "codex" && (
           <article className={`service-card ${official ? "selected" : ""}`}>
             <div className="provider-avatar">
@@ -316,7 +317,7 @@ export function ModelServices({
             </button>
           </div>
         )}
-      </div>
+      </ScrollList>
       {copyStatus && (
         <p className="provider-help" role="status">
           {copyStatus}

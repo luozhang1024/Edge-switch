@@ -73,16 +73,16 @@ try {
       { command, args },
     );
   await expect(
-    page.getByRole("button", { name: "工作环境", exact: true }),
+    page.getByRole("button", { name: "打开导航", exact: true }),
   ).toBeVisible();
   expect(
-    await page.locator(".brand img").evaluate((img) => img.naturalWidth),
+    await page.locator(".studio-brand img").evaluate((img) => img.naturalWidth),
   ).toBeGreaterThan(0);
   async function checkVisuals(name) {
     await page.locator("img").evaluateAll(async (images) => {
       await Promise.all(images.map((img) => img.decode()));
     });
-    expect(await page.locator("nav .asset-icon").count()).toBe(5);
+    expect(await page.locator(".window-controls button").count()).toBe(3);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -93,7 +93,51 @@ try {
       fullPage: (await page.locator(".provider-page").count()) === 0,
     });
   }
+  async function navigate(name) {
+    const close = page.locator(
+      '.workspace-sheet > .panelhead > button[aria-label="关闭"]',
+    );
+    if (await close.count()) await close.click();
+    await page.getByRole("button", { name: "打开导航", exact: true }).click();
+    await page.getByRole("button", { name, exact: true }).click();
+  }
   await checkVisuals("overview-initial");
+  const initialMaximized = await ipc("plugin:window|is_maximized", {
+    label: "main",
+  });
+  await page.getByRole("button", { name: "最大化或还原窗口" }).click();
+  await expect
+    .poll(() => ipc("plugin:window|is_maximized", { label: "main" }))
+    .toBe(!initialMaximized);
+  await page.getByRole("button", { name: "最大化或还原窗口" }).click();
+  await expect
+    .poll(() => ipc("plugin:window|is_maximized", { label: "main" }))
+    .toBe(initialMaximized);
+  const launchList = page.getByRole("region", { name: "快速启动列表" });
+  await expect(launchList).toHaveAttribute("data-below", "true");
+  await launchList.hover();
+  await page.mouse.wheel(0, 75);
+  await expect(launchList).toHaveAttribute("data-above", "true");
+  await launchList.evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+  });
+  await expect(launchList).toHaveAttribute("data-below", "false");
+  await expect(
+    page.getByRole("button", { name: "打开 OpenCode", exact: true }),
+  ).toBeInViewport();
+  await launchList.evaluate((node) => {
+    node.scrollTop = 0;
+  });
+  await expect(page.locator(".task-history")).toHaveCount(0);
+  await page.getByRole("button", { name: "任务记录", exact: true }).click();
+  await expect(
+    page.getByRole("dialog", { name: "任务记录", exact: true }),
+  ).toBeVisible();
+  await checkVisuals("task-history-dialog");
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", { name: "任务记录", exact: true }),
+  ).toBeFocused();
   await expect(page.locator(".vinyl")).toHaveCSS(
     "animation-play-state",
     "running",
@@ -117,7 +161,10 @@ try {
   await page.setViewportSize(originalViewport || { width: 1180, height: 790 });
   let snapshot = await ipc("snapshot");
   expect(snapshot.version).toBe(expectedVersion);
+  await page.getByRole("button", { name: "打开导航" }).click();
   await expect(page.locator(".sidefoot")).toContainText(`v${expectedVersion}`);
+  await checkVisuals("navigation-drawer");
+  await page.keyboard.press("Escape");
   const profile = {
     ...snapshot.profiles[0],
     name: "桌面冒烟环境",
@@ -125,7 +172,7 @@ try {
     port: 22,
   };
   await ipc("save_profile", { profile });
-  await page.getByRole("button", { name: "工作环境", exact: true }).click();
+  await navigate("工作环境");
   await page.getByRole("button", { name: "刷新", exact: true }).click();
   await expect(
     page.locator(".profile b").filter({ hasText: "桌面冒烟环境" }),
@@ -135,10 +182,10 @@ try {
   await checkVisuals("environment-dialog");
   await page.getByLabel("SSH 端口", { exact: true }).fill("2222");
   await page.getByRole("button", { name: "保存", exact: true }).click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator("dialog:not(.workspace-sheet)")).toHaveCount(0);
   snapshot = await ipc("snapshot");
   expect(snapshot.profiles[0].port).toBe(2222);
-  await page.getByRole("button", { name: "模型服务", exact: true }).click();
+  await navigate("模型服务");
   await checkVisuals("models-official");
   await page.getByRole("button", { name: "添加服务", exact: true }).click();
   const picker = page.getByRole("dialog", { name: "添加新供应商" });
@@ -149,11 +196,11 @@ try {
   await page.setViewportSize({ width: 980, height: 660 });
   await checkVisuals("provider-form-compact");
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator("dialog:not(.workspace-sheet)")).toHaveCount(0);
   await page.setViewportSize({ width: 1180, height: 790 });
   await page.getByRole("button", { name: "添加服务", exact: true }).click();
   await page
-    .getByRole("dialog")
+    .locator("dialog:not(.workspace-sheet)")
     .getByRole("button", { name: "自定义配置", exact: true })
     .click();
   await page.getByLabel("服务名称").fill("冒烟 API");
@@ -173,7 +220,7 @@ try {
     .fill("smoke-only-not-a-real-key");
   await page.getByLabel("使用 Windows DPAPI 加密保存").check();
   await page.getByRole("button", { name: "保存服务", exact: true }).click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator("dialog:not(.workspace-sheet)")).toHaveCount(0);
   await expect(page.getByText("冒烟 API", { exact: true })).toBeVisible();
   snapshot = await ipc("snapshot");
   const service = snapshot.services[profile.id].find(
@@ -301,7 +348,7 @@ try {
     await page.getByRole("tab", { name, exact: true }).click();
     await page.getByRole("button", { name: "添加服务", exact: true }).click();
     await page
-      .getByRole("dialog")
+      .locator("dialog:not(.workspace-sheet)")
       .getByRole("button", {
         name: {
           claude: "Anthropic Official",
@@ -319,7 +366,7 @@ try {
       .fill("smoke-only-not-a-real-key");
     await page.getByLabel("使用 Windows DPAPI 加密保存").check();
     await page.getByRole("button", { name: "保存服务", exact: true }).click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.locator("dialog:not(.workspace-sheet)")).toHaveCount(0);
     await expect(page.locator(".service-info b")).toHaveText([`smoke-${tool}`]);
     await page.locator(".service-card").hover();
     await page.getByRole("button", { name: "启用", exact: true }).click();
@@ -343,7 +390,7 @@ try {
   await checkVisuals("models-compact");
   await page.setViewportSize({ width: 1180, height: 790 });
   await page.reload();
-  await page.getByRole("button", { name: "模型服务", exact: true }).click();
+  await navigate("模型服务");
   await page
     .getByRole("tab", { name: "DeepSeek Harness", exact: true })
     .click();
@@ -365,7 +412,7 @@ try {
   await page.getByLabel("使用 Windows DPAPI 加密保存").check();
   await checkVisuals("provider-universal-newapi");
   await page.getByRole("button", { name: "保存服务", exact: true }).click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator("dialog:not(.workspace-sheet)")).toHaveCount(0);
   const shared = (await ipc("snapshot")).services[profile.id].find(
     (s) => s.scope === "universal",
   );
@@ -397,17 +444,19 @@ try {
   expect(
     (await ipc("snapshot")).profiles[0].tool_services.opencode,
   ).toBeUndefined();
-  await page.getByRole("button", { name: "AI 工具", exact: true }).click();
+  await navigate("AI 工具");
   await expect(
-    page.getByRole("button", { name: "打开 VS Code", exact: true }),
+    page
+      .locator(".workspace-sheet")
+      .getByRole("button", { name: "打开 VS Code", exact: true }),
   ).toBeVisible();
   await checkVisuals("tools");
-  await page.getByRole("button", { name: "代理网络", exact: true }).click();
+  await navigate("代理网络");
   await expect(
     page.getByRole("button", { name: "连接代理", exact: true }),
   ).toBeVisible();
   await checkVisuals("proxy");
-  await page.getByRole("button", { name: "总览与任务", exact: true }).click();
+  await navigate("总览与任务");
   await checkVisuals("overview");
   expect(errors).toEqual([]);
   const stored = JSON.parse(
@@ -415,6 +464,15 @@ try {
   );
   expect(JSON.stringify(stored)).not.toContain("smoke-only-not-a-real-key");
   expect(stored.client_id).toHaveLength(32);
+  await page.getByRole("button", { name: "最小化窗口" }).click();
+  await expect
+    .poll(() => ipc("plugin:window|is_minimized", { label: "main" }))
+    .toBe(true);
+  await page.locator(".close-window").evaluate((button) => button.click());
+  await expect
+    .poll(() => ipc("plugin:window|is_visible", { label: "main" }))
+    .toBe(false);
+  expect(child.exitCode).toBeNull();
   await writeFile(
     join(output, "result.json"),
     JSON.stringify(
@@ -426,6 +484,7 @@ try {
           "bundled logo and restored navigation/action icons",
           "all page images decode and compact layout has no horizontal overflow",
           "vinyl pause/resume and system reduced-motion preference",
+          "single canvas, drawer, task sheet, scroll fade, native maximize/minimize/close-to-tray",
           "environment edit",
           "API CRUD and DPAPI",
           "active API synchronization",

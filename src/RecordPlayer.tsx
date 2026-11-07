@@ -1,16 +1,25 @@
 import React, { useState } from "react";
 import { Profile } from "./types";
+import { ScrollList } from "./ScrollList";
 
 export function RecordPlayer({
   current,
   busy,
   connected,
   run,
+  onNavigate,
+  onTasks,
+  onInfo,
+  taskCount,
 }: {
   current: Profile;
   busy: boolean;
   connected: boolean;
   run: (action: string) => Promise<void>;
+  onNavigate: () => void;
+  onTasks: () => void;
+  onInfo: () => void;
+  taskCount: number;
 }) {
   const [spinning, setSpinning] = useState(true);
   const tracks = [
@@ -18,6 +27,9 @@ export function RecordPlayer({
     ["02", "VS Code", "远程编辑 · 专注创造", "vscode"],
     ["03", "DeepSeek Harness", "浏览器里的 AI 工作空间", "harness"],
     ["04", "SSH 终端", "直达板卡 · 自由掌控", "ssh_console"],
+    ["05", "Claude Code", "用自然语言，雕琢想法", "claude"],
+    ["06", "Gemini CLI", "另一种灵感，另一种可能", "gemini"],
+    ["07", "OpenCode", "开放工具 · 自由创造", "opencode"],
   ];
   return (
     <section className="listening-room" aria-label="远程开发唱片台">
@@ -31,9 +43,9 @@ export function RecordPlayer({
         <p className="room-intro">连接你的板卡，进入创造的节奏。</p>
         <div className="track-heading">
           <span>A SIDE / 快速启动</span>
-          <span>04 TRACKS</span>
+          <span>07 TRACKS</span>
         </div>
-        <div className="launch-tracks">
+        <ScrollList className="launch-tracks" label="快速启动列表">
           {tracks.map(([number, name, detail, action]) => (
             <button
               key={action}
@@ -65,7 +77,8 @@ export function RecordPlayer({
               </span>
             </button>
           ))}
-        </div>
+        </ScrollList>
+        <span className="scroll-hint">滚动探索更多工具 ↓</span>
       </div>
       <div className="turntable">
         <span className="turntable-caption">EDGE SESSIONS — VOL. 01</span>
@@ -138,9 +151,14 @@ export function RecordPlayer({
         </button>
       </div>
       <div className="record-strip">
-        <span className="strip-symbol" aria-hidden="true">
-          ↳
-        </span>
+        <button
+          className="strip-symbol"
+          aria-label="打开导航"
+          title="打开工作台导航"
+          onClick={onNavigate}
+        >
+          ↗
+        </button>
         <span>为下一次创造，准备就绪。</span>
         <div className="waveform" aria-hidden="true">
           {Array.from({ length: 48 }, (_, i) => (
@@ -150,7 +168,15 @@ export function RecordPlayer({
             />
           ))}
         </div>
-        <span className="strip-end">REMOTE AI STUDIO</span>
+        <div className="studio-actions">
+          <button onClick={onInfo}>
+            环境详情 <span aria-hidden="true">↗</span>
+          </button>
+          <button onClick={onTasks}>
+            任务记录 {taskCount > 0 && <i>{taskCount}</i>}{" "}
+            <span aria-hidden="true">↗</span>
+          </button>
+        </div>
       </div>
     </section>
   );

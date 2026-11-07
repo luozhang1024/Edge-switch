@@ -14,6 +14,7 @@
       {
         "label": "main",
         "title": "Edge Switch",
+        "decorations": false,
         "width": 1180,
         "height": 790,
         "minWidth": 980,

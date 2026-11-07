@@ -39,10 +39,14 @@ export function ProviderPage({
   const title = editing ? "编辑供应商" : "添加新供应商";
   useEffect(() => {
     const node = dialog.current!;
+    const trigger = document.activeElement as HTMLElement | null;
     if (node.showModal) node.showModal();
     else node.setAttribute("open", "");
     return () => {
       if (node.close) node.close();
+      queueMicrotask(() => {
+        if (trigger?.isConnected) trigger.focus();
+      });
     };
   }, []);
   return (
