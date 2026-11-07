@@ -10,6 +10,8 @@
 | Gemini CLI | Gemini 原生 API 或兼容网关 | 板卡 SSH 终端 |
 | OpenCode | OpenAI Chat Completions、Responses、Anthropic Messages、Gemini | 板卡 SSH 终端 |
 
+添加服务按钮使用 `加.png` 图标。点击“添加服务”或当前已选中的工具标签，先打开该工具的供应商选择面板；Codex 的第一项固定为 **OpenAI Official**，用于官方账号配置，后面提供 API 供应商和自定义网关入口。选择供应商后再填写对应配置，选择本身不会切换当前服务。
+
 例如，选择 **Codex → 添加服务 → OpenAI / ChatGPT API**，填入模型 ID 和 API Key，就可以让板卡上的 Codex 使用该 API。选择 **DeepSeek Harness → 添加服务 → OpenAI / ChatGPT API**，也可以让 Harness 使用 OpenAI API；选 DeepSeek 时默认使用它的 Chat Completions 接口。
 
 Codex 使用 DeepSeek 等模型时，需要供应商或中转网关提供 Responses 接口；DeepSeek 原生 Chat Completions 地址不能直接作为 Codex 的 Responses 地址。选择不兼容的供应商预设时，地址留空，要求填写兼容网关地址。应用不会自动转换协议。

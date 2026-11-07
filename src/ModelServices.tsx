@@ -1,8 +1,10 @@
-﻿import React from "react";
+﻿import React, { useState } from "react";
+import addIcon from "../image/加.png";
 import { Official, Profile, Service, Snapshot, ToolId } from "./types";
 import {
   detectProvider,
   protocolNames,
+  providers,
   serviceTemplate,
   tools,
 } from "./catalog";
@@ -35,6 +37,7 @@ export function ModelServices({
   run,
   remove,
 }: Props) {
+  const [choosingProvider, setChoosingProvider] = useState(false);
   const selected = tools.find((t) => t.id === tool)!;
   const activeId =
     tool === "codex" ? current.active_api : current.tool_services?.[tool];
@@ -55,6 +58,94 @@ export function ModelServices({
   }
   return (
     <section className="model-workspace">
+      {choosingProvider && (
+        <div
+          className="modal"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setChoosingProvider(false);
+          }}
+        >
+          <div
+            className="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${selected.name} · 选择供应商`}
+          >
+            <div className="panelhead">
+              <h2>{selected.name} · 选择供应商</h2>
+              <button
+                autoFocus
+                aria-label="关闭"
+                onClick={() => setChoosingProvider(false)}
+              >
+                ×
+              </button>
+            </div>
+            <p className="provider-help">
+              选择账号登录或 API 供应商，配置 {selected.name} 使用的模型服务。
+            </p>
+            <div className="provider-presets">
+              {tool === "codex" && (
+                <button
+                  className="provider-preset"
+                  disabled={busy}
+                  onClick={() => {
+                    setChoosingProvider(false);
+                    onOfficial({
+                      name: "OpenAI Official",
+                      ...data.official[current.id],
+                    });
+                  }}
+                >
+                  <span className="provider-avatar">
+                    <img src={selected.icon} alt="" />
+                  </span>
+                  <span>
+                    <b>OpenAI Official</b>
+                    <small>ChatGPT 官方账号 · 登录或导入 auth.json</small>
+                  </span>
+                  <span className="preset-kind">官方账号</span>
+                </button>
+              )}
+              {providers.map((provider) => {
+                const native = selected.protocols.includes(provider.protocol);
+                return (
+                  <button
+                    key={provider.id}
+                    className="provider-preset"
+                    disabled={busy}
+                    onClick={() => {
+                      setChoosingProvider(false);
+                      onEdit(serviceTemplate(tool, provider.id));
+                    }}
+                  >
+                    <span className="provider-avatar">
+                      {provider.icon ? (
+                        <img src={provider.icon} alt="" />
+                      ) : (
+                        <img src={addIcon} alt="" />
+                      )}
+                    </span>
+                    <span>
+                      <b>{provider.name}</b>
+                      <small>
+                        {provider.id === "custom"
+                          ? "手动配置 API 地址、模型和协议"
+                          : native
+                            ? provider.url
+                            : "需要兼容网关地址"}
+                      </small>
+                    </span>
+                    <span className="preset-kind">
+                      {provider.id === "custom" ? "自定义" : "API Key"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="model-toolbar">
         <div className="tool-switcher" role="tablist" aria-label="板卡 AI 工具">
           {tools.map((t) => (
@@ -63,7 +154,10 @@ export function ModelServices({
               role="tab"
               aria-selected={tool === t.id}
               title={t.name}
-              onClick={() => onTool(t.id)}
+              onClick={() => {
+                if (tool === t.id) setChoosingProvider(true);
+                else onTool(t.id);
+              }}
             >
               <img src={t.icon} alt="" />
               <span>{t.name}</span>
@@ -73,22 +167,10 @@ export function ModelServices({
         <button
           className="primary add-service"
           disabled={busy}
-          onClick={() =>
-            onEdit(
-              serviceTemplate(
-                tool,
-                tool === "claude"
-                  ? "anthropic"
-                  : tool === "gemini"
-                    ? "google"
-                    : tool === "harness"
-                      ? "deepseek"
-                      : "openai",
-              ),
-            )
-          }
+          onClick={() => setChoosingProvider(true)}
         >
-          <span aria-hidden="true">＋</span>添加服务
+          <img src={addIcon} alt="" />
+          添加服务
         </button>
       </div>
       <div className="tool-context">

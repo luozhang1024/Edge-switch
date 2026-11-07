@@ -653,9 +653,45 @@ input[type="checkbox"] {
 .add-service {
   flex-shrink: 0;
 }
-.add-service > span {
-  font-size: 20px;
-  line-height: 1;
+.add-service > img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+.provider-presets {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+}
+.provider-preset {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  text-align: left;
+  background: #fff;
+  border-radius: 12px;
+}
+.provider-preset:hover {
+  border-color: var(--accent);
+  background: #f1f6fe;
+}
+.provider-preset > span:nth-child(2) {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.provider-preset small {
+  color: var(--muted);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.preset-kind {
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
 }
 .tool-context {
   display: flex;

@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { App } from "./App";
 import { version } from "../package.json";
@@ -68,6 +69,34 @@ async function models() {
   fireEvent.click(await screen.findByText("模型服务", { selector: "button" }));
 }
 describe("桌面工作流", () => {
+  it("Codex 添加入口使用图片，供应商首项进入官方账号配置", async () => {
+    await models();
+    const add = screen.getByRole("button", { name: "添加服务" });
+    expect(decodeURI(add.querySelector("img")!.getAttribute("src")!)).toContain(
+      "加.png",
+    );
+    fireEvent.click(add);
+    const dialog = screen.getByRole("dialog", { name: "Codex · 选择供应商" });
+    const choices = within(dialog).getAllByRole("button");
+    expect(choices[1].textContent).toContain("OpenAI Official");
+    fireEvent.click(choices[1]);
+    expect(
+      screen.queryByRole("dialog", { name: "Codex · 选择供应商" }),
+    ).toBeNull();
+    expect(screen.getByText("保存账号")).toBeTruthy();
+    expect(screen.queryByText("保存服务")).toBeNull();
+  });
+  it("点击当前工具标签打开供应商选择，Escape 关闭且不修改配置", async () => {
+    await models();
+    fireEvent.click(screen.getByRole("tab", { name: "Codex" }));
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
+      mocks.invoke.mock.calls.some(
+        ([n]) => n === "save_service" || n === "activate_service",
+      ),
+    ).toBe(false);
+  });
   it("刷新快照不覆盖正在编辑的服务输入", async () => {
     await models();
     fireEvent.click(screen.getByText("编辑", { selector: "button" }));
@@ -207,9 +236,9 @@ describe("桌面工作流", () => {
   it("Codex 选择 DeepSeek 时要求 Responses 网关，不预填不兼容原生接口", async () => {
     await models();
     fireEvent.click(screen.getByText("添加服务", { selector: "button" }));
-    fireEvent.change(screen.getByLabelText("模型供应商"), {
-      target: { value: "deepseek" },
-    });
+    fireEvent.click(
+      screen.getByRole("button", { name: /DeepSeek.*需要兼容网关地址/ }),
+    );
     expect(
       (screen.getByLabelText("HTTPS API 地址") as HTMLInputElement).value,
     ).toBe("");
@@ -222,9 +251,12 @@ describe("桌面工作流", () => {
     await models();
     fireEvent.click(screen.getByRole("tab", { name: "DeepSeek Harness" }));
     fireEvent.click(screen.getByText("添加服务", { selector: "button" }));
-    fireEvent.change(screen.getByLabelText("模型供应商"), {
-      target: { value: "openai" },
-    });
+    expect(
+      screen.queryByRole("button", { name: /OpenAI Official/ }),
+    ).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: /OpenAI \/ ChatGPT API/ }),
+    );
     fireEvent.change(screen.getByLabelText("模型 ID"), {
       target: { value: "test-model" },
     });
@@ -251,6 +283,14 @@ describe("桌面工作流", () => {
     ]) {
       fireEvent.click(screen.getByRole("tab", { name }));
       fireEvent.click(screen.getByText("添加服务", { selector: "button" }));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name:
+            protocol === "anthropic"
+              ? /Anthropic \/ Claude/
+              : /Google \/ Gemini/,
+        }),
+      );
       expect((screen.getByLabelText("协议") as HTMLSelectElement).value).toBe(
         protocol,
       );
