@@ -100,6 +100,8 @@ npm run desktop:build
 
 推送 `v2.*` 标签会触发 Windows 构建和检查，全部通过后自动发布预发布版、附件及校验文件。旧版 Python 代码和回归测试保留用于迁移验证；其构建入口不用于 2.x Release。
 
+Python 回归测试统一位于 [`tests/`](tests/README.md)，在项目根目录运行 `python -m pytest -q`；需要安装 `requirements.txt`、`pytest`，并具备可用的 Windows Tcl/Tk 环境。
+
 ## 反馈
 
 请在 [Issues](https://github.com/luozhang1024/Edge-switch/issues) 附上软件版本、Windows 版本、CPU 架构、具体提示和脱敏日志。程序无法启动时优先附上启动日志；不要上传密钥和账号令牌。

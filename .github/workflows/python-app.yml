@@ -3,10 +3,10 @@
 on:
   push:
     branches: [main]
-    paths: ['workbench/**', 'test_*.py', 'requirements.txt', '.github/workflows/python-app.yml']
+    paths: ['workbench/**', 'tests/**', 'pytest.ini', 'requirements.txt', 'repair.py', 'jsonc_utils.py', '.github/workflows/python-app.yml']
   pull_request:
     branches: [main]
-    paths: ['workbench/**', 'test_*.py', 'requirements.txt', '.github/workflows/python-app.yml']
+    paths: ['workbench/**', 'tests/**', 'pytest.ini', 'requirements.txt', 'repair.py', 'jsonc_utils.py', '.github/workflows/python-app.yml']
   workflow_dispatch:
 
 permissions:
@@ -21,9 +21,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt pytest
-      - name: Run root regression tests (Windows GUI and DPAPI required)
+      - name: Run Python regression tests (Windows GUI and DPAPI required)
         shell: pwsh
         run: |
-          $tests = Get-ChildItem -File test_*.py | ForEach-Object { $_.Name }
-          python -m pytest -q @tests
+          python -m pytest -q
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

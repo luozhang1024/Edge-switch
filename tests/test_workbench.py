@@ -260,7 +260,7 @@ class RemoteTests(unittest.TestCase):
             opener = MagicMock()
             opener.open.side_effect = urllib.error.HTTPError('https://test', status, 'bad', {}, io.BytesIO(b'secret'))
             with patch.object(remote_agent.urllib.request, 'build_opener', return_value=opener):
-                result = remote_agent.api_test(dict(base_url='https://test/v1', key='secret'))
+                result = remote_agent.api_test(dict(base_url='https://test/v1', key='secret', protocol='responses'))
             self.assertFalse(result['ok'])
             self.assertNotIn('secret', str(result))
 
@@ -268,7 +268,7 @@ class RemoteTests(unittest.TestCase):
         opener = MagicMock()
         opener.open.return_value.__enter__.return_value.read.return_value = b'{"data":[]}'
         with patch.object(remote_agent.urllib.request, 'build_opener', return_value=opener):
-            remote_agent.api_test(dict(base_url='https://test', key='key'))
+            remote_agent.api_test(dict(base_url='https://test', key='key', protocol='responses'))
         request = opener.open.call_args.args[0]
         self.assertEqual(request.get_header('User-agent'), 'EdgeSwitch/1.1.3')
         self.assertEqual(request.get_header('Accept'), 'application/json')
@@ -278,7 +278,7 @@ class RemoteTests(unittest.TestCase):
         opener.open.side_effect = urllib.error.HTTPError('https://test', 403, 'Forbidden',
             {'Content-Type': 'text/html'}, io.BytesIO(b'<html>secret-in-page</html>'))
         with patch.object(remote_agent.urllib.request, 'build_opener', return_value=opener):
-            result = remote_agent.api_test(dict(base_url='https://test', key='key'))
+            result = remote_agent.api_test(dict(base_url='https://test', key='key', protocol='responses'))
         self.assertEqual(result['category'], 'gateway')
         self.assertNotIn('secret-in-page', str(result))
 
@@ -288,7 +288,7 @@ class RemoteTests(unittest.TestCase):
         opener.open.side_effect = urllib.error.HTTPError('https://test', 503, 'Unavailable',
             {'Content-Type': 'application/json'}, io.BytesIO(body))
         with patch.object(remote_agent.urllib.request, 'build_opener', return_value=opener):
-            result = remote_agent.api_test(dict(base_url='https://test', key='private-key'))
+            result = remote_agent.api_test(dict(base_url='https://test', key='private-key', protocol='responses'))
         self.assertEqual(result['category'], 'provider_unavailable')
         self.assertIn('模型 ID', result['message'])
         self.assertIn('分组权限', result['message'])
@@ -299,7 +299,7 @@ class RemoteTests(unittest.TestCase):
         opener.open.side_effect = urllib.error.HTTPError('https://test', 401, 'Unauthorized',
             {'Content-Type': 'application/json'}, io.BytesIO(body))
         with patch.object(remote_agent.urllib.request, 'build_opener', return_value=opener):
-            result = remote_agent.api_test(dict(base_url='https://test', key='private-key'))
+            result = remote_agent.api_test(dict(base_url='https://test', key='private-key', protocol='responses'))
         self.assertEqual(result['category'], 'api')
         for secret in ('private-key', 'sk-abcdef', 'other-token'):
             self.assertNotIn(secret, str(result))
@@ -315,7 +315,7 @@ class RemoteTests(unittest.TestCase):
         opener = MagicMock()
         opener.open.return_value.__enter__.return_value.read.return_value = b'{"data": [{"id":"model"}]}'
         with patch.object(remote_agent.urllib.request, 'build_opener', return_value=opener):
-            result = remote_agent.api_test(dict(base_url='https://test', key='key'))
+            result = remote_agent.api_test(dict(base_url='https://test', key='key', protocol='responses'))
         self.assertTrue(result['ok'])
         self.assertEqual(result['models'], ['model'])
         self.assertIn('尚未验证推理', result['message'])
