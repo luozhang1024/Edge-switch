@@ -6,7 +6,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Desktop version check failed' }
     $buildLog = Join-Path $repo 'build/tauri-build.log'
     New-Item -ItemType Directory -Force (Split-Path -Parent $buildLog) | Out-Null
-    & npx.cmd tauri build --bundles nsis 2>&1 | Tee-Object -FilePath $buildLog
+    # Merge native streams before PowerShell 5.1 interprets normal stderr progress as errors.
+    & cmd.exe /d /c 'node_modules\.bin\tauri.cmd build --bundles nsis 2>&1' | Tee-Object -FilePath $buildLog
     if ($LASTEXITCODE -ne 0) {
         if ($env:GITHUB_ACTIONS -eq 'true') {
             $tail = (Get-Content -LiteralPath $buildLog -Tail 35) -join "`n"

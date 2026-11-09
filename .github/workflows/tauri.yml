@@ -3,7 +3,7 @@
 on:
   push:
     branches: [main]
-    tags: ['v2.*']
+    tags: ['v2.*', 'publish/v2.*']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -16,6 +16,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -29,6 +31,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          save-if: 'true'
       - run: npm ci
       - run: npm test
       - run: npm run test:ui
@@ -42,7 +45,14 @@ jobs:
         shell: pwsh
         run: |
           $version = (Get-Content package.json | ConvertFrom-Json).version
-          if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag does not match source version' }
+          $tag = $env:GITHUB_REF_NAME -replace '^publish/', ''
+          if ($tag -ne "v$version") { throw 'Tag does not match source version' }
+          if ($env:GITHUB_REF_NAME.StartsWith('publish/')) {
+            # A retry may repair build scripts, but must preserve the tagged app sources.
+            git diff --exit-code $tag HEAD -- src src-tauri package.json package-lock.json image
+            if ($LASTEXITCODE -ne 0) { throw 'Application sources differ from the release tag' }
+          }
+          "RELEASE_TAG=$tag" >> $env:GITHUB_ENV
       - name: Build installer and portable archive
         run: npm run desktop:build
       - name: Exercise packaged desktop through WebView2
@@ -53,8 +63,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = $env:GITHUB_REF_NAME
-          git archive --format=zip --output="dist/tauri/EdgeSwitch-$($tag.TrimStart('v'))-source.zip" HEAD
+          $tag = $env:RELEASE_TAG
+          git archive --format=zip --output="dist/tauri/EdgeSwitch-$($tag.TrimStart('v'))-source.zip" $tag
           $assets = Get-ChildItem 'dist/tauri' -File | Where-Object { $_.Extension -in '.exe', '.zip' }
           $lines = $assets | ForEach-Object { '{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name }
           [IO.File]::WriteAllLines((Join-Path $PWD 'dist/tauri/SHA256SUMS.txt'), $lines, [Text.UTF8Encoding]::new($false))
