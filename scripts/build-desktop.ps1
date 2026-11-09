@@ -17,4 +17,10 @@ try {
         throw 'Tauri build failed; see build/tauri-build.log'
     }
     & (Join-Path $PSScriptRoot 'package-desktop.ps1')
+} catch {
+    if ($env:GITHUB_ACTIONS -eq 'true') {
+        $details = ($_ | Out-String).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+        Write-Output "::error title=Desktop packaging failed::$details"
+    }
+    throw
 } finally { Pop-Location }
