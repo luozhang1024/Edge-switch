@@ -67,6 +67,7 @@ jobs:
           name: edge-switch-windows-alpha
           path: |
             dist/tauri/*
+            build/tauri-build.log
             build/migration/desktop-*/result.json
             build/migration/desktop-*/*.png
           if-no-files-found: warn
