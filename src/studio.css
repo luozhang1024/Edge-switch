@@ -1120,6 +1120,153 @@
 .auth-state.ready {
   color: #3e8b5c;
 }
+.authorization-center {
+  display: grid;
+  gap: 14px;
+}
+.authorization-heading,
+.authorization-card-heading,
+.authorization-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.authorization-heading {
+  margin-bottom: 4px;
+}
+.authorization-heading h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+.authorization-heading p,
+.authorization-brand small,
+.authorization-context,
+.authorization-card-body p,
+.authorization-tool-status small {
+  color: #858a82;
+  font-size: 11px;
+  line-height: 1.8;
+  margin: 0;
+}
+.authorization-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 14px 18px;
+  background: #eeece1;
+  border-radius: 9px;
+}
+.authorization-context b {
+  color: #5551ff;
+  overflow-wrap: anywhere;
+}
+.authorization-context small {
+  margin-left: auto;
+  font-size: 11px;
+}
+.authorization-card {
+  border: 1px solid #dcded6;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.authorization-card-heading {
+  padding: 16px 18px;
+  border-bottom: 1px solid #dcded6;
+  flex-wrap: wrap;
+}
+.authorization-brand,
+.authorization-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.authorization-brand img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+.authorization-brand h3 {
+  margin: 0 0 3px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.authorization-actions {
+  flex-wrap: wrap;
+}
+.authorization-actions select {
+  width: auto;
+  font-size: 12px;
+}
+.authorization-card-body {
+  padding: 16px 18px;
+}
+.authorization-account-row {
+  margin-bottom: 15px;
+}
+.authorization-account-row > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.authorization-account-row b {
+  font-size: 12px;
+  font-weight: 500;
+}
+.authorization-account-row .auth-state {
+  flex-shrink: 0;
+}
+.authorization-card-body > .settings-note {
+  margin-top: 14px;
+}
+.authorization-section-label {
+  color: #858a82;
+  font-size: 11px;
+  margin-top: 8px;
+}
+.authorization-tool-status {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+}
+:root[data-theme="dark"] .authorization-card,
+:root[data-theme="dark"] .authorization-card-heading {
+  border-color: #505850;
+}
+:root[data-theme="dark"] .authorization-context {
+  background: #303a39;
+}
+:root[data-theme="dark"] .authorization-context b {
+  color: #c6c0ff;
+}
+/* Keep monochrome LobeHub marks legible without recoloring brand colors. */
+:root[data-theme="dark"]
+  img:is(
+    [src*="OpenAI"],
+    [src*="Codex"],
+    [src*="Anthropic"],
+    [src*="OpenCode"],
+    [src*="/codex.svg"],
+    [src*="/codex-"],
+    [src*="/openai.svg"],
+    [src*="/openai-"],
+    [src*="/anthropic.svg"],
+    [src*="/anthropic-"],
+    [src*="/opencode.svg"],
+    [src*="/opencode-"]
+  ) {
+  filter: invert(1);
+}
+@media (max-width: 700px) {
+  .authorization-heading,
+  .authorization-account-row {
+    flex-wrap: wrap;
+  }
+  .authorization-context small {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+}
 .auth-result,
 .update-result {
   background: #eeece1;

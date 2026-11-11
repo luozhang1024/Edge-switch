@@ -228,6 +228,51 @@ try {
     page.getByRole("switch", { name: "关闭时最小化到托盘" }),
   ).toBeChecked();
   await page.screenshot({ path: resolve(output, "settings-general.png") });
+  await page.getByRole("tab", { name: "授权中心", exact: true }).click();
+  await expect(page.locator(".authorization-card")).toHaveCount(5);
+  await expect(
+    page.getByRole("heading", { name: "授权中心", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "ChatGPT 登录方式" }),
+  ).toHaveValue("device");
+  await expect
+    .poll(() =>
+      page
+        .locator(".authorization-brand img")
+        .evaluateAll((images) =>
+          images.every((img) => img.complete && img.naturalWidth > 0),
+        ),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: resolve(output, "authorization-light.png"),
+    fullPage: true,
+  });
+  await page.getByRole("tab", { name: "通用", exact: true }).click();
+  await page.getByRole("button", { name: "☾ 深色", exact: true }).click();
+  await page.getByRole("tab", { name: "授权中心", exact: true }).click();
+  await expect(page.locator(".authorization-brand img").first()).toHaveCSS(
+    "filter",
+    "invert(1)",
+  );
+  await page.screenshot({
+    path: resolve(output, "authorization-dark.png"),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 980, height: 660 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: resolve(output, "authorization-compact.png"),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1180, height: 790 });
+  await page.getByRole("tab", { name: "通用", exact: true }).click();
+  await page.getByRole("button", { name: "☼ 浅色", exact: true }).click();
   await page.getByRole("button", { name: "English", exact: true }).click();
   await expect(
     page.getByRole("tab", { name: "General", exact: true }),

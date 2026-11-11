@@ -4,7 +4,7 @@ import { ActionIcon } from "./ActionIcon";
 import { ScrollList } from "./ScrollList";
 import { ordered, moveItem } from "./listOrder";
 import { defaultProtocol } from "./providerConfig";
-import officialIcon from "../image/providers/openai-official.svg";
+import officialIcon from "../image/providers/openai.svg";
 import addIcon from "../image/加.png";
 import { Official, Profile, Service, Snapshot, ToolId } from "./types";
 import {
@@ -189,7 +189,7 @@ export function ModelServices({
                       ? t("已保存导入凭据")
                       : data.official[current.id]?.remote_authenticated
                         ? t("已确认板卡账号登录")
-                        : t("请先在设置中认证")}
+                        : t("请先在授权中心完成授权")}
                   </small>
                   {data.official[current.id]?.note && (
                     <small>{data.official[current.id]?.note}</small>
@@ -212,8 +212,8 @@ export function ModelServices({
                   {!officialReady && (
                     <button
                       className="authenticate-link"
-                      title={t("前往设置认证")}
-                      aria-label={t("前往设置认证")}
+                      title={t("前往授权中心")}
+                      aria-label={t("前往授权中心")}
                       onClick={onAuthenticate}
                     >
                       <ActionIcon name="login" />
@@ -512,7 +512,7 @@ export function ModelServices({
         <div className="buttons">
           {tool === "codex" && (
             <button disabled={busy} onClick={onAuthenticate}>
-              {t("账号认证设置")}
+              {t("授权中心")}
             </button>
           )}
           <button

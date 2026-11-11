@@ -347,11 +347,18 @@ describe("桌面工作流", () => {
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "前往设置认证" }));
+    fireEvent.click(screen.getByRole("button", { name: "前往授权中心" }));
     expect(
-      screen.getByRole("tab", { name: "认证" }).getAttribute("aria-selected"),
+      screen
+        .getByRole("tab", { name: "授权中心" })
+        .getAttribute("aria-selected"),
     ).toBe("true");
-    fireEvent.click(screen.getByRole("button", { name: "登录 ChatGPT" }));
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "ChatGPT" })).getByRole(
+        "button",
+        { name: "添加账号" },
+      ),
+    );
     await waitFor(() =>
       expect(mocks.invoke).toHaveBeenCalledWith("start_task", {
         profileId: data.selected_profile,
@@ -361,6 +368,54 @@ describe("桌面工作流", () => {
     );
     expect(
       mocks.invoke.mock.calls.some(([name]) => name === "activate_service"),
+    ).toBe(false);
+  });
+  it("授权中心按工具打开终端授权并跳转对应模型列表", async () => {
+    await models();
+    fireEvent.click(screen.getByRole("button", { name: "前往授权中心" }));
+    const claude = screen.getByRole("region", { name: "Claude Code" });
+    fireEvent.click(within(claude).getByRole("button", { name: "添加账号" }));
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith("start_task", {
+        profileId: data.selected_profile,
+        action: "tool_login",
+        payload: { tool: "claude" },
+      }),
+    );
+    expect(within(claude).queryByText("已确认登录")).toBeNull();
+    fireEvent.click(within(claude).getByRole("button", { name: "管理接入" }));
+    expect(
+      screen
+        .getByRole("tab", { name: "Claude Code" })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+  });
+  it("授权中心刷新当前环境，支持选择导入凭据", async () => {
+    await models();
+    fireEvent.click(screen.getByRole("button", { name: "前往授权中心" }));
+    fireEvent.click(screen.getByRole("button", { name: "全部刷新" }));
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith("start_task", {
+        profileId: data.selected_profile,
+        action: "auth_status",
+        payload: {},
+      }),
+    );
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "ChatGPT 登录方式" }),
+      { target: { value: "import" } },
+    );
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "ChatGPT" })).getByRole(
+        "button",
+        { name: "添加账号" },
+      ),
+    );
+    expect(screen.getByRole("button", { name: "选择 auth.json" })).toBeTruthy();
+    expect(
+      mocks.invoke.mock.calls.some(
+        ([name, args]) => name === "start_task" && args.action === "login",
+      ),
     ).toBe(false);
   });
   it("认证状态刷新后可在模型列表启用官方账号", async () => {
@@ -426,7 +481,7 @@ describe("桌面工作流", () => {
           .getByRole("img", { name: "OpenAI Official" })
           .getAttribute("src")!,
       ),
-    ).toContain("#00a67e");
+    ).toContain("OpenAI");
     fireEvent.click(add);
     const dialog = screen.getByRole("dialog", { name: "添加新供应商" });
     expect(within(dialog).getByLabelText("服务名称")).toBeTruthy();

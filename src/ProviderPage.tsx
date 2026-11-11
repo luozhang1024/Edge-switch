@@ -2,7 +2,7 @@ import { t } from "./i18n";
 import React, { useEffect, useRef } from "react";
 import { detectProvider, serviceTemplate, tools } from "./catalog";
 import { Service, ToolId } from "./types";
-import officialIcon from "../image/providers/openai-official.svg";
+import officialIcon from "../image/providers/openai.svg";
 import { cliPresets, defaultProtocol } from "./providerConfig";
 import { ProviderIconUpload } from "./ProviderIconUpload";
 

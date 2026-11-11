@@ -2,6 +2,7 @@ import { t, setLanguage } from "./i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { tools } from "./catalog";
+import chatgptIcon from "../image/providers/openai.svg";
 import {
   defaultPreferences,
   isRunning,
@@ -9,6 +10,7 @@ import {
   Preferences,
   Profile,
   Snapshot,
+  ToolId,
 } from "./types";
 
 export type SettingsTab =
@@ -16,7 +18,7 @@ export type SettingsTab =
 const tabs: [SettingsTab, string][] = [
   ["general", "通用"],
   ["routing", "路由"],
-  ["auth", "认证"],
+  ["auth", "授权中心"],
   ["advanced", "高级"],
   ["usage", "使用统计"],
   ["logs", "日志"],
@@ -33,7 +35,7 @@ type Props = {
   onOfficial: (entry: Official) => void;
   onEdit: () => void;
   onTasks: () => void;
-  onModels: () => void;
+  onModels: (tool?: ToolId) => void;
   checkOnOpen: boolean;
   logs: React.ReactNode;
 };
@@ -75,6 +77,18 @@ export function SettingsPage({
   }, []);
   const account = data.official[current.id];
   const ready = !!(account?.has_credentials || account?.remote_authenticated);
+  const [loginMethod, setLoginMethod] = useState("device");
+  const authRunning = data.tasks.some(
+    (task) =>
+      task.profile_id === current.id &&
+      isRunning(task) &&
+      [
+        "登录官方账号",
+        "检测官方登录状态",
+        "检查官方账号",
+        "打开工具官方登录",
+      ].includes(task.label),
+  );
   const [checking, setChecking] = useState(false);
   const [update, setUpdate] = useState<{
     available: boolean;
@@ -113,7 +127,12 @@ export function SettingsPage({
   const entries = data.tasks.filter((t) => t.profile_id === current.id);
   const lastAuth = entries
     .filter((t) =>
-      ["登录官方账号", "检测官方登录状态", "检查官方账号"].includes(t.label),
+      [
+        "登录官方账号",
+        "检测官方登录状态",
+        "检查官方账号",
+        "打开工具官方登录",
+      ].includes(t.label),
     )
     .at(-1);
   return (
@@ -310,83 +329,195 @@ export function SettingsPage({
           </>
         )}
         {tab === "auth" && (
-          <>
-            <SettingsField
-              title={t("官方账号认证")}
-              description={t(
-                "账号认证按远程工作环境保存。完成授权后，可在模型服务列表中启用官方账号。",
-              )}
-            >
-              <article className="auth-account">
-                <div className="auth-avatar">✳</div>
-                <div>
-                  <h3>OpenAI / ChatGPT</h3>
-                  <p>
-                    {t("用于 Codex CLI ·")}
-                    {current.name}
-                  </p>
-                </div>
-                <span className={`auth-state ${ready ? "ready" : ""}`}>
-                  {account?.remote_authenticated
-                    ? t("已确认登录")
-                    : account?.has_credentials
-                      ? t("已导入凭据")
-                      : t("尚未认证")}
-                </span>
-              </article>
-              <div className="buttons">
-                <button
-                  className="primary"
-                  disabled={busy}
-                  onClick={() => void run("login")}
-                >
-                  {t("登录 ChatGPT")}
-                </button>
-                <button disabled={busy} onClick={() => void run("auth_status")}>
-                  {t("检测已有登录")}
-                </button>
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    onOfficial({ name: "OpenAI Official", ...account })
-                  }
-                >
-                  {t("导入 / 管理 auth.json")}
-                </button>
-                <button disabled={!ready || busy} onClick={onModels}>
-                  {t("前往模型列表启用")}
-                </button>
+          <div className="authorization-center">
+            <header className="authorization-heading">
+              <div>
+                <h2>{t("授权中心")}</h2>
+                <p>{t("管理官方账号授权与工具接入，按工作环境独立保存。")}</p>
               </div>
-              <p className="settings-note">
-                {t(
-                  "首次使用请先在工作环境的 AI 工具中安装 Codex CLI，并配置好 SSH 登录。点击登录后，会打开当前板卡的 SSH 终端。按照终端提示在官方网页完成设备码授权；应用不会收集账号密码。登录过程可在任务记录中查看或取消。",
-                )}
-              </p>
-              {account?.verified_at && (
-                <p className="settings-note">
-                  {t("上次检测：")}
-                  {new Date(account.verified_at * 1000).toLocaleString()}
-                </p>
-              )}
-              {lastAuth && (
-                <div className="auth-result" role="status">
-                  <b>
-                    {lastAuth.label} · {lastAuth.state}
-                  </b>
-                  <p>{lastAuth.message}</p>
-                  <button onClick={onTasks}>{t("查看任务详情")}</button>
+              <button
+                disabled={busy || authRunning}
+                onClick={() => void run("auth_status")}
+              >
+                {authRunning ? t("正在处理…") : t("全部刷新")}
+              </button>
+            </header>
+            <div className="authorization-context">
+              <span>{t("当前工作环境")}</span>
+              <b>{current.name}</b>
+              <small>{t("授权成功后，前往模型服务启用对应账号。")}</small>
+            </div>
+            <section className="authorization-card" aria-label="ChatGPT">
+              <header className="authorization-card-heading">
+                <div className="authorization-brand">
+                  <img src={chatgptIcon} alt="" />
+                  <div>
+                    <h3>ChatGPT</h3>
+                    <small>{t("官方账号 · 用于 Codex CLI")}</small>
+                  </div>
                 </div>
-              )}
-            </SettingsField>
-            <SettingsField
-              title={t("其他工具")}
-              description={t(
-                "Claude Code、Gemini CLI、Harness 与 OpenCode 目前通过模型服务中的 API 供应商配置接入。",
-              )}
-            >
-              <button onClick={onModels}>{t("管理模型服务")}</button>
-            </SettingsField>
-          </>
+                <div className="authorization-actions">
+                  <select
+                    aria-label={t("ChatGPT 登录方式")}
+                    value={loginMethod}
+                    disabled={busy || authRunning}
+                    onChange={(e) => setLoginMethod(e.target.value)}
+                  >
+                    <option value="device">{t("设备码登录")}</option>
+                    <option value="import">{t("导入 auth.json")}</option>
+                  </select>
+                  <button
+                    className="primary"
+                    disabled={busy || authRunning}
+                    onClick={() =>
+                      loginMethod === "import"
+                        ? onOfficial({ name: "OpenAI Official", ...account })
+                        : void run("login")
+                    }
+                  >
+                    {t("添加账号")}
+                  </button>
+                </div>
+              </header>
+              <div className="authorization-card-body">
+                <div className="authorization-account-row">
+                  <div>
+                    <b>
+                      {ready
+                        ? account?.name || "OpenAI Official"
+                        : t("尚未添加 ChatGPT 账号")}
+                    </b>
+                    <p>
+                      {ready
+                        ? account?.note || t("账号授权仅用于当前工作环境。")
+                        : t(
+                            "登录官方账号或导入凭据后，即可使用 ChatGPT 订阅。",
+                          )}
+                    </p>
+                  </div>
+                  <span className={`auth-state ${ready ? "ready" : ""}`}>
+                    {account?.remote_authenticated
+                      ? t("已确认登录")
+                      : account?.has_credentials
+                        ? t("已导入凭据")
+                        : t("未授权")}
+                  </span>
+                </div>
+                <div className="buttons">
+                  <button
+                    disabled={busy || authRunning}
+                    onClick={() => void run("auth_status")}
+                  >
+                    {t("检测已有登录")}
+                  </button>
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      onOfficial({ name: "OpenAI Official", ...account })
+                    }
+                  >
+                    {t("管理凭据")}
+                  </button>
+                  <button
+                    disabled={!ready || busy}
+                    onClick={() => onModels("codex")}
+                  >
+                    {t("前往模型列表启用")}
+                  </button>
+                </div>
+                <p className="settings-note">
+                  {t(
+                    "首次使用请先安装远程 Codex CLI 并配置 SSH。设备码登录会打开板卡的 SSH 终端，请按提示在浏览器中完成授权。每个工作环境保存一份 ChatGPT 授权，重新登录或导入会替换已有凭据。",
+                  )}
+                </p>
+                {account?.verified_at && (
+                  <p className="settings-note">
+                    {t("上次检测：")}
+                    {new Date(account.verified_at * 1000).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            </section>
+            <div className="authorization-section-label">
+              {t("其他工具接入")}
+            </div>
+            {tools
+              .filter((tool) => tool.id !== "codex")
+              .map((tool) => {
+                const services = (data.services[current.id] || []).filter(
+                  (service) =>
+                    service.scope === "universal" ||
+                    (service.tool || "codex") === tool.id,
+                );
+                return (
+                  <section
+                    className="authorization-card"
+                    key={tool.id}
+                    aria-label={tool.name}
+                  >
+                    <header className="authorization-card-heading">
+                      <div className="authorization-brand">
+                        <img src={tool.icon} alt="" />
+                        <div>
+                          <h3>{tool.name}</h3>
+                          <small>
+                            {t(
+                              tool.id === "harness"
+                                ? "API 供应商接入"
+                                : "终端授权 / API 供应商接入",
+                            )}
+                          </small>
+                        </div>
+                      </div>
+                      <div className="authorization-actions">
+                        {tool.id !== "harness" && (
+                          <button
+                            disabled={busy || authRunning}
+                            onClick={() =>
+                              void run("tool_login", { tool: tool.id })
+                            }
+                          >
+                            {t("添加账号")}
+                          </button>
+                        )}
+                        <button
+                          disabled={busy}
+                          onClick={() => onModels(tool.id)}
+                        >
+                          {t("管理接入")}
+                        </button>
+                      </div>
+                    </header>
+                    <div className="authorization-card-body authorization-tool-status">
+                      <span>
+                        {t(
+                          services.length
+                            ? "已配置供应商"
+                            : "尚未配置 API 供应商",
+                        )}
+                        {services.length > 0 && ` · ${services.length}`}
+                      </span>
+                      <small>
+                        {t(
+                          tool.id === "harness"
+                            ? "通过模型服务配置 API Key，统一供应商可供多个工具复用。"
+                            : "官方账号请在板卡终端完成授权，登录状态以工具提示为准；API 供应商可在模型服务中管理。",
+                        )}
+                      </small>
+                    </div>
+                  </section>
+                );
+              })}
+            {lastAuth && (
+              <div className="auth-result" role="status">
+                <b>
+                  {t(lastAuth.label)} · {t(lastAuth.state)}
+                </b>
+                <p>{lastAuth.message}</p>
+                <button onClick={onTasks}>{t("查看任务详情")}</button>
+              </div>
+            )}
+          </div>
         )}
         {tab === "advanced" && (
           <>

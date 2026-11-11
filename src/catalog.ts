@@ -1,4 +1,4 @@
-import codex from "../image/providers/openai.svg";
+import codex from "../image/providers/codex.svg";
 import claude from "../image/providers/claude-color.svg";
 import deepseek from "../image/providers/deepseek-color.svg";
 import gemini from "../image/providers/gemini-color.svg";

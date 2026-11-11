@@ -450,8 +450,8 @@ export function App() {
                     setSettingsTab("logs");
                     setTab("settings");
                   }}
-                  onModels={() => {
-                    setModelTool("codex");
+                  onModels={(tool = "codex") => {
+                    setModelTool(tool);
                     setTab("models");
                   }}
                   checkOnOpen={checkOnOpen}
@@ -1070,7 +1070,7 @@ export function App() {
               <b>auth.json (JSON)</b>
               <p className="provider-help">
                 {t(
-                  "导入官方 OAuth 凭据，或在“设置 → 认证”中完成设备码登录。凭据在本机加密保存，同步时写入远程设备。",
+                  "导入官方 OAuth 凭据，或在“设置 → 授权中心”中完成设备码登录。凭据在本机加密保存，同步时写入远程设备。",
                 )}
               </p>
               <button
