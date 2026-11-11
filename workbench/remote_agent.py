@@ -823,6 +823,43 @@ os.execve(binary,[binary]+sys.argv[1:],env)
 '''
 
 
+def harness_account_read(p):
+    """Native credentials stay inside backend RPC; never include them in task results."""
+    path = scope(p) / 'harness-home/.credentials.yaml'
+    text = path.read_text(encoding='utf-8') if path.is_file() else ''
+    return dict(credentials=text, hash=hashlib.sha256(text.encode('utf-8')).hexdigest())
+
+
+def harness_account_write(p):
+    """CAS under the native exclusive-create lock; preserve other records via backend merge."""
+    root = scope(p)
+    if service_module().status(root).get('running'):
+        raise ValueError('Harness 正在运行，请先停止再切换账号通道')
+    path = root / 'harness-home/.credentials.yaml'
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    lock = path.with_name(path.name + '.lock')
+    try:
+        fd = os.open(str(lock), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        raise ValueError('板卡 Harness 正在写入凭据，请稍后重试') from None
+    try:
+        with os.fdopen(fd, 'w') as stream:
+            stream.write(str(os.getpid()) + '\n')
+        old = harness_account_read(p)
+        if old['hash'] != p.get('expected_hash'):
+            raise ValueError('板卡账号凭据已变化，请刷新后重新同步')
+        text = p.get('credentials', '')
+        if not isinstance(text, str) or not text or len(text.encode('utf-8')) > 4 * 1024 * 1024:
+            raise ValueError('Harness 凭据内容无效')
+        private_write(path, text)
+        # Remove only our API override; native Harness selects its account provider.
+        for name in ('harness-api.json', 'harness-provider.patch.yml'):
+            (root / name).unlink(missing_ok=True)
+    finally:
+        lock.unlink()
+    return dict(message='已同步 Harness 原生账号授权并启用账号通道')
+
+
 def harness_prepare(p):
     root = scope(p)
     if not (root / 'tools/harness/current.json').is_file():
@@ -1047,6 +1084,7 @@ def main():
     action = p['action']
     actions = dict(diagnose=diagnose, vscode_server=vscode_server, prepare_ide=prepare_ide, reuse_tools=reuse_tools, api_test=api_test, install_runtime=install_runtime,
                    install_tool=install_tool, configure_tool=configure_tool, configure=configure, configure_ide=configure_ide, codex_auth_status=codex_auth_status, import_official_auth=import_official_auth, official_test=official_test,
+                   harness_account_read=harness_account_read, harness_account_write=harness_account_write,
                    harness_prepare=harness_prepare, harness_start=harness_start,
                    harness_status=harness_status, harness_stop=harness_stop)
     if action == 'prepare':

@@ -1,3 +1,4 @@
+mod accounts;
 mod editor;
 mod ordering;
 mod providers;
@@ -382,7 +383,7 @@ async fn activate_service(
                 p.tool_services.insert(tool.into(), "official".into());
             } else if tool == "codex" {
                 if !s.official_ready(&p) {
-                    return Err("请先在设置 → 认证中登录官方账号或导入凭据".into());
+                    return Err("请先在设置 → 授权中心中登录官方账号或导入凭据".into());
                 }
                 p.codex_auth = "chatgpt".into();
             } else {
@@ -692,6 +693,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            accounts::local_harness_account,
             settings::save_preferences,
             settings::autostart_status,
             settings::check_update,

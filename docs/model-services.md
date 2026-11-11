@@ -32,6 +32,18 @@ Codex 使用 DeepSeek 等模型时，需要供应商或中转网关提供 Respon
 
 ## 使用流程
 
+### 授权中心与账号模型
+
+“设置 → 授权中心”的 ChatGPT 卡片提供**浏览器登录**与**设备码登录**两种方式。浏览器登录使用本机 `localhost:1455/auth/callback` 接收官方 OAuth 回调，以 PKCE S256 和 state 校验交换授权，凭据通过 Windows DPAPI 加密保存在发起登录的工作环境中；同步时才写到板卡。1455 端口被其他程序占用时会明确报错，可选择设备码登录。设备码登录仍通过远程 Codex CLI 与 SSH 终端完成。导入 `auth.json` 位于单独的“导入 / 管理 auth.json”入口，不是第三种登录方式。
+
+DeepSeek Harness 卡片自动读取 Edge Switch 进程继承的 `$DSH_HOME/.credentials.yaml`，未设置时读取 `~/.dsh/.credentials.yaml`，识别 `records["deepseek-account-platform/default"]` 中的原生账号授权。本机 Harness Web/Desktop 中登录的账号可直接被识别，不需要导出密钥；打开页面、切回应用、任务结束后及每 30 秒刷新一次，可查看账号、充值余额与赠金余额。网络错误和授权失效分别显示，不把无法查询余额当作已退出登录。
+
+点击“添加账号”使用 DeepSeek 平台原生浏览器授权流程（PKCE S256，本机回调，取消时尽力撤回授权请求），成功后写入同一份原生凭据，保留其他 records 与 API Key refs。平台账号请求仅发往 `https://platform.deepseek.com`，携带 `x-dsh-auth-token`，不跟随重定向；渲染界面不会收到账号令牌。
+
+点击“同步账号到当前板卡并启用”，将本机账号 grant 写入该工作环境独立的 `harness-home/.credentials.yaml`，保留板卡上其他 records 与 refs。写入核对读取时的内容哈希并使用 Harness 原生 `.lock` 锁，拒绝覆盖并发修改；Harness 运行中需先停止。同步同时移除 Edge Switch 自己的 API 覆盖配置，选择该环境的 Harness 官方账号通道，不修改原生 profile。随后打开 Harness，选择 DeepSeek 账号模型即可使用该账号额度。账号授权**不是普通 API Key**，不会写入统一 API 供应商，也不会声称能直接用于 Codex 等其他工具。切回 API 模式仍在模型服务列表中启用对应供应商。
+
+实现协议与原生格式参考仓库内 `cc-switch-reference` 的 `services/dsh_account.rs`、`dsh_config.rs`、`codex_oauth_auth/browser.rs` 以及 `docs/deepseek-harness-integration-zh.md`。参考项目不随 Edge Switch 源码或安装包打包。
+
 1. 创建工作环境，或悬停具体环境后点击“编辑”。在“SSH 与网络”中配置板卡与代理，在“AI 工具”中查询版本、安装独立 Node.js 和所需工具。
 2. 进入模型服务，选择 Codex、Claude Code、DeepSeek Harness、Gemini CLI 或 OpenCode。
 3. 添加服务，选择 CLI 或统一 New API 供应商，填写 API 请求地址、准确的模型名称和对应 API Key。
@@ -39,7 +51,7 @@ Codex 使用 DeepSeek 等模型时，需要供应商或中转网关提供 Respon
 5. 展开列表下方的“验证与同步”，点击“连通性检查”读取模型列表；部分网关不提供模型列表，可以手填模型名称。推理验证会先提示可能消耗额度，确认后才发出最小请求；它不代表完整工具调用兼容性已验证。任务会自动弹出进度、结果或错误，也可在“设置 → 日志”中回看。
 6. 点击“同步到板卡”，再点击“打开”启动工具。启动也会先检查并同步所选配置。
 
-首次使用时，各 CLI 默认展示自己的官方入口：Codex 为 OpenAI Official，Claude Code 为 Claude Official，Gemini CLI 为 Gemini Official，OpenCode 为 OpenCode Zen。Codex 在“设置 → 认证”中登录或导入凭据；其他工具点击官方卡片的登录图标，在板卡终端按提示授权。打开登录终端并不代表授权完成。各工具的官方登录与自定义 API 使用独立目录，切换后保留凭据。Harness 默认展示待配置的 DeepSeek API，填写模型和 API Key 后使用；已有供应商不会被清除。
+首次使用时，各 CLI 默认展示自己的官方入口：Codex 为 OpenAI Official，Claude Code 为 Claude Official，Gemini CLI 为 Gemini Official，OpenCode 为 OpenCode Zen。Codex 在“设置 → 授权中心”中选择浏览器或设备码登录，也可单独导入凭据；其他工具点击官方卡片的登录图标，在板卡终端按提示授权。打开登录终端并不代表授权完成。各工具的官方登录与自定义 API 使用独立目录，切换后保留凭据。Harness 的账号入口可跳转授权中心，识别并同步本机账号；普通 DeepSeek API 接入仍需填写模型和 API Key，已有供应商不会被清除。
 
 Harness 多供应商设置要求 **0.2.2 或更新版本**。当前适配器不提供 Gemini 原生自定义路由；需要使用 Gemini CLI、OpenCode，或为 Harness 选择兼容的 OpenAI 网关。Harness 运行期间更换配置会被拒绝，请先在具体工作环境的“编辑 → AI 工具”中停止 Harness，再同步并重新打开，避免中断现有任务；配置不变时可以重新打开现有网页。
 
@@ -57,4 +69,4 @@ Harness 通过独立 `--patch` 配置多供应商适配器和默认模型，不�
 
 配置格式参考 [Claude Code settings](https://code.claude.com/docs/en/settings)、[Gemini CLI configuration](https://geminicli.com/docs/reference/configuration/)、[OpenCode providers](https://opencode.ai/docs/providers/) 及发布到 npm 的 `@deepseek-ai/dsh`、`@deepseek-ai/dsh-base`、`@deepseek-ai/dsh-llm-pi-ai` 0.2.2-rc.1 文档。Codex 延续已有的 Responses 配置与官方账号隔离实现。
 
-本地回归覆盖工具服务隔离、配置生成、原生协议测试请求、密钥边界与桌面交互。未使用真实 API Key 调用付费模型，未连接真实板卡；真实供应商的模型权限、流式响应、工具调用以及不同 Linux 架构上的安装仍需实机验证。
+本地回归覆盖工具服务隔离、配置生成、原生协议测试请求、密钥边界与桌面交互。授权中心新增回调 state 校验、原生凭据合并与并发写入保护、账号识别与余额展示测试；另外使用本机已登录的 Harness 账号实际完成一次只读资料和余额查询。未使用真实账号或 API Key 调用付费模型，未连接真实板卡；首次浏览器授权的人工确认、真实供应商的模型权限、流式响应、工具调用以及不同 Linux 架构上的安装仍需实机验证。

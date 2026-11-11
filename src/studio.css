@@ -1229,6 +1229,24 @@
   gap: 5px;
   font-size: 12px;
 }
+.harness-wallets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 14px 0;
+  font-size: 12px;
+}
+.harness-wallets small {
+  color: #858a82;
+  font-size: 11px;
+}
+.harness-model-account {
+  margin-bottom: 18px;
+}
+.harness-model-account p {
+  margin: 5px 0 0;
+}
 :root[data-theme="dark"] .authorization-card,
 :root[data-theme="dark"] .authorization-card-heading {
   border-color: #505850;

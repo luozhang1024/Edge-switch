@@ -353,6 +353,10 @@ describe("桌面工作流", () => {
         .getByRole("tab", { name: "授权中心" })
         .getAttribute("aria-selected"),
     ).toBe("true");
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "ChatGPT 登录方式" }),
+      { target: { value: "device" } },
+    );
     fireEvent.click(
       within(screen.getByRole("region", { name: "ChatGPT" })).getByRole(
         "button",
@@ -390,7 +394,7 @@ describe("桌面工作流", () => {
         .getAttribute("aria-selected"),
     ).toBe("true");
   });
-  it("授权中心刷新当前环境，支持选择导入凭据", async () => {
+  it("ChatGPT 默认浏览器登录，导入凭据保留在独立管理入口", async () => {
     await models();
     fireEvent.click(screen.getByRole("button", { name: "前往授权中心" }));
     fireEvent.click(screen.getByRole("button", { name: "全部刷新" }));
@@ -401,15 +405,29 @@ describe("桌面工作流", () => {
         payload: {},
       }),
     );
-    fireEvent.change(
-      screen.getByRole("combobox", { name: "ChatGPT 登录方式" }),
-      { target: { value: "import" } },
-    );
+    const method = screen.getByRole("combobox", {
+      name: "ChatGPT 登录方式",
+    }) as HTMLSelectElement;
+    expect(method.value).toBe("browser");
+    expect(Array.from(method.options).map((o) => o.value)).toEqual([
+      "browser",
+      "device",
+    ]);
     fireEvent.click(
       within(screen.getByRole("region", { name: "ChatGPT" })).getByRole(
         "button",
         { name: "添加账号" },
       ),
+    );
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith("start_task", {
+        profileId: data.selected_profile,
+        action: "login_browser",
+        payload: {},
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "导入 / 管理 auth.json" }),
     );
     expect(screen.getByRole("button", { name: "选择 auth.json" })).toBeTruthy();
     expect(
@@ -417,6 +435,70 @@ describe("桌面工作流", () => {
         ([name, args]) => name === "start_task" && args.action === "login",
       ),
     ).toBe(false);
+  });
+  it("自动识别本机 Harness 账号和余额，同步使用原生账号通道", async () => {
+    const original = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (name, args) =>
+      name === "local_harness_account"
+        ? {
+            signed_in: true,
+            name: "Harness 用户",
+            contact: "191****96",
+            wallets: [{ currency: "CNY", balance: "11.08" }],
+            bonus_wallets: [],
+            checked_at: 1800000000,
+          }
+        : original(name, args),
+    );
+    await models();
+    fireEvent.click(screen.getByRole("button", { name: "前往授权中心" }));
+    expect(await screen.findByText("Harness 用户")).toBeTruthy();
+    expect(screen.getByText("11.08 CNY")).toBeTruthy();
+    const harness = screen.getByRole("region", { name: "DeepSeek Harness" });
+    expect(within(harness).queryByRole("combobox")).toBeNull();
+    fireEvent.click(within(harness).getByRole("button", { name: "添加账号" }));
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith("start_task", {
+        profileId: data.selected_profile,
+        action: "harness_login",
+        payload: {},
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "同步账号到当前板卡并启用" }),
+    );
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith("start_task", {
+        profileId: data.selected_profile,
+        action: "harness_account_sync",
+        payload: {},
+      }),
+    );
+    expect(
+      mocks.invoke.mock.calls.some(([name]) => name === "save_service"),
+    ).toBe(false);
+  });
+  it("失效的 Harness 授权不能同步到板卡", async () => {
+    const original = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (name, args) =>
+      name === "local_harness_account"
+        ? {
+            signed_in: true,
+            expired: true,
+            error: "账号授权已失效，请重新登录",
+          }
+        : original(name, args),
+    );
+    await models();
+    fireEvent.click(screen.getByRole("button", { name: "前往授权中心" }));
+    expect(await screen.findByText("授权已失效")).toBeTruthy();
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "同步账号到当前板卡并启用",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
   });
   it("认证状态刷新后可在模型列表启用官方账号", async () => {
     await models();

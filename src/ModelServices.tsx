@@ -52,7 +52,9 @@ export function ModelServices({
   const official =
     tool === "codex"
       ? current.codex_auth === "chatgpt"
-      : tool !== "harness" && (!activeId || activeId === "official");
+      : tool === "harness"
+        ? activeId === "official"
+        : !activeId || activeId === "official";
   const officialReady = !!(
     data.official[current.id]?.has_credentials ||
     data.official[current.id]?.remote_authenticated
@@ -65,7 +67,7 @@ export function ModelServices({
     claude: "Claude Official",
     gemini: "Gemini Official",
     opencode: "OpenCode Zen",
-    harness: "DeepSeek API",
+    harness: "DeepSeek 账号",
   }[tool];
   const rows = ordered(
     [
@@ -159,6 +161,32 @@ export function ModelServices({
           <span className="sr-only">{t("添加服务")}</span>
         </button>
       </div>
+      {tool === "harness" && (
+        <section
+          className="authorization-context harness-model-account"
+          aria-label={t("DeepSeek 账号通道")}
+        >
+          <img src={selected.icon} alt="" width="24" height="24" />
+          <div>
+            <b>{t("DeepSeek 账号")}</b>
+            <p>
+              {t(
+                official
+                  ? "当前板卡已选择账号通道"
+                  : "可在授权中心识别本机 Harness 账号，并同步到当前板卡使用账号模型。",
+              )}
+            </p>
+          </div>
+          <button disabled={busy} onClick={onAuthenticate}>
+            {t("授权中心")}
+          </button>
+          {official && (
+            <button disabled={busy} onClick={() => void run("harness")}>
+              {t("打开 Harness")}
+            </button>
+          )}
+        </section>
+      )}
       <ScrollList className="service-list" label={t("供应商列表")}>
         {rows.map((s) => {
           if (s.id === "official" && tool === "codex")
@@ -517,9 +545,15 @@ export function ModelServices({
           )}
           <button
             disabled={
-              busy || (official && tool !== "codex") || (!official && !active)
+              busy ||
+              (official && tool !== "codex" && tool !== "harness") ||
+              (!official && !active)
             }
-            onClick={() => void run("sync_api", { tool })}
+            onClick={() =>
+              official && tool === "harness"
+                ? void run("harness_account_sync")
+                : void run("sync_api", { tool })
+            }
           >
             {t("同步到板卡")}
           </button>

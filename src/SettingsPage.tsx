@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { tools } from "./catalog";
 import chatgptIcon from "../image/providers/openai.svg";
+import { HarnessAccount } from "./HarnessAccount";
 import {
   defaultPreferences,
   isRunning,
@@ -77,7 +78,8 @@ export function SettingsPage({
   }, []);
   const account = data.official[current.id];
   const ready = !!(account?.has_credentials || account?.remote_authenticated);
-  const [loginMethod, setLoginMethod] = useState("device");
+  const [loginMethod, setLoginMethod] = useState("browser");
+  const [accountRefresh, setAccountRefresh] = useState(0);
   const authRunning = data.tasks.some(
     (task) =>
       task.profile_id === current.id &&
@@ -87,6 +89,9 @@ export function SettingsPage({
         "检测官方登录状态",
         "检查官方账号",
         "打开工具官方登录",
+        "ChatGPT 浏览器登录",
+        "DeepSeek 账号登录",
+        "同步 DeepSeek 账号",
       ].includes(task.label),
   );
   const [checking, setChecking] = useState(false);
@@ -132,6 +137,9 @@ export function SettingsPage({
         "检测官方登录状态",
         "检查官方账号",
         "打开工具官方登录",
+        "ChatGPT 浏览器登录",
+        "DeepSeek 账号登录",
+        "同步 DeepSeek 账号",
       ].includes(t.label),
     )
     .at(-1);
@@ -337,7 +345,10 @@ export function SettingsPage({
               </div>
               <button
                 disabled={busy || authRunning}
-                onClick={() => void run("auth_status")}
+                onClick={() => {
+                  setAccountRefresh((v) => v + 1);
+                  void run("auth_status");
+                }}
               >
                 {authRunning ? t("正在处理…") : t("全部刷新")}
               </button>
@@ -363,16 +374,16 @@ export function SettingsPage({
                     disabled={busy || authRunning}
                     onChange={(e) => setLoginMethod(e.target.value)}
                   >
+                    <option value="browser">{t("浏览器登录")}</option>
                     <option value="device">{t("设备码登录")}</option>
-                    <option value="import">{t("导入 auth.json")}</option>
                   </select>
                   <button
                     className="primary"
                     disabled={busy || authRunning}
                     onClick={() =>
-                      loginMethod === "import"
-                        ? onOfficial({ name: "OpenAI Official", ...account })
-                        : void run("login")
+                      void run(
+                        loginMethod === "browser" ? "login_browser" : "login",
+                      )
                     }
                   >
                     {t("添加账号")}
@@ -416,7 +427,7 @@ export function SettingsPage({
                       onOfficial({ name: "OpenAI Official", ...account })
                     }
                   >
-                    {t("管理凭据")}
+                    {t("导入 / 管理 auth.json")}
                   </button>
                   <button
                     disabled={!ready || busy}
@@ -427,7 +438,7 @@ export function SettingsPage({
                 </div>
                 <p className="settings-note">
                   {t(
-                    "首次使用请先安装远程 Codex CLI 并配置 SSH。设备码登录会打开板卡的 SSH 终端，请按提示在浏览器中完成授权。每个工作环境保存一份 ChatGPT 授权，重新登录或导入会替换已有凭据。",
+                    "浏览器登录在本机打开官方授权网页，完成后加密保存到当前工作环境；设备码登录通过板卡 SSH 终端完成。每个工作环境保存一份 ChatGPT 授权，凭据导入可在管理入口中操作。",
                   )}
                 </p>
                 {account?.verified_at && (
@@ -438,11 +449,18 @@ export function SettingsPage({
                 )}
               </div>
             </section>
+            <HarnessAccount
+              busy={busy || authRunning}
+              active={current.tool_services?.harness === "official"}
+              refreshKey={`${current.id}:${accountRefresh}:${data.tasks.map((task) => `${task.id}:${task.state}`).join(",")}`}
+              run={run}
+              onModels={() => onModels("harness")}
+            />
             <div className="authorization-section-label">
               {t("其他工具接入")}
             </div>
             {tools
-              .filter((tool) => tool.id !== "codex")
+              .filter((tool) => tool.id !== "codex" && tool.id !== "harness")
               .map((tool) => {
                 const services = (data.services[current.id] || []).filter(
                   (service) =>

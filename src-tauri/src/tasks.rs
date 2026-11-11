@@ -60,6 +60,9 @@ pub async fn start_task(
         "ssh_console" => "打开 SSH 终端",
         "codex" => "打开 Codex",
         "login" => "登录官方账号",
+        "login_browser" => "ChatGPT 浏览器登录",
+        "harness_login" => "DeepSeek 账号登录",
+        "harness_account_sync" => "同步 DeepSeek 账号",
         "auth_status" => "检测官方登录状态",
         "tool_login" => "打开工具官方登录",
         "harness" => "打开 Harness",
@@ -269,6 +272,9 @@ async fn configure_tool(
     scope: &str,
     tool: &str,
 ) -> Result<Value, String> {
+    if tool == "harness" && p.tool_services.get(tool).is_some_and(|id| id == "official") {
+        return crate::accounts::sync_harness(core, p, scope).await;
+    }
     if ["claude", "gemini", "opencode"].contains(&tool)
         && p.tool_services.get(tool).is_none_or(|id| id == "official")
     {
@@ -393,6 +399,9 @@ async fn execute(
     v: Value,
 ) -> Result<Value, String> {
     match action {
+        "login_browser" => crate::accounts::chatgpt_browser(&core, p).await,
+        "harness_login" => crate::accounts::harness_browser().await,
+        "harness_account_sync" => crate::accounts::sync_harness(&core, p, scope).await,
         "diagnose" => core.call(p, scope, "diagnose", json!({}), 60).await,
         "versions" => crate::editor::versions(p).await,
         "install_runtime" => crate::editor::install_runtime(&core, app, id, p, scope).await,
@@ -635,7 +644,10 @@ async fn harness(
     p: &Profile,
     scope: &str,
 ) -> Result<Value, String> {
-    if p.tool_services.contains_key("harness") {
+    if p.tool_services
+        .get("harness")
+        .is_some_and(|v| v != "official")
+    {
         configure_tool(core, p, scope, "harness").await?;
     }
     let mut info = core

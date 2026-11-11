@@ -76,6 +76,15 @@ try {
         return id;
       },
       async invoke(name, args = {}) {
+        if (name === "local_harness_account")
+          return {
+            signed_in: true,
+            name: "Harness 用户",
+            contact: "191****96",
+            wallets: [{ currency: "CNY", balance: "11.08" }],
+            bonus_wallets: [],
+            checked_at: 1800000000,
+          };
         if (name === "snapshot") return structuredClone(snapshot);
         if (name === "connection_status") return {};
         if (name === "plugin:event|listen") {
@@ -235,7 +244,8 @@ try {
   ).toBeVisible();
   await expect(
     page.getByRole("combobox", { name: "ChatGPT 登录方式" }),
-  ).toHaveValue("device");
+  ).toHaveValue("browser");
+  await expect(page.getByText("11.08 CNY")).toBeVisible();
   await expect
     .poll(() =>
       page
@@ -249,6 +259,12 @@ try {
     path: resolve(output, "authorization-light.png"),
     fullPage: true,
   });
+  await page
+    .getByRole("region", { name: "DeepSeek Harness", exact: true })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: resolve(output, "authorization-harness-light.png"),
+  });
   await page.getByRole("tab", { name: "通用", exact: true }).click();
   await page.getByRole("button", { name: "☾ 深色", exact: true }).click();
   await page.getByRole("tab", { name: "授权中心", exact: true }).click();
@@ -259,6 +275,12 @@ try {
   await page.screenshot({
     path: resolve(output, "authorization-dark.png"),
     fullPage: true,
+  });
+  await page
+    .getByRole("region", { name: "DeepSeek Harness", exact: true })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: resolve(output, "authorization-harness-dark.png"),
   });
   await page.setViewportSize({ width: 980, height: 660 });
   await expect
