@@ -15,9 +15,15 @@ export function ActionIcon({
     | "logs"
     | "login"
     | "launch"
-    | "upgrade";
+    | "upgrade"
+    | "terminal"
+    | "authorization"
+    | "usage";
 }) {
   const paths = {
+    terminal: "M3 4h18v16H3ZM7 9l3 3-3 3M13 15h4",
+    authorization: "M12 3 3 7v5c0 5 9 9 9 9s9-4 9-9V7ZM8 12l3 3 5-6",
+    usage: "M4 3v18h17M8 16v-5M13 16V6M18 16V9",
     login: "M14 3h7v18h-7M3 12h13M11 7l5 5-5 5",
     launch: "M14 3h7v7M21 3 10 14M10 3H3v18h18v-7",
     logs: "M6 3h9l4 4v14H5V3ZM14 3v5h5M8 12h8M8 16h8",

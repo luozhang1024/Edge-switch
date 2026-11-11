@@ -15,13 +15,11 @@ import {
 } from "./types";
 
 export type SettingsTab =
-  "general" | "routing" | "auth" | "advanced" | "usage" | "logs" | "about";
+  "general" | "routing" | "auth" | "advanced" | "logs" | "about";
 const tabs: [SettingsTab, string][] = [
   ["general", "通用"],
   ["routing", "路由"],
-  ["auth", "授权中心"],
   ["advanced", "高级"],
-  ["usage", "使用统计"],
   ["logs", "日志"],
   ["about", "关于"],
 ];
@@ -145,22 +143,32 @@ export function SettingsPage({
     .at(-1);
   return (
     <section className="settings-page">
-      <div className="settings-tabs" role="tablist" aria-label={t("设置分类")}>
-        {tabs.map(([id, label]) => (
-          <button
-            key={id}
-            role="tab"
-            aria-selected={tab === id}
-            onClick={() => onTab(id)}
-          >
-            {t(label)}
-          </button>
-        ))}
-      </div>
+      {tab !== "auth" && (
+        <div
+          className="settings-tabs"
+          role="tablist"
+          aria-label={t("设置分类")}
+        >
+          {tabs.map(([id, label]) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => onTab(id)}
+            >
+              {t(label)}
+            </button>
+          ))}
+        </div>
+      )}
       <div
         className="settings-content"
         role="tabpanel"
-        aria-label={t(tabs.find(([id]) => id === tab)?.[1] || "")}
+        aria-label={t(
+          tab === "auth"
+            ? "授权中心"
+            : tabs.find(([id]) => id === tab)?.[1] || "",
+        )}
       >
         {tab === "logs" && logs}
         {tab === "general" && (
@@ -577,34 +585,6 @@ export function SettingsPage({
                   {t("查询工具版本")}
                 </button>
               </div>
-            </SettingsField>
-          </>
-        )}
-        {tab === "usage" && (
-          <>
-            <SettingsField
-              title={t("本次运行的任务统计")}
-              description={t(
-                `仅统计当前程序启动后 ${current.name} 的任务；不代表供应商 Token 用量或账单。`,
-              )}
-            >
-              <div className="usage-counters">
-                {[
-                  ["总任务", entries.length],
-                  [
-                    "已完成",
-                    entries.filter((t) => t.state === "已完成").length,
-                  ],
-                  ["进行中", entries.filter(isRunning).length],
-                  ["失败", entries.filter((t) => t.state === "失败").length],
-                ].map(([label, count]) => (
-                  <div key={label}>
-                    <strong>{count}</strong>
-                    <span>{t(String(label))}</span>
-                  </div>
-                ))}
-              </div>
-              <button onClick={onTasks}>{t("查看任务记录")}</button>
             </SettingsField>
           </>
         )}

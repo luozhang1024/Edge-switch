@@ -2,6 +2,9 @@ import { t } from "./i18n";
 import React, { useState } from "react";
 import { Preferences, Profile, ToolId } from "./types";
 import { ScrollList } from "./ScrollList";
+import { tools } from "./catalog";
+import vscodeIcon from "../image/Vscode.png";
+import { ActionIcon } from "./ActionIcon";
 
 export function RecordPlayer({
   current,
@@ -70,13 +73,18 @@ export function RecordPlayer({
                 className={`track-art track-art-${number}`}
                 aria-hidden="true"
               >
-                {number === "01"
-                  ? "✳"
-                  : number === "02"
-                    ? "⌘"
-                    : number === "03"
-                      ? "≈"
-                      : "›_"}
+                {action === "ssh_console" ? (
+                  <ActionIcon name="terminal" />
+                ) : (
+                  <img
+                    src={
+                      action === "vscode"
+                        ? vscodeIcon
+                        : tools.find((tool) => tool.id === action)?.icon
+                    }
+                    alt=""
+                  />
+                )}
               </span>
               <span className="track-title">
                 <b>{t(name)}</b>

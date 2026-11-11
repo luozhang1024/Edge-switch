@@ -86,6 +86,48 @@ try {
             checked_at: 1800000000,
           };
         if (name === "snapshot") return structuredClone(snapshot);
+        if (name === "query_usage") {
+          const rows = Array.from({ length: 12 }, (_, index) => ({
+            id: String(index),
+            tool: "codex",
+            timestamp: args.start + (17 * 60 + 21 - index) * 60,
+            provider: "openai",
+            model: "gpt-test",
+            input: 224 + index * 200,
+            output: 201 + index * 12,
+            cached: 187000,
+            write: 0,
+            cost: null,
+          }));
+          return {
+            totals: {
+              requests: 12,
+              input: 15888,
+              output: 3204,
+              cached: 2244000,
+              write: 0,
+              cost: null,
+              priced: 0,
+            },
+            options: { provider: ["openai"], model: ["gpt-test"] },
+            rows,
+            trend: Array.from({ length: 24 }, (_, index) => ({
+              index,
+              tokens: [9, 10, 14, 15, 16, 17].includes(index)
+                ? ((index % 5) + 1) * 300000
+                : 0,
+            })),
+            groups: [
+              {
+                provider: "openai",
+                model: "gpt-test",
+                requests: 12,
+                tokens: 2263092,
+              },
+            ],
+            warnings: [],
+          };
+        }
         if (name === "connection_status") return {};
         if (name === "plugin:event|listen") {
           listeners.set(args.event, args.handler);
@@ -237,10 +279,18 @@ try {
     page.getByRole("switch", { name: "关闭时最小化到托盘" }),
   ).toBeChecked();
   await page.screenshot({ path: resolve(output, "settings-general.png") });
-  await page.getByRole("tab", { name: "授权中心", exact: true }).click();
+  await expect(
+    page.getByRole("tab", { name: "授权中心", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("tab", { name: "使用统计", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "授权中心", exact: true }).click();
   await expect(page.locator(".authorization-card")).toHaveCount(5);
   await expect(
-    page.getByRole("heading", { name: "授权中心", exact: true }),
+    page
+      .getByRole("tabpanel", { name: "授权中心", exact: true })
+      .getByRole("heading", { name: "授权中心", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("combobox", { name: "ChatGPT 登录方式" }),
@@ -265,9 +315,26 @@ try {
   await page.screenshot({
     path: resolve(output, "authorization-harness-light.png"),
   });
-  await page.getByRole("tab", { name: "通用", exact: true }).click();
+  await page.getByRole("button", { name: "使用统计", exact: true }).click();
+  await expect(page.locator(".usage-table tbody tr")).toHaveCount(12);
+  await expect(page.locator(".usage-tools img")).toHaveCount(5);
+  await page.screenshot({ path: resolve(output, "usage-light.png") });
+  await page.getByRole("tab", { name: /供应商 \/ 模型/ }).click();
+  await expect(page.locator(".usage-table tbody tr")).toHaveCount(1);
+  await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByRole("button", { name: "☾ 深色", exact: true }).click();
-  await page.getByRole("tab", { name: "授权中心", exact: true }).click();
+  await page.getByRole("button", { name: "使用统计", exact: true }).click();
+  await expect(page.locator(".usage-table tbody tr")).toHaveCount(12);
+  await page.screenshot({ path: resolve(output, "usage-dark.png") });
+  await page.setViewportSize({ width: 980, height: 660 });
+  await page.screenshot({ path: resolve(output, "usage-compact.png") });
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  await page.setViewportSize({ width: 1180, height: 790 });
+  await page.getByRole("button", { name: "授权中心", exact: true }).click();
   await expect(page.locator(".authorization-brand img").first()).toHaveCSS(
     "filter",
     "invert(1)",
@@ -293,7 +360,7 @@ try {
     fullPage: true,
   });
   await page.setViewportSize({ width: 1180, height: 790 });
-  await page.getByRole("tab", { name: "通用", exact: true }).click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByRole("button", { name: "☼ 浅色", exact: true }).click();
   await page.getByRole("button", { name: "English", exact: true }).click();
   await expect(

@@ -123,6 +123,42 @@ fn snapshot(state: tauri::State<'_, State>) -> Value {
 }
 
 #[tauri::command]
+async fn query_usage(
+    state: tauri::State<'_, State>,
+    profile_id: String,
+    start: f64,
+    end: f64,
+    tool: Option<String>,
+    provider: Option<String>,
+    model: Option<String>,
+    page: u32,
+) -> Result<Value, String> {
+    if !start.is_finite()
+        || !end.is_finite()
+        || start < 0.0
+        || end <= start
+        || end - start > 366.0 * 86400.0
+    {
+        return Err("统计时间范围无效".into());
+    }
+    let (profile, scope) = {
+        let store = state.0.store.lock().unwrap();
+        (store.profile(&profile_id)?, store.scope(&profile_id))
+    };
+    state
+        .0
+        .call(
+            &profile,
+            &scope,
+            "usage",
+            json!({"start": start, "end": end,
+        "tool": tool, "provider": provider, "model": model, "page": page}),
+            60,
+        )
+        .await
+}
+
+#[tauri::command]
 async fn connection_status(state: tauri::State<'_, State>) -> Result<Value, String> {
     let map = state.0.resources.lock().await;
     Ok(json!(map
@@ -701,6 +737,7 @@ pub fn run() {
             settings::open_project_page,
             ordering::reorder_items,
             snapshot,
+            query_usage,
             connection_status,
             save_profile,
             select_profile,

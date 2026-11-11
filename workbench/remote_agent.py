@@ -1087,7 +1087,9 @@ def main():
                    harness_account_read=harness_account_read, harness_account_write=harness_account_write,
                    harness_prepare=harness_prepare, harness_start=harness_start,
                    harness_status=harness_status, harness_stop=harness_stop)
-    if action == 'prepare':
+    if action == 'usage':
+        result = usage_query(scope(p), p)
+    elif action == 'prepare':
         root = scope(p)
         root.mkdir(parents=True, exist_ok=True, mode=0o700)
         result = dict(path=str(root))

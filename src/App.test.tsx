@@ -270,7 +270,7 @@ describe("桌面工作流", () => {
       ids: [data.profiles[0].active_api, "official"],
     });
   });
-  it("首页提供环境与模型快捷入口，导航仅保留两项，配置仅在环境编辑内", async () => {
+  it("首页提供环境与模型快捷入口，侧边栏包含授权与统计，配置仅在环境编辑内", async () => {
     render(<App />);
     expect(await screen.findByText(`EDGE SWITCH — v${version}`)).toBeTruthy();
     expect(screen.getByText("SSH 终端按需连接")).toBeTruthy();
@@ -283,7 +283,7 @@ describe("桌面工作流", () => {
       within(sidebar)
         .getAllByRole("button")
         .map((b) => b.textContent?.trim()),
-    ).toEqual(["← 返回唱片台", "工作环境", "模型服务"]);
+    ).toEqual(["← 返回唱片台", "工作环境", "模型服务", "授权中心", "使用统计"]);
     expect(screen.queryByRole("tab", { name: "AI 工具" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "编辑" }));
     fireEvent.click(screen.getByRole("tab", { name: "代理连接" }));
@@ -338,7 +338,7 @@ describe("桌面工作流", () => {
     fireEvent.click(screen.getByRole("button", { name: "模型服务" }));
     expect(screen.getByRole("tab", { name: "Codex" })).toBeTruthy();
   });
-  it("未认证账号引导到设置，登录不需要先启用官方账号", async () => {
+  it("未认证账号引导到侧边栏授权中心，登录不需要先启用官方账号", async () => {
     await models();
     expect(
       (
@@ -350,9 +350,9 @@ describe("桌面工作流", () => {
     fireEvent.click(screen.getByRole("button", { name: "前往授权中心" }));
     expect(
       screen
-        .getByRole("tab", { name: "授权中心" })
-        .getAttribute("aria-selected"),
-    ).toBe("true");
+        .getByRole("button", { name: "授权中心" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
     fireEvent.change(
       screen.getByRole("combobox", { name: "ChatGPT 登录方式" }),
       { target: { value: "device" } },

@@ -37,6 +37,7 @@ import { RecordPlayer } from "./RecordPlayer";
 import { WindowControls } from "./WindowControls";
 import { ScrollList } from "./ScrollList";
 import { SettingsPage, SettingsTab } from "./SettingsPage";
+import { UsagePage } from "./UsagePage";
 import { ActionIcon } from "./ActionIcon";
 import { tools } from "./catalog";
 import { ToolId } from "./types";
@@ -55,6 +56,13 @@ const navigation = [
     icon: modelIcon,
     description: "管理 API 与官方账号，随时切换所需模型。",
   },
+  {
+    id: "auth",
+    label: "授权中心",
+    icon: "",
+    description: "管理工具账号授权。",
+  },
+  { id: "usage", label: "使用统计", icon: "", description: "查询模型用量。" },
 ];
 const actionIcons: Record<string, string> = {
   diagnose: verifyIcon,
@@ -422,7 +430,13 @@ export function App() {
                     aria-current={tab === id ? "page" : undefined}
                     onClick={() => setTab(id)}
                   >
-                    <AssetIcon src={icon} />
+                    {id === "auth" || id === "usage" ? (
+                      <ActionIcon
+                        name={id === "auth" ? "authorization" : "usage"}
+                      />
+                    ) : (
+                      <AssetIcon src={icon} />
+                    )}
                     {t(label)}
                   </button>
                 ))}
@@ -432,12 +446,19 @@ export function App() {
               <div className="management-notice" role="status">
                 {t(message)}
               </div>
-              {tab === "settings" && (
+              {tab === "usage" && (
+                <UsagePage
+                  key={current.id}
+                  profileId={current.id}
+                  environment={current.name}
+                />
+              )}
+              {(tab === "settings" || tab === "auth") && (
                 <SettingsPage
                   data={data}
                   current={current}
                   busy={busy}
-                  tab={settingsTab}
+                  tab={tab === "auth" ? "auth" : settingsTab}
                   onTab={setSettingsTab}
                   command={command}
                   run={run}
@@ -695,9 +716,8 @@ export function App() {
                     setOfficial(entry);
                   }}
                   onAuthenticate={() => {
-                    setSettingsTab("auth");
                     setCheckOnOpen(false);
-                    setTab("settings");
+                    setTab("auth");
                   }}
                 />
               )}
@@ -1070,7 +1090,7 @@ export function App() {
               <b>auth.json (JSON)</b>
               <p className="provider-help">
                 {t(
-                  "导入官方 OAuth 凭据，或在“设置 → 授权中心”中完成设备码登录。凭据在本机加密保存，同步时写入远程设备。",
+                  "导入官方 OAuth 凭据，或在侧边栏的授权中心完成设备码登录。凭据在本机加密保存，同步时写入远程设备。",
                 )}
               </p>
               <button
