@@ -532,9 +532,11 @@ try {
     .poll(async () => (await ipc("snapshot")).preferences.motion)
     .toBe(false);
   await checkVisuals("settings-general");
-  await page.getByRole("tab", { name: "认证", exact: true }).click();
+  await page.getByRole("tab", { name: "授权中心", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "登录 ChatGPT", exact: true }),
+    page
+      .getByRole("region", { name: "ChatGPT", exact: true })
+      .getByRole("button", { name: "添加账号", exact: true }),
   ).toBeVisible();
   await checkVisuals("settings-auth");
   await page.getByRole("button", { name: "← 返回唱片台", exact: true }).click();
