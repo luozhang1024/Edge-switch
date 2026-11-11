@@ -124,7 +124,9 @@ Third-party dependencies, upstream tools, and assets owned by others retain thei
 
 ## Contributions and commercial licensing
 
-The community edition remains AGPL-3.0-only; a separate proprietary, paid enterprise edition is also developed. Before contributing, read [CONTRIBUTING.md](CONTRIBUTING.md) and [CLA v1.0](CLA.md), then explicitly sign in your PR. Contributors retain copyright and grant the maintainer rights for commercial licensing, proprietary distribution and sublicensing. Opening a PR alone is not acceptance. The CLA's controlling text is Chinese.
+Code, documentation, tests and issue reports are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Community contributions are provided under AGPL-3.0-only, and contributors retain copyright. **No CLA, separate signing comment or DCO Signed-off-by is required.**
+
+A separate proprietary, paid enterprise edition is also developed. Submitting or merging a PR does not grant additional rights for proprietary commercial relicensing. Before incorporating an external contribution into the closed-source enterprise edition, the maintainer will separately seek explicit written authorization from the relevant rights holders, who may decline.
 
 Contact maintainer `luozhang1024` through this repository for enterprise or alternative commercial licensing. Commercial use of the community edition under AGPL does not itself require buying the enterprise edition.
 
