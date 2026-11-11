@@ -122,6 +122,12 @@ Copyright © 2026 luozhang. Original Edge Switch code is licensed under **GNU Af
 
 Third-party dependencies, upstream tools, and assets owned by others retain their respective licenses and terms. This summary does not replace the full LICENSE.
 
+## Contributions and commercial licensing
+
+The community edition remains AGPL-3.0-only; a separate proprietary, paid enterprise edition is also developed. Before contributing, read [CONTRIBUTING.md](CONTRIBUTING.md) and [CLA v1.0](CLA.md), then explicitly sign in your PR. Contributors retain copyright and grant the maintainer rights for commercial licensing, proprietary distribution and sublicensing. Opening a PR alone is not acceptance. The CLA's controlling text is Chinese.
+
+Contact maintainer `luozhang1024` through this repository for enterprise or alternative commercial licensing. Commercial use of the community edition under AGPL does not itself require buying the enterprise edition.
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=luozhang1024/Edge-switch&type=Date)](https://www.star-history.com/#luozhang1024/Edge-switch&Date)

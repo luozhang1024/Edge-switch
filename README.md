@@ -124,6 +124,12 @@ Copyright © 2026 luozhang。Edge Switch 的项目原创代码采用 **GNU Affer
 
 第三方依赖、上游 AI 工具及其他权利人的素材仍遵循各自的许可和使用条款，本协议不改变其授权。以上为使用说明，具体权利和义务以 LICENSE 全文为准。
 
+## 贡献与商业授权
+
+社区版继续采用 AGPL-3.0-only；项目另有闭源收费的企业版。外部贡献请先阅读 [贡献指南](CONTRIBUTING.md) 和 [CLA v1.0](CLA.md)，并在 PR 中明确签署。贡献者保留著作权，同时授权维护者进行商业许可、闭源分发及再许可。提交 PR 本身不自动视为签署。
+
+需要企业版或其他商业授权时，可通过本仓库联系维护者 `luozhang1024`。社区版允许按 AGPL 商业使用，无须仅因商用而购买企业版。
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=luozhang1024/Edge-switch&type=Date)](https://www.star-history.com/#luozhang1024/Edge-switch&Date)
