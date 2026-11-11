@@ -171,7 +171,7 @@ try {
       tool: "codex",
     });
   } catch (error) {
-    rejectedUnauthenticated = String(error).includes("认证");
+    rejectedUnauthenticated = String(error).includes("授权中心");
   }
   expect(rejectedUnauthenticated).toBe(true);
   await page.getByRole("button", { name: "打开导航" }).click();
@@ -532,7 +532,13 @@ try {
     .poll(async () => (await ipc("snapshot")).preferences.motion)
     .toBe(false);
   await checkVisuals("settings-general");
-  await page.getByRole("tab", { name: "授权中心", exact: true }).click();
+  await expect(
+    page.getByRole("tab", { name: "授权中心", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "使用统计", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "授权中心", exact: true }).click();
   await expect(
     page
       .getByRole("region", { name: "ChatGPT", exact: true })
