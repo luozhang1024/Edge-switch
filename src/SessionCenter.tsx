@@ -23,8 +23,19 @@ type Session = {
   messages: Message[];
   truncated: boolean;
   resume: string;
+  provider?: string;
+  model?: string;
+  usage?: {
+    input: number;
+    output: number;
+    cached: number;
+    write: number;
+    requests: number;
+  };
 };
 type Result = { sessions: Session[]; warnings: string[] };
+const tokenCount = (s: Session) =>
+  s.usage ? s.usage.input + s.usage.output + s.usage.cached + s.usage.write : 0;
 
 export function SessionCenter({
   profileId,
@@ -451,6 +462,10 @@ export function SessionCenter({
                       </span>
                       <span className="sc-session-app">
                         {tools.find((item) => item.id === s.tool)?.name}
+                        {s.provider && <small>{s.provider}</small>}
+                        {tokenCount(s) > 0 && (
+                          <small>{tokenCount(s).toLocaleString()} Tokens</small>
+                        )}
                       </span>
                       <time>
                         {new Date(s.modified * 1000).toLocaleString([], {
@@ -518,6 +533,15 @@ export function SessionCenter({
               {questions.length} {t("次提问")}
             </span>
             <span>{selectedTool?.name}</span>
+            {selected.provider && <span>{selected.provider}</span>}
+            {selected.model && <span>{selected.model}</span>}
+            {tokenCount(selected) > 0 && (
+              <span
+                title={`${t("输入")} ${selected.usage!.input.toLocaleString()} · ${t("输出")} ${selected.usage!.output.toLocaleString()} · ${t("缓存")} ${(selected.usage!.cached + selected.usage!.write).toLocaleString()}`}
+              >
+                {tokenCount(selected).toLocaleString()} Tokens
+              </span>
+            )}
             {selected.truncated && (
               <span className="sc-truncated">{t("仅显示前 1 MiB")}</span>
             )}

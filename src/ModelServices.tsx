@@ -1,5 +1,6 @@
 import { t } from "./i18n";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { ActionIcon } from "./ActionIcon";
 import { ScrollList } from "./ScrollList";
 import { ordered, moveItem } from "./listOrder";
@@ -46,6 +47,32 @@ export function ModelServices({
 }: Props) {
   const [dragged, setDragged] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState("");
+  const [native, setNative] = useState<{
+    detected: boolean;
+    provider: string;
+    name: string;
+    model: string;
+    endpoint: string | null;
+  } | null>(null);
+  useEffect(() => {
+    let live = true;
+    setNative(null);
+    if (current.kind !== "local") return;
+    const refresh = () =>
+      void invoke<typeof native>("native_tool_config", {
+        profileId: current.id,
+      })
+        .then((value) => {
+          if (live) setNative(value);
+        })
+        .catch(() => {});
+    refresh();
+    window.addEventListener("focus", refresh);
+    return () => {
+      live = false;
+      window.removeEventListener("focus", refresh);
+    };
+  }, [current.id, current.kind, tool]);
   const selected = tools.find((t) => t.id === tool)!;
   const activeId =
     tool === "codex" ? current.active_api : current.tool_services?.[tool];
@@ -161,6 +188,26 @@ export function ModelServices({
           <span className="sr-only">{t("添加服务")}</span>
         </button>
       </div>
+      {tool === "codex" && native?.detected && (
+        <section
+          className="authorization-context"
+          aria-label={t("本机 Codex 配置")}
+        >
+          <img src={selected.icon} alt="" width="24" height="24" />
+          <div>
+            <b>
+              {native.name}{" "}
+              <span className="active-badge">{t("本机当前配置")}</span>
+            </b>
+            <p>{[native.model, native.endpoint].filter(Boolean).join(" · ")}</p>
+            <small>
+              {t(
+                "自动读取本机 Codex 配置；历史会话按日志记录的供应商统计用量。",
+              )}
+            </small>
+          </div>
+        </section>
+      )}
       {tool === "harness" && (
         <section
           className="authorization-context harness-model-account"

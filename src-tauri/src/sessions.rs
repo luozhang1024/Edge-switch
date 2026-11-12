@@ -1,8 +1,8 @@
 use crate::{store::Profile, State};
 use serde_json::{json, Value};
-use std::{fs, io::Read, path::PathBuf, time::UNIX_EPOCH};
+use std::{fs, path::PathBuf, time::UNIX_EPOCH};
 
-fn local_roots() -> Vec<(&'static str, PathBuf)> {
+pub(crate) fn local_roots() -> Vec<(&'static str, PathBuf)> {
     let home = PathBuf::from(std::env::var("USERPROFILE").unwrap_or_default());
     let env_path = |name, fallback| {
         std::env::var_os(name)
@@ -24,9 +24,10 @@ fn local_roots() -> Vec<(&'static str, PathBuf)> {
     ]
 }
 
-fn scan(roots: Vec<(&str, PathBuf)>, key: Option<&str>) -> Result<Value, String> {
+pub(crate) fn scan(roots: Vec<(&str, PathBuf)>, key: Option<&str>) -> Result<Value, String> {
     let mut files = Vec::new();
-    let mut warnings = vec!["OpenCode SQLite 与 Harness 压缩日志暂不支持阅读"];
+    let titles = crate::native_sessions::titles(&crate::native_sessions::codex_home());
+    let mut warnings = Vec::<String>::new();
     for (index, (tool, root)) in roots.iter().enumerate() {
         let Ok(base) = root.canonicalize() else {
             continue;
@@ -36,11 +37,11 @@ fn scan(roots: Vec<(&str, PathBuf)>, key: Option<&str>) -> Result<Value, String>
         while let Some(dir) = stack.pop() {
             visited += 1;
             if visited > 10000 {
-                warnings.push("部分会话目录超过扫描上限");
+                warnings.push("部分会话目录超过扫描上限".into());
                 break;
             }
             let Ok(entries) = fs::read_dir(dir) else {
-                warnings.push("部分会话目录无法读取");
+                warnings.push("部分会话目录无法读取".into());
                 continue;
             };
             for entry in entries.flatten() {
@@ -61,7 +62,7 @@ fn scan(roots: Vec<(&str, PathBuf)>, key: Option<&str>) -> Result<Value, String>
                     stack.push(real);
                     continue;
                 }
-                if ![Some("json"), Some("jsonl")]
+                if ![Some("json"), Some("jsonl"), Some("zstd")]
                     .contains(&path.extension().and_then(|s| s.to_str()))
                 {
                     continue;
@@ -80,23 +81,37 @@ fn scan(roots: Vec<(&str, PathBuf)>, key: Option<&str>) -> Result<Value, String>
                 if key.is_some_and(|k| k != source) {
                     continue;
                 }
-                let limit = if key.is_some() { 1024 * 1024 } else { 4096 };
-                let mut bytes = Vec::new();
-                if fs::File::open(&real)
-                    .and_then(|f| f.take(limit + 1).read_to_end(&mut bytes))
-                    .is_err()
-                {
-                    warnings.push("部分会话文件无法读取");
-                    continue;
+                if *tool == "harness" {
+                    let Some(version) = crate::native_sessions::generation(&path) else {
+                        continue;
+                    };
+                    let newer = fs::read_dir(path.parent().unwrap())
+                        .into_iter()
+                        .flatten()
+                        .flatten()
+                        .any(|e| {
+                            let other = e.path();
+                            crate::native_sessions::generation(&other)
+                                .is_some_and(|n| n > version || (n == version && other > path))
+                        });
+                    if newer {
+                        continue;
+                    }
                 }
-                let truncated = bytes.len() > limit as usize;
-                bytes.truncate(limit as usize);
-                files.push(json!({"key":source,"tool":tool,"modified":meta.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d|d.as_secs_f64()).unwrap_or(0.0),"text":String::from_utf8_lossy(&bytes),"truncated":truncated}));
-                if key.is_some() {
-                    return Ok(json!({"files":files,"warnings":warnings}));
+                match native_file(&real, *tool, &source, key.is_some(), &meta) {
+                    Ok(mut file) => {
+                        if *tool == "codex" {
+                            if let Some(title) =
+                                file["sessionId"].as_str().and_then(|id| titles.get(id))
+                            {
+                                file["nativeTitle"] = json!(title);
+                            }
+                        }
+                        files.push(file);
+                    }
+                    Err(error) => warnings.push(format!("{}: {}", source, error)),
                 }
-                if files.len() >= 200 {
-                    warnings.push("会话较多，仅显示扫描到的前 200 条");
+                if key.is_some() && !files.is_empty() {
                     return Ok(json!({"files":files,"warnings":warnings}));
                 }
             }
@@ -105,7 +120,142 @@ fn scan(roots: Vec<(&str, PathBuf)>, key: Option<&str>) -> Result<Value, String>
     if key.is_some() {
         return Err("会话不存在或不属于当前环境".into());
     }
+    files.sort_by(|a, b| {
+        b["modified"]
+            .as_f64()
+            .partial_cmp(&a["modified"].as_f64())
+            .unwrap()
+    });
     Ok(json!({"files":files,"warnings":warnings}))
+}
+
+fn native_file(
+    path: &std::path::Path,
+    tool: &str,
+    source: &str,
+    detail: bool,
+    meta: &fs::Metadata,
+) -> Result<Value, String> {
+    use std::{
+        collections::HashMap,
+        sync::{Mutex, OnceLock},
+    };
+    type Cache = HashMap<PathBuf, (u64, std::time::SystemTime, Value)>;
+    static CACHE: OnceLock<Mutex<Cache>> = OnceLock::new();
+    let modified = meta.modified().unwrap_or(UNIX_EPOCH);
+    if !detail {
+        if let Some((len, time, value)) = CACHE
+            .get_or_init(Default::default)
+            .lock()
+            .unwrap()
+            .get(path)
+        {
+            if *len == meta.len() && *time == modified {
+                let mut file = value.clone();
+                file["key"] = json!(source);
+                return Ok(file);
+            }
+        }
+    }
+    let bytes = crate::native_sessions::read_log(path)?;
+    let raw = String::from_utf8_lossy(&bytes);
+    let mut events: Vec<Value> = match serde_json::from_str::<Value>(&raw) {
+        Ok(v) => v["messages"].as_array().cloned().unwrap_or_else(|| vec![v]),
+        Err(_) => raw
+            .lines()
+            .filter_map(|line| serde_json::from_str(line).ok())
+            .collect(),
+    };
+    let usage = crate::native_sessions::usage(&events, tool, source);
+    let subagent = tool == "codex"
+        && events.iter().any(|e| {
+            e["type"] == "session_meta"
+                && (e["payload"]["source"].get("subagent").is_some()
+                    || e["payload"]["thread_source"] == "subagent")
+        });
+    let id = events
+        .iter()
+        .find(|v| v["type"] == "session_meta")
+        .and_then(|v| v["payload"]["id"].as_str())
+        .unwrap_or("")
+        .to_string();
+    let mut totals = json!({"requests":usage.len()});
+    for k in ["input", "output", "cached", "write"] {
+        totals[k] = json!(usage
+            .iter()
+            .map(|r| r[k].as_u64().unwrap_or(0))
+            .sum::<u64>());
+    }
+    if !detail && tool != "gemini" {
+        // Keep complete metadata and representative dialogue, not arbitrary byte fragments.
+        // Token analysis above always sees the full log, including its most recent records.
+        let mut kept = Vec::new();
+        let mut first_user = false;
+        let mut last_assistant = None;
+        for mut e in events {
+            let kind = e["type"].as_str().unwrap_or("");
+            if ["session_meta", "session", "header", "turn_context"].contains(&kind) {
+                let context = kind == "turn_context";
+                if kind == "session_meta" {
+                    e["payload"]["base_instructions"] = Value::Null;
+                }
+                if !context
+                    || kept
+                        .last()
+                        .is_none_or(|v: &Value| v["type"] != "turn_context")
+                {
+                    kept.push(e);
+                } else {
+                    *kept.last_mut().unwrap() = e;
+                }
+                continue;
+            }
+            let m = if kind == "response_item" {
+                &e["payload"]
+            } else if e["message"].is_object() {
+                &e["message"]
+            } else if e["data"]["message"].is_object() {
+                &e["data"]["message"]
+            } else if kind == "user/message" {
+                &e["data"]
+            } else {
+                &e
+            };
+            let role = m["role"].as_str().unwrap_or(kind);
+            if ["user", "user/message"].contains(&role) && !first_user {
+                let content =
+                    text_content(m.get("content").or(m.get("text")).unwrap_or(&Value::Null));
+                if !content.is_empty()
+                    && !content.starts_with("# AGENTS.md instructions")
+                    && !content.starts_with("<environment_context>")
+                    && !content.starts_with("<permissions instructions>")
+                {
+                    first_user = true;
+                    kept.push(e);
+                }
+            } else if ["assistant", "assistant/message"].contains(&role) {
+                last_assistant = Some(e);
+            }
+        }
+        if let Some(e) = last_assistant {
+            kept.push(e);
+        }
+        events = kept;
+    }
+    let text = events
+        .iter()
+        .map(Value::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    let file = json!({"key":source,"tool":tool,"subagent":subagent,"sessionId":id,"modified":modified.duration_since(UNIX_EPOCH).map(|d|d.as_secs_f64()).unwrap_or(0.0),"text":text,"truncated":false,"usageRows":usage,"usage":totals});
+    if !detail {
+        let mut cache = CACHE.get_or_init(Default::default).lock().unwrap();
+        if cache.len() > 2000 {
+            cache.clear();
+        }
+        cache.insert(path.into(), (meta.len(), modified, file.clone()));
+    }
+    Ok(file)
 }
 
 fn text_content(value: &Value) -> String {
@@ -164,7 +314,12 @@ fn parse(file: &Value, p: &Profile, scope: &str) -> Value {
     let mut title = String::new();
     let mut pending_steps: Vec<Value> = Vec::new();
     let mut model = String::new();
+    let mut provider = String::new();
+    let mut seen_messages = std::collections::HashSet::new();
     for event in &events {
+        if event["surfaceOp"]["op"] == "replace" {
+            continue;
+        }
         if event["type"] == "turn_context" {
             model = event["payload"]["model"].as_str().unwrap_or("").into();
         }
@@ -191,6 +346,10 @@ fn parse(file: &Value, p: &Profile, scope: &str) -> Value {
         if event["type"] == "session_meta" {
             id = event["payload"]["id"].as_str().unwrap_or("").into();
             project = event["payload"]["cwd"].as_str().unwrap_or("").into();
+            provider = event["payload"]["model_provider"]
+                .as_str()
+                .unwrap_or("")
+                .into();
         }
         if ["session", "header"].contains(&event["type"].as_str().unwrap_or("")) {
             id = event["id"].as_str().unwrap_or("").into();
@@ -206,6 +365,19 @@ fn parse(file: &Value, p: &Profile, scope: &str) -> Value {
         } else {
             event
         };
+        if file["tool"] == "harness" {
+            if let Some(id) = message["id"].as_str() {
+                if !seen_messages.insert(id.to_string()) {
+                    continue;
+                }
+            }
+            if let Some(value) = message["source"]["provider"].as_str() {
+                provider = value.into();
+            }
+            if let Some(value) = message["source"]["model"].as_str() {
+                model = value.into();
+            }
+        }
         let role = message["role"]
             .as_str()
             .or(message["type"].as_str())
@@ -254,6 +426,13 @@ fn parse(file: &Value, p: &Profile, scope: &str) -> Value {
                 .unwrap_or(&Value::Null),
         );
         if content.is_empty() {
+            continue;
+        }
+        if role == "user"
+            && (content.starts_with("# AGENTS.md instructions")
+                || content.starts_with("<environment_context>")
+                || content.starts_with("<permissions instructions>"))
+        {
             continue;
         }
         if title.is_empty() && role == "user" {
@@ -335,7 +514,10 @@ fn parse(file: &Value, p: &Profile, scope: &str) -> Value {
             format!("python3 ~/.local/share/edge-ssh-ai/{scope}/run-{tool}.py {args}")
         };
     }
-    json!({"key":key,"tool":tool,"id":id,"title":if title.is_empty(){key.to_string()}else{title},"project":project,"modified":file["modified"],"messages":messages,"truncated":file["truncated"],"resume":resume})
+    if let Some(native_title) = file["nativeTitle"].as_str() {
+        title = native_title.into();
+    }
+    json!({"provider":provider,"model":model,"usage":file["usage"],"key":key,"tool":tool,"id":id,"title":if title.is_empty(){key.to_string()}else{title},"project":project,"modified":file["modified"],"messages":messages,"truncated":file["truncated"],"resume":resume})
 }
 
 #[tauri::command]
@@ -359,12 +541,27 @@ pub async fn query_sessions(
             .call(&p, &scope, "session_files", json!({"key":key}), 60)
             .await?
     };
-    let sessions: Vec<_> = result["files"]
+    let mut sessions: Vec<_> = result["files"]
         .as_array()
         .unwrap_or(&Vec::new())
         .iter()
+        .filter(|f| f["subagent"] != true)
         .map(|f| parse(f, &p, &scope))
         .collect();
+    if key.is_none() {
+        for session in &mut sessions {
+            if let Some(messages) = session["messages"].as_array_mut() {
+                if messages.len() > 2 {
+                    let last = messages.pop().unwrap();
+                    messages.truncate(1);
+                    messages.push(last);
+                }
+                for message in messages {
+                    message["steps"] = json!([]);
+                }
+            }
+        }
+    }
     Ok(json!({"sessions":sessions,"warnings":result["warnings"]}))
 }
 
@@ -454,19 +651,80 @@ mod tests {
         assert_eq!(parsed["messages"][1]["content"], "Complete");
     }
     #[test]
-    fn scan_restricts_reads_to_session_roots_and_reports_truncation() {
+    fn scan_complete_metadata_and_harness_generation() {
         let dir = std::env::temp_dir().join(crate::store::new_id());
         let root = dir.join("sessions");
         fs::create_dir_all(&root).unwrap();
         fs::write(dir.join("auth.json"), "secret").unwrap();
-        fs::write(root.join("test.jsonl"), "x".repeat(8192)).unwrap();
+        let raw = [json!({"type":"session_meta","payload":{"id":"long-meta","cwd":"D:/Tools/Edge-Switch","base_instructions":"x".repeat(24000),"model_provider":"custom"}}),
+            json!({"type":"response_item","payload":{"role":"user","content":[{"text":"# AGENTS.md instructions injected"}]}}),
+            json!({"type":"response_item","payload":{"role":"user","content":[{"text":"Real request"}]}})]
+            .iter().map(Value::to_string).collect::<Vec<_>>().join("\n");
+        fs::write(root.join("test.jsonl"), raw).unwrap();
         let listing = scan(vec![("codex", root.clone())], None).unwrap();
-        assert_eq!(listing["files"].as_array().unwrap().len(), 1);
-        assert_eq!(listing["files"][0]["truncated"], true);
+        let parsed = parse(&listing["files"][0], &Profile::local(), "");
+        assert_eq!(parsed["project"], "D:/Tools/Edge-Switch");
+        assert_eq!(parsed["title"], "Real request");
+        assert_eq!(parsed["provider"], "custom");
         assert!(scan(vec![("codex", root.clone())], Some("0/../auth.json")).is_err());
-        let detail = scan(vec![("codex", root)], Some("0/test.jsonl")).unwrap();
-        assert_eq!(detail["files"][0]["truncated"], false);
-        assert_eq!(detail["files"][0]["text"].as_str().unwrap().len(), 8192);
+        let detail = scan(vec![("codex", root.clone())], Some("0/test.jsonl")).unwrap();
+        assert_eq!(
+            parse(&detail["files"][0], &Profile::local(), "")["project"],
+            parsed["project"]
+        );
+        fs::remove_file(root.join("test.jsonl")).unwrap();
+        fs::write(root.join("session.jsonl"), "{}").unwrap();
+        let harness = [json!({"type":"session","id":"harness-test","cwd":"D:/Tools/Edge-Switch"}),
+            json!({"type":"user/message","data":{"id":"u","content":[{"text":"Harness request"}]}}),
+            json!({"type":"assistant/message","time":1794441600000i64,"data":{"message":{"id":"a","source":{"provider":"deepseek-account","model":"deepseek"},"content":[{"text":"Answer"}]},"usage":{"inputTokens":10,"outputTokens":20,"cacheReadTokens":30}}})]
+            .iter().map(Value::to_string).collect::<Vec<_>>().join("\n");
+        fs::write(
+            root.join("session.v4.jsonl.zstd"),
+            zstd::encode_all(harness.as_bytes(), 1).unwrap(),
+        )
+        .unwrap();
+        let listing = scan(vec![("harness", root)], None).unwrap();
+        assert_eq!(listing["files"].as_array().unwrap().len(), 1);
+        let parsed = parse(&listing["files"][0], &Profile::local(), "");
+        assert_eq!(parsed["title"], "Harness request");
+        assert_eq!(parsed["provider"], "deepseek-account");
+        assert_eq!(parsed["usage"]["cached"], 30);
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    #[ignore = "Read-only audit of the developer machine; emits metadata counts only"]
+    fn native_machine_audit() {
+        let start = std::time::Instant::now();
+        let result = scan(local_roots(), None).unwrap();
+        let mut counts = std::collections::BTreeMap::<String, usize>::new();
+        let mut project_found = false;
+        let mut harness_tokens = 0;
+        for f in result["files"].as_array().unwrap() {
+            let s = parse(f, &Profile::local(), "");
+            *counts
+                .entry(s["tool"].as_str().unwrap().into())
+                .or_default() += 1;
+            if s["project"]
+                .as_str()
+                .unwrap_or("")
+                .replace('\\', "/")
+                .to_lowercase()
+                .ends_with("/edge-switch")
+            {
+                project_found = true;
+            }
+            if s["tool"] == "harness" {
+                for k in ["input", "output", "cached", "write"] {
+                    harness_tokens += s["usage"][k].as_u64().unwrap_or(0);
+                }
+            }
+        }
+        let usage =
+            crate::native_sessions::aggregate(&result, &json!({"start":0.0,"end":2000000000.0}));
+        println!("native audit: counts={counts:?}, Edge-Switch={project_found}, harness_tokens={harness_tokens}, total_requests={}, warnings={}, elapsed={:?}",usage["totals"]["requests"],result["warnings"],start.elapsed());
+        assert!(project_found);
+        assert!(harness_tokens > 0);
+        assert!(usage["totals"]["requests"].as_u64().unwrap() > 0);
     }
 }

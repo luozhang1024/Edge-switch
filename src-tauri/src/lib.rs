@@ -1,6 +1,7 @@
 mod accounts;
 mod editor;
 mod local;
+mod native_sessions;
 mod ordering;
 mod providers;
 mod resources;
@@ -157,6 +158,15 @@ async fn query_usage(
         let store = state.0.store.lock().unwrap();
         (store.profile(&profile_id)?, store.scope(&profile_id))
     };
+    if profile.is_local() {
+        let params = json!({"start":start,"end":end,"tool":tool,"provider":provider,"model":model,"page":page});
+        return tokio::task::spawn_blocking(move || {
+            let files = sessions::scan(sessions::local_roots(), None)?;
+            Ok(native_sessions::aggregate(&files, &params))
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+    }
     state
         .0
         .call(
@@ -744,6 +754,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             sessions::query_sessions,
+            native_sessions::native_tool_config,
             accounts::local_harness_account,
             settings::save_preferences,
             settings::autostart_status,

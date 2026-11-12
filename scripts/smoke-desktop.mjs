@@ -20,7 +20,16 @@ await mkdir(sessionRoot, { recursive: true });
 await writeFile(
   join(sessionRoot, "smoke-session.jsonl"),
   [
-    { type: "session_meta", payload: { id: "desktop-smoke", cwd: output } },
+    {
+      type: "session_meta",
+      payload: {
+        id: "desktop-smoke",
+        cwd: output,
+        model_provider: "smoke-api",
+        base_instructions: "x".repeat(24000),
+      },
+    },
+    { type: "turn_context", payload: { model: "smoke-model" } },
     {
       type: "response_item",
       payload: {
@@ -35,9 +44,27 @@ await writeFile(
         content: [{ type: "output_text", text: "会话读取正常" }],
       },
     },
+    {
+      type: "event_msg",
+      timestamp: new Date().toISOString(),
+      payload: {
+        type: "token_count",
+        info: {
+          total_token_usage: {
+            input_tokens: 100,
+            output_tokens: 20,
+            cached_input_tokens: 30,
+          },
+        },
+      },
+    },
   ]
     .map(JSON.stringify)
     .join("\n"),
+);
+await writeFile(
+  join(output, "native-home/.codex/config.toml"),
+  "model_provider='smoke-api'\nmodel='smoke-model'\n[model_providers.smoke-api]\nname='Smoke API'\nbase_url='https://example.com/v1'\n",
 );
 const server = createServer();
 server.listen(0, "127.0.0.1");
@@ -193,9 +220,43 @@ try {
   let snapshot = await ipc("snapshot");
   expect(snapshot.version).toBe(expectedVersion);
   expect(snapshot.profiles[0].kind).toBe("local");
+  const nativeConfig = await ipc("native_tool_config", {
+    profileId: snapshot.selected_profile,
+  });
+  expect(nativeConfig.provider).toBe("smoke-api");
+  const nativeUsage = await ipc("query_usage", {
+    profileId: snapshot.selected_profile,
+    start: Date.now() / 1000 - 86400,
+    end: Date.now() / 1000 + 86400,
+    tool: null,
+    provider: null,
+    model: null,
+    page: 0,
+  });
+  expect(nativeUsage.totals.input).toBe(70);
+  expect(nativeUsage.totals.cached).toBe(30);
+  expect(nativeUsage.totals.output).toBe(20);
+  const nativeSessions = await ipc("query_sessions", {
+    profileId: snapshot.selected_profile,
+    key: null,
+  });
+  expect(nativeSessions.sessions[0].project).toBe(output);
+  expect(nativeSessions.sessions[0].provider).toBe("smoke-api");
+  expect(nativeSessions.sessions[0].usage.requests).toBe(1);
+  await navigate("模型服务");
+  await expect(
+    page.getByRole("region", { name: "本机 Codex 配置" }),
+  ).toContainText("Smoke API");
+  await expect(
+    page.getByRole("region", { name: "本机 Codex 配置" }),
+  ).toContainText("smoke-model");
+  await checkVisuals("native-codex-config");
   await navigate("会话中心");
+  await expect(page.locator(".sc-session-row")).toContainText("120 Tokens");
   await page.getByRole("button", { name: /桌面会话验证/ }).click();
   await expect(page.locator(".session-messages")).toContainText("会话读取正常");
+  await expect(page.locator(".sc-session-meta")).toContainText("smoke-api");
+  await expect(page.locator(".sc-session-meta")).toContainText("120 Tokens");
   await checkVisuals("sessions-native");
   await page.keyboard.press("Escape");
   let rejectedUnauthenticated = false;

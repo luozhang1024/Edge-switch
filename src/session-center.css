@@ -653,3 +653,9 @@
     padding-inline: 10px;
   }
 }
+.sc-session-app small {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  opacity: 0.75;
+}

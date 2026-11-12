@@ -132,7 +132,7 @@ export function UsagePage({
             {t("用量统计")}
           </h2>
           <p>
-            {environment} · {t("远程会话用量")}
+            {environment} · {t("会话用量")}
           </p>
         </div>
         <button
@@ -210,7 +210,7 @@ export function UsagePage({
           </button>
         </div>
       )}
-      {loading && <p role="status">{t("正在读取板卡会话记录…")}</p>}
+      {loading && <p role="status">{t("正在读取当前环境会话记录…")}</p>}
       <div className="usage-overview">
         <div className="usage-metrics">
           {[
@@ -383,7 +383,7 @@ export function UsagePage({
             <div className="usage-empty">
               <ActionIcon name="usage" />
               <b>{t("暂无用量记录")}</b>
-              <p>{t("在当前板卡环境使用 AI 工具后，点击刷新同步。")}</p>
+              <p>{t("在当前环境使用 AI 工具后，点击刷新同步。")}</p>
             </div>
           )}
         </div>

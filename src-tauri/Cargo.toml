@@ -29,6 +29,9 @@ base64 = "0.22"
 flate2 = "1"
 regex = "1"
 fs2 = "0.4"
+zstd = "0.13"
+toml = "0.8"
+rusqlite = { version = "0.31", features = ["bundled"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 futures-util = "0.3"
 url = "2"
