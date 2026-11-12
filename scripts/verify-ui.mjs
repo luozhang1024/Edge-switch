@@ -180,7 +180,8 @@ try {
             output: 201 + index * 12,
             cached: 187000,
             write: 0,
-            cost: null,
+            cost: 0.02,
+            cost_source: "estimated",
           }));
           return {
             totals: {
@@ -189,8 +190,11 @@ try {
               output: 3204,
               cached: 2244000,
               write: 0,
-              cost: null,
-              priced: 0,
+              cost: 0.24,
+              priced: 12,
+              estimated: 12,
+              recorded: 0,
+              unpriced: 0,
             },
             options: { provider: ["openai"], model: ["gpt-test"] },
             rows,
@@ -317,16 +321,16 @@ try {
   await rows.first().hover();
   await rows.first().getByRole("button", { name: "编辑", exact: true }).click();
   const editor = page.getByRole("dialog", { name: "编辑工作环境" });
-  await editor.getByRole("tab", { name: "AI 工具", exact: true }).click();
-  await expect(
-    editor.getByRole("button", { name: "查询可用版本", exact: true }),
-  ).toBeVisible();
-  await page.screenshot({ path: resolve(output, "environment-tools.png") });
   await editor.getByRole("tab", { name: "代理连接", exact: true }).click();
   await expect(
     editor.getByRole("button", { name: "连接代理", exact: true }),
   ).toBeVisible();
   await editor.getByRole("button", { name: "取消", exact: true }).click();
+  await page.getByRole("button", { name: "工具安装", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "查询可用版本", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({ path: resolve(output, "environment-tools.png") });
   await page.getByRole("button", { name: "模型服务", exact: true }).click();
   await page.mouse.move(0, 0);
   await expect(page.locator(".service-actions")).toHaveCSS("opacity", "0");
@@ -465,6 +469,8 @@ try {
   await expect(page.locator(".usage-table tbody tr")).toHaveCount(12);
   await expect(page.locator(".usage-tools img")).toHaveCount(5);
   await page.screenshot({ path: resolve(output, "usage-light.png") });
+  await expect(page.locator(".usage-metrics")).toContainText("$0.2400");
+  await expect(page.locator(".usage-cost-coverage")).toContainText("估算 12");
   await page.getByRole("tab", { name: /供应商 \/ 模型/ }).click();
   await expect(page.locator(".usage-table tbody tr")).toHaveCount(1);
   await page.getByRole("button", { name: "设置", exact: true }).click();

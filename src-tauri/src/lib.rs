@@ -13,6 +13,7 @@ pub mod startup;
 mod store;
 mod tasks;
 mod transport;
+mod usage_pricing;
 
 use fs2::FileExt;
 use serde_json::{json, Value};
@@ -155,12 +156,16 @@ async fn query_usage(
     {
         return Err("统计时间范围无效".into());
     }
-    let (profile, scope) = {
+    let (profile, scope, rates) = {
         let store = state.0.store.lock().unwrap();
-        (store.profile(&profile_id)?, store.scope(&profile_id))
+        (
+            store.profile(&profile_id)?,
+            store.scope(&profile_id),
+            usage_pricing::effective(&store.directory, &profile_id)?,
+        )
     };
     if profile.is_local() {
-        let params = json!({"start":start,"end":end,"tool":tool,"provider":provider,"model":model,"page":page});
+        let params = json!({"start":start,"end":end,"tool":tool,"provider":provider,"model":model,"page":page,"rates":rates});
         return tokio::task::spawn_blocking(move || {
             let files = sessions::scan(sessions::local_roots(), None)?;
             Ok(native_sessions::aggregate(&files, &params))
@@ -175,7 +180,7 @@ async fn query_usage(
             &scope,
             "usage",
             json!({"start": start, "end": end,
-        "tool": tool, "provider": provider, "model": model, "page": page}),
+        "tool": tool, "provider": provider, "model": model, "page": page,"rates":rates}),
             60,
         )
         .await
@@ -756,6 +761,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             sessions::query_sessions,
             prompts::prompt_library,
+            usage_pricing::usage_pricing,
             native_sessions::native_tool_config,
             accounts::local_harness_account,
             settings::save_preferences,

@@ -1853,3 +1853,42 @@
   overflow: auto;
   line-height: 1.8;
 }
+.usage-cost-coverage {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.usage-pricing {
+  margin: 12px 0 20px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.usage-pricing p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.usage-pricing .form {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.local-tool-install-list {
+  margin-top: 18px;
+}
+.local-tool-install-list b {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.local-tool-install-list .asset-icon {
+  width: 24px;
+  height: 24px;
+}
+.tool-install-page > p {
+  color: var(--muted);
+}
+@media (max-width: 1000px) {
+  .usage-pricing .form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

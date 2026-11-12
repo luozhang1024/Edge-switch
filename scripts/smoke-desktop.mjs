@@ -247,6 +247,52 @@ try {
   expect(nativeSessions.sessions[0].project).toBe(output);
   expect(nativeSessions.sessions[0].provider).toBe("smoke-api");
   expect(nativeSessions.sessions[0].usage.requests).toBe(1);
+  await navigate("工具安装");
+  await expect(page.locator(".local-tool-install-list .profile")).toHaveCount(
+    5,
+  );
+  await expect(
+    page.getByRole("button", { name: "安装独立 Node.js", exact: true }),
+  ).toHaveCount(0);
+  await checkVisuals("tools-local");
+  await navigate("使用统计");
+  await page.getByRole("button", { name: "设置单价", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "计价供应商", exact: true })
+    .fill("smoke-api");
+  await page
+    .getByRole("combobox", { name: "计价模型", exact: true })
+    .fill("smoke-model");
+  await page
+    .getByRole("spinbutton", { name: "新增输入单价", exact: true })
+    .fill("2");
+  await page
+    .getByRole("spinbutton", { name: "输出单价", exact: true })
+    .fill("10");
+  await page
+    .getByRole("spinbutton", { name: "缓存读取单价", exact: true })
+    .fill("0.1");
+  await page
+    .getByRole("spinbutton", { name: "缓存写入单价", exact: true })
+    .fill("0");
+  await page.getByRole("button", { name: "保存单价", exact: true }).click();
+  await expect(page.locator(".usage-cost-coverage")).toContainText("估算 1");
+  await expect(page.locator(".usage-metrics")).toContainText("$0.0003");
+  const pricedUsage = await ipc("query_usage", {
+    profileId: snapshot.selected_profile,
+    start: Date.now() / 1000 - 86400,
+    end: Date.now() / 1000 + 86400,
+    tool: null,
+    provider: null,
+    model: null,
+    page: 0,
+  });
+  expect(pricedUsage.totals.cost).toBeCloseTo(0.000343, 9);
+  expect(pricedUsage.totals.estimated).toBe(1);
+  expect(pricedUsage.totals.unpriced).toBe(0);
+  await checkVisuals("usage-cost-pricing");
+  await page.getByRole("button", { name: "恢复参考单价", exact: true }).click();
+  await expect(page.locator(".usage-cost-coverage")).toContainText("未计价 1");
   await navigate("模型服务");
   await expect(
     page.getByRole("region", { name: "本机 Codex 配置" }),
@@ -719,19 +765,17 @@ try {
     .first()
     .getByRole("button", { name: "编辑", exact: true })
     .click();
-  await page.getByRole("tab", { name: "AI 工具", exact: true }).click();
-  await expect(
-    page
-      .getByRole("dialog", { name: "编辑工作环境", exact: true })
-      .getByRole("button", { name: "打开 VS Code", exact: true }),
-  ).toBeVisible();
-  await checkVisuals("tools");
   await page.getByRole("tab", { name: "代理连接", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "连接代理", exact: true }),
   ).toBeVisible();
   await checkVisuals("proxy");
   await page.getByRole("button", { name: "取消", exact: true }).click();
+  await navigate("工具安装");
+  await expect(
+    page.getByRole("button", { name: "打开 VS Code", exact: true }),
+  ).toBeVisible();
+  await checkVisuals("tools");
   await page.getByRole("button", { name: "← 返回唱片台", exact: true }).click();
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await expect(

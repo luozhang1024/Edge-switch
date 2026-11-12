@@ -308,7 +308,25 @@ pub fn aggregate(files: &Value, params: &Value) -> Value {
             .iter()
             .all(|k| params[k].as_str().is_none_or(|s| s.is_empty() || r[k] == s))
     });
+    crate::usage_pricing::price_rows(
+        &mut rows,
+        params["rates"].as_array().map(Vec::as_slice).unwrap_or(&[]),
+    );
     let mut totals = json!({"requests":rows.len(),"cost":null,"priced":0});
+    let known: Vec<f64> = rows.iter().filter_map(|r| r["cost"].as_f64()).collect();
+    totals["priced"] = json!(known.len());
+    totals["estimated"] = json!(rows
+        .iter()
+        .filter(|r| r["cost_source"] == "estimated")
+        .count());
+    totals["recorded"] = json!(rows
+        .iter()
+        .filter(|r| r["cost_source"] == "recorded")
+        .count());
+    totals["unpriced"] = json!(rows.len() - known.len());
+    if !known.is_empty() || rows.is_empty() {
+        totals["cost"] = json!(known.iter().sum::<f64>());
+    }
     for k in ["input", "output", "cached", "write"] {
         totals[k] = json!(rows.iter().map(|r| number(&r[k])).sum::<u64>());
     }

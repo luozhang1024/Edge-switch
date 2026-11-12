@@ -44,7 +44,7 @@ DeepSeek Harness 卡片自动读取 Edge Switch 进程继承的 `$DSH_HOME/.cred
 
 实现协议与原生格式参考仓库内 `cc-switch-reference` 的 `services/dsh_account.rs`、`dsh_config.rs`、`codex_oauth_auth/browser.rs` 以及 `docs/deepseek-harness-integration-zh.md`。参考项目不随 Edge Switch 源码或安装包打包。
 
-1. 创建工作环境，或悬停具体环境后点击“编辑”。在“SSH 与网络”中配置板卡与代理，在“AI 工具”中查询版本、安装独立 Node.js 和所需工具。
+1. 创建工作环境，或悬停具体环境后点击“编辑”。在“SSH 与网络”中配置板卡与代理并保存；选中该环境后，从侧边栏“工具安装”查询版本、安装独立 Node.js 和所需工具。本机 Windows 使用该页提供的 npm 命令在本机终端安装。
 2. 进入模型服务，选择 Codex、Claude Code、DeepSeek Harness、Gemini CLI 或 OpenCode。
 3. 添加服务，选择 CLI 或统一 New API 供应商，填写 API 请求地址、准确的模型名称和对应 API Key。
 4. 保存后悬停服务卡片，点击第一个启用图标；选中后变为“使用中”。悬停其他操作图标可查看含义。环境与供应商列表均支持拖动排序，顺序自动保存。
@@ -53,7 +53,7 @@ DeepSeek Harness 卡片自动读取 Edge Switch 进程继承的 `$DSH_HOME/.cred
 
 首次使用时，各 CLI 默认展示自己的官方入口：Codex 为 OpenAI Official，Claude Code 为 Claude Official，Gemini CLI 为 Gemini Official，OpenCode 为 OpenCode Zen。Codex 在“设置 → 授权中心”中选择浏览器或设备码登录，也可单独导入凭据；其他工具点击官方卡片的登录图标，在板卡终端按提示授权。打开登录终端并不代表授权完成。各工具的官方登录与自定义 API 使用独立目录，切换后保留凭据。Harness 的账号入口可跳转授权中心，识别并同步本机账号；普通 DeepSeek API 接入仍需填写模型和 API Key，已有供应商不会被清除。
 
-Harness 多供应商设置要求 **0.2.2 或更新版本**。当前适配器不提供 Gemini 原生自定义路由；需要使用 Gemini CLI、OpenCode，或为 Harness 选择兼容的 OpenAI 网关。Harness 运行期间更换配置会被拒绝，请先在具体工作环境的“编辑 → AI 工具”中停止 Harness，再同步并重新打开，避免中断现有任务；配置不变时可以重新打开现有网页。
+Harness 多供应商设置要求 **0.2.2 或更新版本**。当前适配器不提供 Gemini 原生自定义路由；需要使用 Gemini CLI、OpenCode，或为 Harness 选择兼容的 OpenAI 网关。Harness 运行期间更换配置会被拒绝，请先选中具体工作环境，在侧边栏“工具安装”中停止 Harness，再同步并重新打开，避免中断现有任务；配置不变时可以重新打开现有网页。
 
 ## 配置与凭据
 

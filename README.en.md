@@ -3,7 +3,7 @@
 
 # Edge Switch
 
-Recent workspace updates: drag home shortcuts to persist their order; switch DeepSeek Harness back from API providers to its account channel; distinguish an explicitly selected official entry from a verified login. The sidebar includes a session center with search, tool filters, conversation reading, Markdown export, and resume-command copying. Local Windows reads complete native records (up to 128 MiB per file after decompression), resolves Codex project metadata and titles from its index/read-only state database, and reads compressed Harness logs without external tools. Harness uses the latest log generation per session and tolerates incomplete appended compression frames. Native Codex, Claude Code, and Harness token usage is read from logs; historical providers come from those logs, and costs without recorded amounts remain unknown. Model services detects the current native Codex provider, model, and endpoint without importing credentials. SSH workspaces scan only their managed environment, with up to 200 files and 4 KiB previews; remote details read at most 1 MiB and indicate truncation. OpenCode SQLite sessions are not yet supported. Exports contain only the loaded content.
+Recent workspace updates: drag home shortcuts to persist their order; switch DeepSeek Harness back from API providers to its account channel; distinguish an explicitly selected official entry from a verified login. The sidebar includes a session center with search, tool filters, conversation reading, Markdown export, and resume-command copying. Local Windows reads complete native records (up to 128 MiB per file after decompression), resolves Codex project metadata and titles from its index/read-only state database, and reads compressed Harness logs without external tools. Harness uses the latest log generation per session and tolerates incomplete appended compression frames. Native Codex, Claude Code, and Harness token usage is read from logs; historical providers come from those logs, and costs without recorded amounts are estimated using workspace prices when available. Model services detects the current native Codex provider, model, and endpoint without importing credentials. SSH workspaces scan only their managed environment, with up to 200 files and 4 KiB previews; remote details read at most 1 MiB and indicate truncation. OpenCode SQLite sessions are not yet supported. Exports contain only the loaded content.
 
 Configure AI tools, proxy networking, and model APIs on Linux boards over SSH.
 
@@ -22,13 +22,15 @@ Edge Switch is a Windows desktop built with Tauri 2, Rust, React, and TypeScript
 
 ## What's new
 
-- Configure SSH, proxies, and AI tools when creating or editing a specific workspace.
+- Configure SSH and proxies when creating or editing a workspace; use the sidebar's Tool installation page for deployment.
 - Each CLI starts with its official entry; Harness offers a DeepSeek API entry to configure. Hover to reveal actions; drag workspaces and providers to save your preferred order.
 - Choose **Start at login**, **Minimize to tray on close**, and **中文 / English** in **Settings → General**. Language switches immediately and persists.
 - Tasks open a progress and result dialog. History lives in **Settings → Logs**.
 - The portable ZIP includes a signed Microsoft WebView2 bootstrapper and a diagnostic launcher. Startup errors appear in a dialog and are recorded in a log.
 
 Startup registration applies to the current Windows user without administrator rights. Keep portable installations in a fixed directory; after moving one, toggle startup off and on to refresh the path. Closing to the tray is enabled by default. If disabled, closing or Alt+F4 exits the app; active tasks must first finish or be canceled.
+
+The sidebar now includes **Tool installation** for the selected saved workspace. SSH retains managed version installation and editor maintenance; native Windows provides npm commands, terminal access and diagnostics. Usage totals prefer recorded USD amounts and estimate other requests from the reference pricing snapshot in `cc-switch-reference/src-tauri/src/database/schema.rs`. **Set prices** overrides rates per workspace, provider and model, with separate fresh input, output, cache read and cache write prices in USD per million tokens. Totals cover all filtered requests before pagination and show pricing coverage. Missing rates stay unknown; subscription routes require explicit provider pricing. Estimates are not provider bills.
 
 ## Screenshots
 
@@ -67,7 +69,7 @@ SmartScreen may warn because the app is not code signed. Verify the download sou
 ## Quick start
 
 1. Click the record to open **Workspaces**. Create a board and enter SSH host, user, port, private key, and project directory in **SSH and network**.
-2. Open that workspace's **Edit → AI tools**, check the board, query versions, and install private Node.js and CLI tools. Existing installations can be validated and reused without replacing system Node.js.
+2. Select the workspace and open **Tool installation** in the sidebar to check the board, query versions, and install private Node.js and CLI tools. Existing installations can be validated and reused without replacing system Node.js. Native Windows tools use the provided npm commands in the local terminal.
 3. Configure proxy routes if needed. The board accesses the PC proxy through reverse SSH forwarding. Disconnect existing tunnels before changing settings.
 4. Click the album cover for **Model services**. Select a CLI first, then its official account or an API provider. Shared New API configurations can serve multiple tools.
 5. Authenticate Codex's OpenAI Official in **Settings → Authentication** or import `auth.json`. Claude, Gemini, and OpenCode official cards provide terminal login. Harness requires a model and API key.

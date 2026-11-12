@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { tools } from "./catalog";
 import { ActionIcon } from "./ActionIcon";
 import { t } from "./i18n";
+import { UsagePricing } from "./UsagePricing";
 
 type UsageRow = {
   id: string;
@@ -15,11 +16,15 @@ type UsageRow = {
   cached: number;
   write: number;
   cost: number | null;
+  cost_source?: "recorded" | "estimated" | "unknown";
 };
 export type UsageResult = {
   totals: Omit<UsageRow, "id" | "tool" | "timestamp" | "provider" | "model"> & {
     requests: number;
     priced: number;
+    estimated?: number;
+    recorded?: number;
+    unpriced?: number;
   };
   options: { provider: string[]; model: string[] };
   trend: { index: number; tokens: number }[];
@@ -54,6 +59,7 @@ export function UsagePage({
   const [view, setView] = useState("requests");
   const [page, setPage] = useState(0);
   const [revision, setRevision] = useState(0);
+  const [showPricing, setShowPricing] = useState(false);
   const [result, setResult] = useState<UsageResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -135,14 +141,31 @@ export function UsagePage({
             {environment} · {t("会话用量")}
           </p>
         </div>
-        <button
-          disabled={loading}
-          onClick={() => setRevision((value) => value + 1)}
-        >
-          <ActionIcon name="upgrade" />
-          {loading ? t("正在同步…") : t("刷新同步")}
-        </button>
+        <div className="buttons">
+          <button
+            onClick={() => setShowPricing(!showPricing)}
+            aria-expanded={showPricing}
+          >
+            {t("设置单价")}
+          </button>
+          <button
+            disabled={loading}
+            onClick={() => setRevision((value) => value + 1)}
+          >
+            <ActionIcon name="upgrade" />
+            {loading ? t("正在同步…") : t("刷新同步")}
+          </button>
+        </div>
       </header>
+      {showPricing && (
+        <UsagePricing
+          key={profileId}
+          profileId={profileId}
+          providers={result?.options.provider || []}
+          models={result?.options.model || []}
+          onSaved={() => setRevision((n) => n + 1)}
+        />
+      )}
       <div className="usage-filters">
         <select
           aria-label={t("统计时间范围")}
@@ -278,13 +301,22 @@ export function UsagePage({
           {!result && <span className="usage-chart-placeholder">—</span>}
         </div>
       </div>
+      {totals && (
+        <p className="usage-cost-coverage" role="status">
+          {t("费用覆盖")} {totals.priced}/{totals.requests} · {t("日志金额")}{" "}
+          {totals.recorded ?? 0} · {t("估算")} {totals.estimated ?? 0} ·{" "}
+          {t("未计价")} {totals.unpriced ?? totals.requests - totals.priced}
+          {totals.priced < totals.requests &&
+            ` · ${t("总成本仅包含可计价请求，缺少单价的模型可在设置单价中补齐。")}`}
+        </p>
+      )}
       <p className="usage-source-note">
         {t(
-          "仅统计当前环境内已记录用量的模型请求。新增输入、输出、缓存读取与写入分别计数；费用仅显示日志记录的美元金额，未记录时显示 —，不代表供应商账单。",
+          "总成本优先使用日志中的美元金额，其余请求按当前环境单价估算；估算不代表实际账单，不包含订阅费、余额抵扣或未记录的请求。未找到单价时显示 —。",
         )}
         {totals &&
           totals.priced > 0 &&
-          ` ${t("已记录费用")} ${totals.priced}/${totals.requests}`}
+          ` ${t("已计价请求")} ${totals.priced}/${totals.requests}`}
       </p>
       {result?.warnings.map((warning) => (
         <p key={warning} className="usage-error" role="status">
@@ -361,7 +393,20 @@ export function UsagePage({
                       </td>
                       <td>{t(row.provider)}</td>
                       <td>{row.model}</td>
-                      <td>{money(row.cost)}</td>
+                      <td
+                        title={t(
+                          row.cost_source === "estimated"
+                            ? "按单价估算"
+                            : row.cost_source === "recorded"
+                              ? "日志记录金额"
+                              : "未找到单价",
+                        )}
+                      >
+                        {money(row.cost)}
+                        {row.cost_source === "estimated" && (
+                          <small> {t("估算")}</small>
+                        )}
+                      </td>
                       {[row.input, row.output, row.cached, row.write].map(
                         (value, index) => (
                           <td key={index}>{value.toLocaleString()}</td>

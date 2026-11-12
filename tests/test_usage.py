@@ -9,6 +9,33 @@ from workbench import usage
 
 
 class UsageTests(unittest.TestCase):
+    def test_costs_use_configured_prices_and_total_all_pages(self):
+        self.write('claude-home/projects/test/session.jsonl', [
+            dict(type='assistant', timestamp=1794358800000 + index,
+                 message=dict(id=str(index), model='test', usage=dict(input_tokens=1000000, output_tokens=1000000, cache_read_input_tokens=1000000)))
+            for index in range(61)])
+        rates = [dict(provider='*', model='test', input=2, output=10, cached=0.1, write=0)]
+        result = usage.query(self.root, dict(self.params, rates=rates))
+        self.assertAlmostEqual(result['totals']['cost'], 61 * 12.1)
+        self.assertEqual(result['totals']['estimated'], 61)
+        self.assertEqual(result['totals']['unpriced'], 0)
+        self.assertEqual(len(result['rows']), 50)
+        second = usage.query(self.root, dict(self.params, rates=rates, page=1))
+        self.assertEqual(second['totals'], result['totals'])
+        rates.append(dict(provider='会话日志', model='test', input=1, output=1, cached=0, write=0))
+        discounted = usage.query(self.root, dict(self.params, rates=rates))
+        self.assertAlmostEqual(discounted['totals']['cost'], 122)
+
+    def test_account_routes_and_unknown_models_remain_unpriced(self):
+        rows = [dict(provider='deepseek-account', model='deepseek-flash', input=1000000, output=0, cached=0, write=0, cost=None),
+                dict(provider='api', model='unknown', input=10, output=0, cached=0, write=0, cost=None),
+                dict(provider='api', model='unknown', cost=0.03)]
+        usage.price_rows(rows, [dict(provider='*', model='deepseek-flash', input=1, output=2, cached=0, write=0)])
+        self.assertIsNone(rows[0]['cost'])
+        self.assertIsNone(rows[1]['cost'])
+        self.assertEqual(rows[2]['cost'], 0.03)
+        self.assertEqual(rows[2]['cost_source'], 'recorded')
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)

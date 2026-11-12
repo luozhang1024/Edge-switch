@@ -181,6 +181,28 @@ def collect(root):
     return rows, sorted(warnings)
 
 
+def price_rows(rows, rates):
+    for row in rows:
+        recorded = row.get('cost')
+        if isinstance(recorded, (int, float)) and math.isfinite(recorded) and recorded >= 0:
+            row['cost_source'] = 'recorded'
+            continue
+        row.update(cost=None, cost_source='unknown')
+        model, provider = row['model'], row['provider']
+        normalized = model.rsplit('/', 1)[-1].rsplit(':', 1)[-1].lower()
+        for suffix in ('-minimal', '-medium', '-xhigh', '-high', '-low'):
+            if normalized.endswith(suffix):
+                normalized = normalized[:-len(suffix)]
+                break
+        rate = next((r for r in rates if r.get('provider') == provider and r.get('model') == model), None)
+        rate = rate or next((r for r in rates if r.get('provider') == '*' and r.get('model') == model), None)
+        rate = rate or next((r for r in rates if r.get('provider') == '*' and r.get('model') == normalized), None)
+        if rate is None or (provider == 'deepseek-account' and rate['provider'] == '*'):
+            continue
+        row.update(cost=sum(number(row.get(key)) * number(rate.get(key)) / 1000000
+                            for key in ('input', 'output', 'cached', 'write')), cost_source='estimated')
+
+
 def query(root, params):
     rows, warnings = collect(root)
     start, end = number(params.get('start')), number(params.get('end'))
@@ -188,9 +210,12 @@ def query(root, params):
     options = {key: sorted({row[key] for row in selected}) for key in ('provider', 'model')}
     selected = [row for row in selected if all(not params.get(key) or row[key] == params[key]
                                               for key in ('tool', 'provider', 'model'))]
+    price_rows(selected, params.get('rates') or [])
     totals = {key: sum(row[key] for row in selected) for key in ('input', 'output', 'cached', 'write')}
     known = [row['cost'] for row in selected if row['cost'] is not None]
-    totals.update(requests=len(selected), cost=sum(known) if known else None, priced=len(known))
+    totals.update(requests=len(selected), cost=sum(known) if known or not selected else None, priced=len(known),
+                  estimated=sum(row['cost_source'] == 'estimated' for row in selected),
+                  recorded=sum(row['cost_source'] == 'recorded' for row in selected), unpriced=len(selected) - len(known))
     bucket = 3600 if end - start <= 86400 else 86400
     trend, groups = defaultdict(int), {}
     for row in selected:
