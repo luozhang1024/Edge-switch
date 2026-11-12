@@ -365,6 +365,8 @@ def tool_env(p, root):
 def install_tool(p):
     root = scope(p)
     tool = p['tool']
+    if tool == 'harness' and service_module().status(root).get('running'):
+        raise ValueError('请先停止 Harness 服务再安装或升级')
     package, binary_name = TOOL_PACKAGES[tool]
     version = p['version']
     if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?', version):
@@ -1079,6 +1081,70 @@ os.execvpe(binary, [binary] + args + sys.argv[1:], env)
 '''
 
 
+def tool_inventory(p):
+    root = scope(p)
+    rows = []
+    for tool, (_, executable) in TOOL_PACKAGES.items():
+        current = root / 'tools' / tool / 'current.json'
+        info = {}
+        if current.is_file():
+            try:
+                info = json.loads(current.read_text())
+            except (OSError, ValueError):
+                pass
+        binary = info.get('binary') or shutil.which(executable)
+        installed = bool(binary and Path(binary).is_file())
+        version = str(info.get('version', ''))
+        if installed and not version:
+            try:
+                version = command([binary, '--version'], timeout=10).splitlines()[0]
+            except Exception:
+                version = '版本未知'
+        rows.append(dict(id=tool, installed=installed, version=version, path=binary or '',
+                         managed=current.is_file(), can_remove=current.is_file(), can_upgrade=True))
+    for tool, executable in [('node', 'node'), ('git', 'git'), ('vscode', 'code')]:
+        own = root / 'runtime/bin/node' if tool == 'node' else None
+        binary = str(own) if own and own.is_file() else shutil.which(executable)
+        version = ''
+        if binary:
+            try:
+                version = command([binary, '--version'], timeout=10).splitlines()[0]
+            except Exception:
+                version = '版本未知'
+        rows.append(dict(id=tool, installed=bool(binary), version=version, path=binary or '',
+                         managed=bool(own and own.is_file()), can_remove=False, can_upgrade=False))
+    return dict(tools=rows, runtime_ready=(root / 'runtime/bin/node').is_file())
+
+
+def uninstall_tool(p):
+    tool = p.get('tool')
+    if tool not in TOOL_PACKAGES:
+        raise ValueError('仅允许卸载当前环境的受管 AI 工具；运行环境保留')
+    root = scope(p).resolve()
+    directory = root / 'tools' / tool
+    if directory.is_symlink() or directory.resolve().parent != root / 'tools':
+        raise ValueError('工具目录不属于当前环境')
+    if not (directory / 'current.json').is_file():
+        raise ValueError('该工具不是当前环境的受管安装，不能卸载系统工具')
+    if tool == 'harness' and harness_status(p).get('running'):
+        raise ValueError('请先停止 Harness 服务再卸载')
+    references = []
+    for record in root.parent.glob('*/tools/*/current.json'):
+        if record == directory / 'current.json':
+            continue
+        try:
+            binary = Path(json.loads(record.read_text())['binary']).resolve()
+            if os.path.commonpath([str(directory.resolve()), str(binary)]) == str(directory.resolve()):
+                references.append(record)
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    if references:
+        (directory / 'current.json').unlink()
+        return dict(message='已卸载当前环境入口；版本仍被其他环境引用，保留共享文件及配置会话', tool=tool)
+    shutil.rmtree(directory)
+    return dict(message='已卸载当前环境工具，配置和会话记录保留', tool=tool)
+
+
 def prompt_file(p):
     root = scope(p)
     official = bool(p.get('official'))
@@ -1134,7 +1200,11 @@ def main():
                    harness_account_read=harness_account_read, harness_account_write=harness_account_write,
                    harness_prepare=harness_prepare, harness_start=harness_start,
                    harness_status=harness_status, harness_stop=harness_stop)
-    if action == 'prompt_file':
+    if action == 'tool_inventory':
+        result = tool_inventory(p)
+    elif action == 'uninstall_tool':
+        result = uninstall_tool(p)
+    elif action == 'prompt_file':
         result = prompt_file(p)
     elif action == 'session_files':
         result = session_files(scope(p), p)

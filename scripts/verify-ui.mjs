@@ -86,6 +86,30 @@ try {
             checked_at: 1800000000,
           };
         if (name === "snapshot") return structuredClone(snapshot);
+        if (name === "tool_inventory")
+          return {
+            tools: [
+              {
+                id: "codex",
+                installed: true,
+                version: "0.120.0",
+                path: "/managed/codex",
+                managed: true,
+                can_remove: true,
+                can_upgrade: true,
+              },
+              {
+                id: "node",
+                installed: true,
+                version: "v24.1.0",
+                path: "/managed/node",
+                managed: true,
+                can_remove: false,
+                can_upgrade: false,
+              },
+            ],
+          };
+
         if (name === "prompt_library")
           return {
             prompts: [
@@ -328,7 +352,7 @@ try {
   await editor.getByRole("button", { name: "取消", exact: true }).click();
   await page.getByRole("button", { name: "工具安装", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "查询可用版本", exact: true }),
+    page.getByRole("combobox", { name: "工具分类", exact: true }),
   ).toBeVisible();
   await page.screenshot({ path: resolve(output, "environment-tools.png") });
   await page.getByRole("button", { name: "模型服务", exact: true }).click();

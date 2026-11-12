@@ -52,6 +52,7 @@ pub async fn start_task(
         "versions" => "查询工具版本",
         "install_runtime" => "安装独立 Node.js",
         "install_tool" => "安装工具",
+        "manage_tool" => "管理工具安装",
         "reuse_tools" => "接入已有工具",
         "sync_api" => "同步模型服务",
         "api_test" => "测试 API",
@@ -398,6 +399,44 @@ async fn execute(
     action: &str,
     v: Value,
 ) -> Result<Value, String> {
+    if action == "manage_tool" {
+        let tool = v["tool"].as_str().ok_or("请选择工具")?;
+        let operation = v["operation"].as_str().ok_or("请选择操作")?;
+        if p.is_local() {
+            return crate::tool_management::local_action(tool, operation).await;
+        }
+        if operation == "uninstall" {
+            return core
+                .call(p, scope, "uninstall_tool", json!({"tool":tool}), 90)
+                .await;
+        }
+        if !["install", "upgrade"].contains(&operation) {
+            return Err("工具操作无效".into());
+        }
+        if tool == "node" {
+            return crate::editor::install_runtime(&core, app, id, p, scope).await;
+        }
+        if !store::TOOLS.contains(&tool) {
+            return Err("远程仅支持受管 AI 工具与 Node.js 安装".into());
+        }
+        let versions = crate::editor::versions(p).await?;
+        let version = versions[tool]["latest"]
+            .as_str()
+            .ok_or("无法查询最新版本")?;
+        let info = core.call(p, scope, "tool_inventory", json!({}), 90).await?;
+        if info["runtime_ready"] != true {
+            crate::editor::install_runtime(&core, app, id, p, scope).await?;
+        }
+        return core
+            .call(
+                p,
+                scope,
+                "install_tool",
+                json!({"tool":tool,"version":version,"proxy":core.route(p,tool).await?}),
+                1860,
+            )
+            .await;
+    }
     if p.is_local() {
         if action == "harness_account_sync" {
             let account = crate::accounts::local_harness_account().await?;

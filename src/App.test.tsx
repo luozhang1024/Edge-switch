@@ -393,28 +393,60 @@ describe("桌面工作流", () => {
     expect(screen.queryByRole("tab", { name: "AI 工具" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "取消" }));
     fireEvent.click(screen.getByRole("button", { name: "工具安装" }));
-    expect(screen.getByRole("button", { name: "查询可用版本" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "工具分类" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "← 返回唱片台" }));
     fireEvent.click(screen.getByRole("button", { name: "配置模型服务" }));
     expect(screen.getByRole("tab", { name: "Codex" })).toBeTruthy();
   });
-  it("工具安装直接操作当前已保存环境，不依赖编辑表单", async () => {
+  it("工具安装直接操作当前已保存环境", async () => {
+    mocks.invoke.mockImplementation(async (name: string) =>
+      name === "snapshot"
+        ? structuredClone(data)
+        : name === "connection_status"
+          ? {}
+          : name === "tool_inventory"
+            ? {
+                tools: [
+                  {
+                    id: "codex",
+                    installed: false,
+                    version: "",
+                    path: "",
+                    managed: false,
+                    can_remove: false,
+                    can_upgrade: true,
+                  },
+                ],
+              }
+            : null,
+    );
     render(<App />);
     fireEvent.click(
       await screen.findByRole("button", { name: "配置工作环境" }),
     );
     fireEvent.click(screen.getByRole("button", { name: "工具安装" }));
-    fireEvent.click(screen.getByRole("button", { name: "查询可用版本" }));
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("button", { name: "一键安装" })[0],
+      ).not.toHaveProperty("disabled", true),
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "一键安装" })[0]);
     await waitFor(() =>
       expect(mocks.invoke).toHaveBeenCalledWith("start_task", {
         profileId: data.selected_profile,
-        action: "versions",
-        payload: {},
+        action: "manage_tool",
+        payload: { tool: "codex", operation: "install" },
       }),
     );
     expect(
       mocks.invoke.mock.calls.some(([name]) => name === "save_profile"),
     ).toBe(false);
+  });
+  it("隐藏 AI 工具仅改变模型服务入口", async () => {
+    data.profiles[0].tool_visibility = { claude: false };
+    await models();
+    expect(screen.queryByRole("tab", { name: "Claude Code" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Codex" })).toBeTruthy();
   });
   it("管理区持续保留导航，切换功能不需要重新展开", async () => {
     await models();

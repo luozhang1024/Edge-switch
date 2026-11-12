@@ -44,7 +44,8 @@ DeepSeek Harness 卡片自动读取 Edge Switch 进程继承的 `$DSH_HOME/.cred
 
 实现协议与原生格式参考仓库内 `cc-switch-reference` 的 `services/dsh_account.rs`、`dsh_config.rs`、`codex_oauth_auth/browser.rs` 以及 `docs/deepseek-harness-integration-zh.md`。参考项目不随 Edge Switch 源码或安装包打包。
 
-1. 创建工作环境，或悬停具体环境后点击“编辑”。在“SSH 与网络”中配置板卡与代理并保存；选中该环境后，从侧边栏“工具安装”查询版本、安装独立 Node.js 和所需工具。本机 Windows 使用该页提供的 npm 命令在本机终端安装。
+1. 创建工作环境，或悬停具体环境后点击“编辑”。在“SSH 与网络”中配置板卡与代理并保存；选中该环境后，从侧边栏“工具安装”的分类下拉框筛选工具，一键安装所需 CLI。已安装工具置顶，显示版本及安装来源，并提供受支持的升级和卸载操作。本机先安装 Node.js，AI 工具通过 npm 管理；Node.js、Git 与 VS Code 通过 winget 管理。SSH 自动准备独立 Node.js，系统工具仅检测，运行环境不提供升级或卸载。
+   AI 工具的“在模型服务中显示”开关控制当前环境的工具图标，默认显示；隐藏不会删除供应商配置。卸载受管工具保留配置与会话，远程版本仍被其他环境引用时仅移除当前环境入口。
 2. 进入模型服务，选择 Codex、Claude Code、DeepSeek Harness、Gemini CLI 或 OpenCode。
 3. 添加服务，选择 CLI 或统一 New API 供应商，填写 API 请求地址、准确的模型名称和对应 API Key。
 4. 保存后悬停服务卡片，点击第一个启用图标；选中后变为“使用中”。悬停其他操作图标可查看含义。环境与供应商列表均支持拖动排序，顺序自动保存。

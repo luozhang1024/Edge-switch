@@ -74,6 +74,13 @@ export function ModelServices({
     };
   }, [current.id, current.kind, tool]);
   const selected = tools.find((t) => t.id === tool)!;
+  const visibleTools = tools.filter(
+    (item) => current.tool_visibility?.[item.id] !== false,
+  );
+  useEffect(() => {
+    if (current.tool_visibility?.[tool] === false && visibleTools[0])
+      onTool(visibleTools[0].id);
+  }, [current.id, current.tool_visibility, tool]);
   const activeId =
     tool === "codex" ? current.active_api : current.tool_services?.[tool];
   const official =
@@ -147,6 +154,13 @@ export function ModelServices({
       tool,
     });
   }
+  if (!visibleTools.length)
+    return (
+      <section className="model-workspace">
+        <h2>{t("模型服务")}</h2>
+        <p>{t("尚未显示 AI 工具，请到工具安装中开启“在模型服务中显示”。")}</p>
+      </section>
+    );
   return (
     <section className="model-workspace">
       <div className="model-toolbar">
@@ -156,7 +170,7 @@ export function ModelServices({
           role="tablist"
           aria-label={t("板卡 AI 工具")}
         >
-          {tools.map((t) => (
+          {visibleTools.map((t) => (
             <button
               key={t.id}
               role="tab"

@@ -38,6 +38,7 @@ import { WindowControls } from "./WindowControls";
 import { ScrollList } from "./ScrollList";
 import { SettingsPage, SettingsTab } from "./SettingsPage";
 import { UsagePage } from "./UsagePage";
+import { ToolInstallation } from "./ToolInstallation";
 import { PromptGroups } from "./PromptGroups";
 import { SessionCenter } from "./SessionCenter";
 import { ActionIcon } from "./ActionIcon";
@@ -486,148 +487,65 @@ export function App() {
                 {t(message)}
               </div>
               {tab === "tools" && (
-                <section
-                  className="tool-install-page"
-                  aria-label={t("工具安装")}
-                >
-                  <h2>{t("工具安装")}</h2>
-                  <p>
-                    {current.name} ·{" "}
-                    {current.kind === "local"
-                      ? t("本机 Windows")
-                      : `${current.user}@${current.host}:${current.port}`}
-                  </p>
-                  {current.kind === "local" ? (
-                    <>
-                      <p>
-                        {t(
-                          "本机工具使用 Windows 原生安装；复制命令到本机终端执行，安装后检查设备。",
-                        )}
-                      </p>
-                      <div className="buttons">
-                        {button("检查设备", "diagnose")}
-                        {button("打开本机终端", "ssh_console")}
-                      </div>
-                      <div className="local-tool-install-list">
-                        {tools.map((item) => {
-                          const packages: Record<string, string> = {
-                            codex: "@openai/codex",
-                            claude: "@anthropic-ai/claude-code",
-                            gemini: "@google/gemini-cli",
-                            opencode: "opencode-ai",
-                            harness: "@deepseek-ai/dsh",
-                          };
-                          const installCommand = `npm install -g ${packages[item.id]}@latest`;
-                          return (
-                            <article className="profile" key={item.id}>
-                              <div>
-                                <b>
-                                  <AssetIcon src={item.icon} />
-                                  {item.name}
-                                </b>
-                                <p>
-                                  <code>{installCommand}</code>
-                                </p>
-                              </div>
-                              <button
-                                disabled={busy}
-                                onClick={async () => {
-                                  try {
-                                    await navigator.clipboard.writeText(
-                                      installCommand,
-                                    );
-                                    setMessage("安装命令已复制");
-                                  } catch {
-                                    setMessage(
-                                      "复制未完成，请检查系统剪贴板权限",
-                                    );
-                                  }
-                                }}
-                              >
-                                {t("复制安装命令")}
-                              </button>
-                            </article>
-                          );
-                        })}
-                      </div>
-                      <p>
-                        {t(
-                          "需先安装 Node.js LTS，并确认 node、npm 已加入 PATH。",
-                        )}
-                      </p>
-                    </>
-                  ) : (
-                    <>
+                <>
+                  <ToolInstallation
+                    current={current}
+                    busy={busy}
+                    revision={data.tasks
+                      .filter((task) => task.profile_id === current.id)
+                      .map((task) => `${task.id}:${task.state}`)
+                      .join(",")}
+                    command={command}
+                    run={run}
+                  />
+                  {current.kind !== "local" && (
+                    <section>
                       {" "}
-                      <section>
-                        <div className="panel">
-                          <h2>{t("工具部署")}</h2>
-                          <p>
-                            {t(
-                              "安装到当前环境专属目录，不替换系统 Node.js。先查询版本，再选择安装。",
-                            )}
-                          </p>
-                          <div className="buttons">
-                            {button("检查设备", "diagnose")}
-                            {button("查询可用版本", "versions")}
-                            {button("安装独立 Node.js", "install_runtime")}
-                            {button("复用已有工具", "reuse_tools")}
-                          </div>
-                          <ToolInstaller
-                            data={data}
-                            profileId={current.id}
+                      <div className="panel">
+                        <h2>{t("启动与服务")}</h2>
+                        <div className="buttons">
+                          {button("打开 Codex", "codex")}
+                          {button("打开 Harness 网页", "harness")}
+                          {button("停止 Harness", "harness_stop")}
+                          {button("打开 VS Code", "vscode")}
+                          {button("打开 SSH 终端", "ssh_console")}
+                        </div>
+                        <p>
+                          Harness：
+                          {current.harness_background
+                            ? t("退出工作台后保留板卡后台服务")
+                            : t("退出工作台时停止服务")}
+                          {t("。关闭主窗口仅缩至托盘。")}
+                        </p>
+                      </div>
+                      <div className="panel">
+                        <h2>{t("编辑器维护")}</h2>
+                        <p>
+                          {t(
+                            "选择已安装的 Code.exe 创建固定副本。独立设置不会覆盖日常 VS Code 配置，导入服务端仍需通过官方 SHA-256 校验。",
+                          )}
+                        </p>
+                        <div className="buttons">
+                          <button
                             disabled={busy}
-                            install={(tool, version) =>
-                              void run("install_tool", { tool, version })
-                            }
-                          />
+                            onClick={() => void choose("editor_pin", true)}
+                          >
+                            <AssetIcon src={vscodeIcon} />
+                            {t("选择并固定 Code.exe")}
+                          </button>
+                          <button
+                            disabled={busy}
+                            onClick={() => void choose("import_server", true)}
+                          >
+                            <AssetIcon src={vscodeIcon} />
+                            {t("导入 Server 安装包")}
+                          </button>
+                          {button("读取连接诊断", "vscode_diagnostics")}
                         </div>
-                        <div className="panel">
-                          <h2>{t("启动与服务")}</h2>
-                          <div className="buttons">
-                            {button("打开 Codex", "codex")}
-                            {button("打开 Harness 网页", "harness")}
-                            {button("停止 Harness", "harness_stop")}
-                            {button("打开 VS Code", "vscode")}
-                            {button("打开 SSH 终端", "ssh_console")}
-                          </div>
-                          <p>
-                            Harness：
-                            {current.harness_background
-                              ? t("退出工作台后保留板卡后台服务")
-                              : t("退出工作台时停止服务")}
-                            {t("。关闭主窗口仅缩至托盘。")}
-                          </p>
-                        </div>
-                        <div className="panel">
-                          <h2>{t("编辑器维护")}</h2>
-                          <p>
-                            {t(
-                              "选择已安装的 Code.exe 创建固定副本。独立设置不会覆盖日常 VS Code 配置，导入服务端仍需通过官方 SHA-256 校验。",
-                            )}
-                          </p>
-                          <div className="buttons">
-                            <button
-                              disabled={busy}
-                              onClick={() => void choose("editor_pin", true)}
-                            >
-                              <AssetIcon src={vscodeIcon} />
-                              {t("选择并固定 Code.exe")}
-                            </button>
-                            <button
-                              disabled={busy}
-                              onClick={() => void choose("import_server", true)}
-                            >
-                              <AssetIcon src={vscodeIcon} />
-                              {t("导入 Server 安装包")}
-                            </button>
-                            {button("读取连接诊断", "vscode_diagnostics")}
-                          </div>
-                        </div>
-                      </section>
-                    </>
+                      </div>
+                    </section>
                   )}
-                </section>
+                </>
               )}
               {tab === "prompts" && (
                 <PromptGroups
@@ -1358,65 +1276,6 @@ export function App() {
           </div>
         </Modal>
       )}
-    </div>
-  );
-}
-function ToolInstaller({
-  data,
-  profileId,
-  disabled,
-  install,
-}: {
-  data: Snapshot;
-  profileId: string;
-  disabled: boolean;
-  install: (tool: string, version: string) => void;
-}) {
-  const [selected, setSelected] = useState<Record<string, string>>({});
-  const task = data.tasks
-    .filter(
-      (t) =>
-        t.profile_id === profileId &&
-        t.label === "查询工具版本" &&
-        t.state === "已完成",
-    )
-    .at(-1);
-  const versions = task?.result as
-    Record<string, { versions: string[] }> | undefined;
-  return (
-    <div className="form">
-      {tools.map(({ id: tool, name, icon }) => (
-        <label key={tool}>
-          <span className="tool-label">
-            <AssetIcon src={icon} />
-            {name}
-            {t(" 版本")}
-          </span>
-          <select
-            disabled={disabled}
-            value={selected[`${profileId}:${tool}`] || ""}
-            onChange={(e) =>
-              setSelected({
-                ...selected,
-                [`${profileId}:${tool}`]: e.target.value,
-              })
-            }
-          >
-            <option value="">{t("请先查询并选择版本")}</option>
-            {versions?.[tool]?.versions.map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </select>
-          <button
-            disabled={disabled || !selected[`${profileId}:${tool}`]}
-            onClick={() => install(tool, selected[`${profileId}:${tool}`])}
-          >
-            {t("安装选定版本")}
-          </button>
-        </label>
-      ))}
     </div>
   );
 }

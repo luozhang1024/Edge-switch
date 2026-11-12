@@ -248,12 +248,38 @@ try {
   expect(nativeSessions.sessions[0].provider).toBe("smoke-api");
   expect(nativeSessions.sessions[0].usage.requests).toBe(1);
   await navigate("工具安装");
-  await expect(page.locator(".local-tool-install-list .profile")).toHaveCount(
-    5,
-  );
+  await expect(page.locator(".ti-row")).toHaveCount(8);
+  await expect(page.locator(".ti-page")).toHaveAttribute("aria-busy", "false", {
+    timeout: 95000,
+  });
+  await page
+    .getByRole("combobox", { name: "工具分类", exact: true })
+    .selectOption("ai");
+  await expect(page.locator(".ti-row")).toHaveCount(5);
+  const visibilitySwitch = page.getByRole("switch", {
+    name: "在模型服务中显示 Claude Code",
+    exact: true,
+  });
+  await visibilitySwitch.click();
+  await expect(visibilitySwitch).not.toBeChecked();
+  await navigate("模型服务");
+  await expect(
+    page.getByRole("tab", { name: "Claude Code", exact: true }),
+  ).toHaveCount(0);
+  await navigate("工具安装");
+  await page
+    .getByRole("switch", { name: "在模型服务中显示 Claude Code", exact: true })
+    .click();
+  await expect(visibilitySwitch).toBeChecked();
+  await page
+    .getByRole("combobox", { name: "工具分类", exact: true })
+    .selectOption("all");
   await expect(
     page.getByRole("button", { name: "安装独立 Node.js", exact: true }),
   ).toHaveCount(0);
+  await expect(page.locator(".ti-page")).toHaveAttribute("aria-busy", "false", {
+    timeout: 95000,
+  });
   await checkVisuals("tools-local");
   await navigate("使用统计");
   await page.getByRole("button", { name: "设置单价", exact: true }).click();

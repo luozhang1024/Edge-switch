@@ -12,6 +12,7 @@
   protocol: string;
   codex_auth: string;
   tool_services?: Partial<Record<ToolId, string>>;
+  tool_visibility?: Partial<Record<ToolId, boolean>>;
   proxy: boolean;
   codex_proxy: boolean | null;
   harness_proxy: boolean | null;

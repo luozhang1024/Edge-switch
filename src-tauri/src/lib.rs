@@ -12,6 +12,7 @@ mod settings;
 pub mod startup;
 mod store;
 mod tasks;
+mod tool_management;
 mod transport;
 mod usage_pricing;
 
@@ -762,6 +763,8 @@ pub fn run() {
             sessions::query_sessions,
             prompts::prompt_library,
             usage_pricing::usage_pricing,
+            tool_management::tool_inventory,
+            tool_management::set_tool_visibility,
             native_sessions::native_tool_config,
             accounts::local_harness_account,
             settings::save_preferences,
