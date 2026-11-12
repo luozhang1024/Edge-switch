@@ -399,6 +399,19 @@ async fn execute(
     v: Value,
 ) -> Result<Value, String> {
     if p.is_local() {
+        if action == "harness_account_sync" {
+            let account = crate::accounts::local_harness_account().await?;
+            if account["signed_in"] != true || account["expired"] == true {
+                return Err("请先在授权中心登录有效的 DeepSeek 账号".into());
+            }
+            let mut store = core.store.lock().unwrap();
+            let mut current = store.profile(&p.id)?;
+            current
+                .tool_services
+                .insert("harness".into(), "official".into());
+            store.save_profile(current)?;
+            return Ok(json!({"message":"已选择本机 DeepSeek 账号，工具沿用本机账号配置"}));
+        }
         return crate::local::execute(p, action).await;
     }
     match action {

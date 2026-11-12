@@ -1,6 +1,6 @@
 import { chromium, expect } from "@playwright/test";
 import { createServer } from "vite";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createServer as createNetServer } from "node:net";
 import { once } from "node:events";
@@ -86,6 +86,29 @@ try {
             checked_at: 1800000000,
           };
         if (name === "snapshot") return structuredClone(snapshot);
+        if (name === "query_sessions")
+          return {
+            sessions: [
+              {
+                key: "0/test.jsonl",
+                tool: "codex",
+                id: "demo-session",
+                title: "为板卡配置工具",
+                project: "/home/developer/project",
+                modified: 1800000000,
+                truncated: false,
+                resume: "codex resume demo-session",
+                messages: [
+                  { role: "user", content: "帮我检查板卡环境并配置开发工具。" },
+                  {
+                    role: "assistant",
+                    content: "环境检查已完成，可以开始配置开发工具。",
+                  },
+                ],
+              },
+            ],
+            warnings: [],
+          };
         if (name === "query_usage") {
           const rows = Array.from({ length: 12 }, (_, index) => ({
             id: String(index),
@@ -149,7 +172,10 @@ try {
           p.codex_auth = "api";
         }
         if (name === "reorder_items") {
-          if (args.kind === "profiles") snapshot.list_order.profiles = args.ids;
+          if (args.kind === "quick_launch")
+            snapshot.list_order.quick_launch = args.ids;
+          else if (args.kind === "profiles")
+            snapshot.list_order.profiles = args.ids;
           else {
             snapshot.list_order.services ||= {};
             snapshot.list_order.services[args.profileId] ||= {};
@@ -196,6 +222,13 @@ try {
     .boundingBox();
   expect(settingsSize.width).toBe(settingsSize.height);
   await page.screenshot({ path: resolve(output, "home.png") });
+  await page
+    .getByRole("button", { name: "打开 VS Code", exact: true })
+    .dragTo(page.getByRole("button", { name: "打开 Codex", exact: true }));
+  await expect(page.locator(".launch-tracks button").first()).toHaveAttribute(
+    "aria-label",
+    "打开 VS Code",
+  );
   await page.getByRole("button", { name: "检查设备", exact: true }).click();
   const progress = page.getByRole("dialog", { name: "检查设备" });
   await expect(progress).toBeVisible();
@@ -271,6 +304,30 @@ try {
   await page.getByRole("tab", { name: "Claude Code", exact: true }).click();
   await expect(page.locator(".service-info b")).toHaveText("Claude Official");
   await page.screenshot({ path: resolve(output, "claude-official.png") });
+  await expect(
+    page.getByRole("button", { name: "使用中", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("tab", { name: "DeepSeek Harness", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "启用 DeepSeek 账号", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "会话中心", exact: true }).click();
+  await page.getByRole("button", { name: /为板卡配置工具/ }).click();
+  await expect(page.locator(".session-messages")).toContainText(
+    "环境检查已完成",
+  );
+  await page.screenshot({ path: resolve(output, "sessions-light.png") });
+  const downloaded = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "导出 Markdown", exact: true })
+    .click();
+  const markdown = await downloaded;
+  expect(markdown.suggestedFilename()).toBe("session-codex-demo-session.md");
+  expect(await readFile(await markdown.path(), "utf8")).toContain(
+    "环境检查已完成",
+  );
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await expect(
     page.getByRole("switch", { name: "开机自启" }),

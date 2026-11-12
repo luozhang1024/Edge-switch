@@ -5,6 +5,7 @@ import { ScrollList } from "./ScrollList";
 import { tools } from "./catalog";
 import vscodeIcon from "../image/Vscode.png";
 import { ActionIcon } from "./ActionIcon";
+import { ordered, moveItem } from "./listOrder";
 
 export function RecordPlayer({
   current,
@@ -17,6 +18,8 @@ export function RecordPlayer({
   onProject,
   onInfo,
   preferences,
+  launchOrder = [],
+  onOrder,
 }: {
   current: Profile;
   version: string;
@@ -28,9 +31,12 @@ export function RecordPlayer({
   onProject: () => void;
   onInfo: () => void;
   preferences: Preferences;
+  launchOrder?: string[];
+  onOrder: (ids: string[]) => Promise<unknown>;
 }) {
   const [spinning, setSpinning] = useState(true);
-  const tracks = [
+  const [dragged, setDragged] = useState<string | null>(null);
+  const allTracks = [
     ["01", "Codex", "AI 编程 · 终端工作流", "codex"],
     ["02", "VS Code", "远程编辑 · 专注创造", "vscode"],
     ["03", "DeepSeek Harness", "浏览器里的 AI 工作空间", "harness"],
@@ -43,11 +49,18 @@ export function RecordPlayer({
     ["05", "Claude Code", "用自然语言，雕琢想法", "claude"],
     ["06", "Gemini CLI", "另一种灵感，另一种可能", "gemini"],
     ["07", "OpenCode", "开放工具 · 自由创造", "opencode"],
-  ].filter(
-    ([, , , action]) =>
-      ["vscode", "ssh_console"].includes(action) ||
-      preferences.home_tools.includes(action as ToolId),
+  ];
+  const sorted = ordered(
+    allTracks.map((track) => ({ id: track[3], track })),
+    launchOrder,
   );
+  const tracks = sorted
+    .map(({ track }) => track)
+    .filter(
+      ([, , , action]) =>
+        ["vscode", "ssh_console"].includes(action) ||
+        preferences.home_tools.includes(action as ToolId),
+    );
   return (
     <section className="listening-room" aria-label={t("远程开发唱片台")}>
       <div className="track-column">
@@ -70,15 +83,37 @@ export function RecordPlayer({
           <span>{String(tracks.length).padStart(2, "0")} TRACKS</span>
         </div>
         <ScrollList className="launch-tracks" label={t("快速启动列表")}>
-          {tracks.map(([number, name, detail, action]) => (
+          {tracks.map(([number, name, detail, action], index) => (
             <button
               key={action}
+              draggable={!busy}
+              onDragStart={(e) => {
+                setDragged(action);
+                e.dataTransfer.setData("text/plain", action);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              onDragOver={(e) => {
+                if (dragged) e.preventDefault();
+              }}
+              onDragEnd={() => setDragged(null)}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragged)
+                  void onOrder(
+                    moveItem(
+                      sorted.map((item) => item.id),
+                      dragged,
+                      action,
+                    ),
+                  );
+                setDragged(null);
+              }}
               aria-label={t(`打开 ${name}`)}
               disabled={busy}
               onClick={() => void run(action)}
             >
               <span className="track-number" aria-hidden="true">
-                {number}
+                {String(index + 1).padStart(2, "0")}
               </span>
               <span
                 className={`track-art track-art-${number}`}
@@ -94,6 +129,7 @@ export function RecordPlayer({
                         : tools.find((tool) => tool.id === action)?.icon
                     }
                     alt=""
+                    draggable={false}
                   />
                 )}
               </span>
@@ -107,7 +143,9 @@ export function RecordPlayer({
             </button>
           ))}
         </ScrollList>
-        <span className="scroll-hint">{t("滚动探索更多工具 ↓")}</span>
+        <span className="scroll-hint">
+          {t("拖动排序 · 滚动探索更多工具 ↓")}
+        </span>
       </div>
       <div className="turntable">
         <span className="turntable-caption">EDGE SWITCH — v{version}</span>

@@ -38,6 +38,7 @@ import { WindowControls } from "./WindowControls";
 import { ScrollList } from "./ScrollList";
 import { SettingsPage, SettingsTab } from "./SettingsPage";
 import { UsagePage } from "./UsagePage";
+import { SessionCenter } from "./SessionCenter";
 import { ActionIcon } from "./ActionIcon";
 import { tools } from "./catalog";
 import { ToolId } from "./types";
@@ -63,6 +64,12 @@ const navigation = [
     description: "管理工具账号授权。",
   },
   { id: "usage", label: "使用统计", icon: "", description: "查询模型用量。" },
+  {
+    id: "sessions",
+    label: "会话中心",
+    icon: "",
+    description: "浏览工具会话与对话记录。",
+  },
 ];
 const actionIcons: Record<string, string> = {
   diagnose: verifyIcon,
@@ -388,6 +395,10 @@ export function App() {
           connected={currentConnections.some(([, c]) => c.state === "已连接")}
           run={run}
           preferences={preferences}
+          launchOrder={data.list_order?.quick_launch}
+          onOrder={(ids) =>
+            command("reorder_items", { kind: "quick_launch", ids })
+          }
           onNavigate={() => setTab("models")}
           onEnvironment={() => setTab("connect")}
           onProject={() => void command("open_project_page")}
@@ -430,9 +441,15 @@ export function App() {
                     aria-current={tab === id ? "page" : undefined}
                     onClick={() => setTab(id)}
                   >
-                    {id === "auth" || id === "usage" ? (
+                    {id === "auth" || id === "usage" || id === "sessions" ? (
                       <ActionIcon
-                        name={id === "auth" ? "authorization" : "usage"}
+                        name={
+                          id === "auth"
+                            ? "authorization"
+                            : id === "sessions"
+                              ? "logs"
+                              : "usage"
+                        }
                       />
                     ) : (
                       <AssetIcon src={icon} />
@@ -451,6 +468,14 @@ export function App() {
                   key={current.id}
                   profileId={current.id}
                   environment={current.name}
+                />
+              )}
+              {tab === "sessions" && (
+                <SessionCenter
+                  key={current.id}
+                  profileId={current.id}
+                  environment={current.name}
+                  onTerminal={() => void run("ssh_console")}
                 />
               )}
               {(tab === "settings" || tab === "auth") && (

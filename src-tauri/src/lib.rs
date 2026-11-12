@@ -5,6 +5,7 @@ mod ordering;
 mod providers;
 mod resources;
 mod secrets;
+mod sessions;
 mod settings;
 pub mod startup;
 mod store;
@@ -742,6 +743,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            sessions::query_sessions,
             accounts::local_harness_account,
             settings::save_preferences,
             settings::autostart_status,

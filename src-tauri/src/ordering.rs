@@ -10,6 +10,21 @@ fn reorder(
     ids: Vec<String>,
 ) -> Result<(), String> {
     let (allowed, path): (HashSet<String>, Vec<String>) = match kind {
+        "quick_launch" => (
+            [
+                "codex",
+                "vscode",
+                "harness",
+                "ssh_console",
+                "claude",
+                "gemini",
+                "opencode",
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect(),
+            vec!["quick_launch".into()],
+        ),
         "profiles" => (
             store.data["profiles"]
                 .as_array()
@@ -85,6 +100,30 @@ pub async fn reorder_items(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn quick_launch_order_persists_and_cannot_drop_hidden_tools() {
+        let dir = std::env::temp_dir().join(crate::store::new_id());
+        let mut store = Store::load(dir.clone()).unwrap();
+        let ids: Vec<String> = [
+            "claude",
+            "codex",
+            "vscode",
+            "harness",
+            "ssh_console",
+            "gemini",
+            "opencode",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+        reorder(&mut store, "quick_launch", None, None, ids.clone()).unwrap();
+        assert_eq!(
+            Store::load(dir.clone()).unwrap().data["list_order"]["quick_launch"],
+            json!(ids)
+        );
+        assert!(reorder(&mut store, "quick_launch", None, None, vec!["codex".into()]).is_err());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
     #[test]
     fn order_persists_and_rejects_missing_duplicate_or_unknown_ids() {
         let dir = std::env::temp_dir().join(crate::store::new_id());

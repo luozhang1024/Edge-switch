@@ -15,6 +15,30 @@ const { version: expectedVersion } = JSON.parse(
 );
 const output = resolve("build/migration", `desktop-${Date.now()}`);
 await mkdir(output, { recursive: true });
+const sessionRoot = join(output, "native-home/.codex/sessions");
+await mkdir(sessionRoot, { recursive: true });
+await writeFile(
+  join(sessionRoot, "smoke-session.jsonl"),
+  [
+    { type: "session_meta", payload: { id: "desktop-smoke", cwd: output } },
+    {
+      type: "response_item",
+      payload: {
+        role: "user",
+        content: [{ type: "input_text", text: "桌面会话验证" }],
+      },
+    },
+    {
+      type: "response_item",
+      payload: {
+        role: "assistant",
+        content: [{ type: "output_text", text: "会话读取正常" }],
+      },
+    },
+  ]
+    .map(JSON.stringify)
+    .join("\n"),
+);
 const server = createServer();
 server.listen(0, "127.0.0.1");
 await once(server, "listening");
@@ -23,6 +47,11 @@ await new Promise((r) => server.close(r));
 const env = {
   ...process.env,
   LOCALAPPDATA: output,
+  CODEX_HOME: join(output, "native-home/.codex"),
+  DSH_HOME: join(output, "native-home/.dsh"),
+  CLAUDE_CONFIG_DIR: join(output, "native-home/.claude"),
+  GEMINI_CLI_HOME: join(output, "native-home"),
+  XDG_DATA_HOME: join(output, "native-home/.local/share"),
   WEBVIEW2_USER_DATA_FOLDER: join(output, "webview"),
   WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port} --remote-debugging-address=127.0.0.1`,
 };
@@ -163,6 +192,12 @@ try {
   await page.setViewportSize(originalViewport || { width: 1180, height: 790 });
   let snapshot = await ipc("snapshot");
   expect(snapshot.version).toBe(expectedVersion);
+  expect(snapshot.profiles[0].kind).toBe("local");
+  await navigate("会话中心");
+  await page.getByRole("button", { name: /桌面会话验证/ }).click();
+  await expect(page.locator(".session-messages")).toContainText("会话读取正常");
+  await checkVisuals("sessions-native");
+  await page.keyboard.press("Escape");
   let rejectedUnauthenticated = false;
   try {
     await ipc("activate_service", {
@@ -186,24 +221,37 @@ try {
   await page.keyboard.press("Escape");
   const profile = {
     ...snapshot.profiles[0],
+    id: "d".repeat(32),
+    kind: "ssh",
+    user: "developer",
+    project: "/home/developer/project",
     name: "桌面冒烟环境",
     host: "192.0.2.1",
     port: 22,
   };
   await ipc("save_profile", { profile });
+  await ipc("select_profile", { id: profile.id });
+  await ipc("reorder_items", {
+    kind: "profiles",
+    ids: [profile.id, snapshot.selected_profile],
+  });
   await navigate("工作环境");
   await expect(
     page.locator(".profile b").filter({ hasText: "桌面冒烟环境" }),
   ).toBeVisible();
   await checkVisuals("environments");
   await page.locator(".profile-list .profile").first().hover();
-  await page.getByRole("button", { name: "编辑", exact: true }).click();
+  await page
+    .locator(".profile-list .profile")
+    .first()
+    .getByRole("button", { name: "编辑", exact: true })
+    .click();
   await checkVisuals("environment-dialog");
   await page.getByLabel("SSH 端口", { exact: true }).fill("2222");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.locator("dialog:not(.workspace-sheet)")).toHaveCount(0);
   snapshot = await ipc("snapshot");
-  expect(snapshot.profiles[0].port).toBe(2222);
+  expect(snapshot.profiles.find((p) => p.id === profile.id).port).toBe(2222);
   await navigate("模型服务");
   await checkVisuals("models-official");
   await page.getByRole("button", { name: "添加服务", exact: true }).click();
@@ -308,7 +356,9 @@ try {
     serviceId: service.id,
   });
   const updated = await ipc("snapshot");
-  expect(updated.profiles[0].model).toBe("smoke-model");
+  expect(updated.profiles.find((p) => p.id === profile.id).model).toBe(
+    "smoke-model",
+  );
   const task = await ipc("start_task", {
     profileId: profile.id,
     action: "diagnose",
@@ -341,7 +391,9 @@ try {
     key: null,
     remember: true,
   });
-  expect((await ipc("snapshot")).profiles[0].model).toBe("updated-smoke-model");
+  expect(
+    (await ipc("snapshot")).profiles.find((p) => p.id === profile.id).model,
+  ).toBe("updated-smoke-model");
   await expect(page.locator(".service-card")).toContainText([
     "OpenAI Official",
     "updated-smoke-model",
@@ -358,7 +410,9 @@ try {
   expect((await ipc("snapshot")).official[profile.id].name).toBe("冒烟账号");
   await ipc("delete_official", { profileId: profile.id });
   expect((await ipc("snapshot")).official[profile.id]).toBeUndefined();
-  const codexBefore = (await ipc("snapshot")).profiles[0];
+  const codexBefore = (await ipc("snapshot")).profiles.find(
+    (p) => p.id === profile.id,
+  );
   const toolServices = [];
   for (const [tool, name, provider] of [
     ["claude", "Claude Code", "anthropic"],
@@ -403,9 +457,15 @@ try {
     );
     expect(entry.tool).toBe(tool);
     expect(entry.provider).toBe(provider);
-    expect(state.profiles[0].tool_services[tool]).toBe(entry.id);
-    expect(state.profiles[0].active_api).toBe(codexBefore.active_api);
-    expect(state.profiles[0].codex_auth).toBe(codexBefore.codex_auth);
+    expect(
+      state.profiles.find((p) => p.id === profile.id).tool_services[tool],
+    ).toBe(entry.id);
+    expect(state.profiles.find((p) => p.id === profile.id).active_api).toBe(
+      codexBefore.active_api,
+    );
+    expect(state.profiles.find((p) => p.id === profile.id).codex_auth).toBe(
+      codexBefore.codex_auth,
+    );
     expect(JSON.stringify(state)).not.toContain("smoke-only-not-a-real-key");
     toolServices.push(entry);
     await checkVisuals(`models-${tool}`);
@@ -454,7 +514,7 @@ try {
     await sharedRow.hover();
     await sharedRow.getByRole("button", { name: "启用", exact: true }).click();
     await expect(sharedRow.locator(".active-badge")).toHaveText("使用中");
-    const p = (await ipc("snapshot")).profiles[0];
+    const p = (await ipc("snapshot")).profiles.find((p) => p.id === profile.id);
     expect(tool === "codex" ? p.active_api : p.tool_services[tool]).toBe(
       shared.id,
     );
@@ -466,11 +526,16 @@ try {
     serviceId: deletedTool.id,
   });
   expect(
-    (await ipc("snapshot")).profiles[0].tool_services.opencode,
+    (await ipc("snapshot")).profiles.find((p) => p.id === profile.id)
+      .tool_services.opencode,
   ).toBeUndefined();
   await navigate("工作环境");
   await page.locator(".profile-list .profile").first().hover();
-  await page.getByRole("button", { name: "编辑", exact: true }).click();
+  await page
+    .locator(".profile-list .profile")
+    .first()
+    .getByRole("button", { name: "编辑", exact: true })
+    .click();
   await page.getByRole("tab", { name: "AI 工具", exact: true }).click();
   await expect(
     page

@@ -7,6 +7,9 @@ import sys
 
 def serve(namespace):
     transport_in, transport_out = sys.stdin, sys.stdout
+    # RPC bytes are always UTF-8, independent of Windows or remote shell locale.
+    if hasattr(transport_out, 'reconfigure'):
+        transport_out.reconfigure(encoding='utf-8')
     for line in transport_in:
         request = None
         try:

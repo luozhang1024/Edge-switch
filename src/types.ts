@@ -55,6 +55,7 @@ export type Task = {
 };
 export type Snapshot = {
   list_order?: {
+    quick_launch?: string[];
     profiles?: string[];
     services?: Record<string, Partial<Record<ToolId, string[]>>>;
   };

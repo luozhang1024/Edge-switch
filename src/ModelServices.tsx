@@ -54,7 +54,7 @@ export function ModelServices({
       ? current.codex_auth === "chatgpt"
       : tool === "harness"
         ? activeId === "official"
-        : !activeId || activeId === "official";
+        : activeId === "official";
   const officialReady = !!(
     data.official[current.id]?.has_credentials ||
     data.official[current.id]?.remote_authenticated
@@ -180,11 +180,26 @@ export function ModelServices({
           <button disabled={busy} onClick={onAuthenticate}>
             {t("授权中心")}
           </button>
-          {official && (
-            <button disabled={busy} onClick={() => void run("harness")}>
-              {t("打开 Harness")}
-            </button>
-          )}
+          <button
+            title={official ? t("使用中") : t("启用 DeepSeek 账号")}
+            aria-label={official ? t("使用中") : t("启用 DeepSeek 账号")}
+            disabled={busy || official}
+            onClick={() => void run("harness_account_sync")}
+          >
+            {official ? (
+              <span className="active-badge">{t("使用中")}</span>
+            ) : (
+              <ActionIcon name="activate" />
+            )}
+          </button>
+          <button
+            title={t("打开 Harness")}
+            aria-label={t("打开账号 Harness")}
+            disabled={busy || !official}
+            onClick={() => void run("harness")}
+          >
+            <ActionIcon name="launch" />
+          </button>
         </section>
       )}
       <ScrollList className="service-list" label={t("供应商列表")}>
@@ -339,13 +354,19 @@ export function ModelServices({
                 </div>
                 <div className="service-actions">
                   <button
-                    title={official ? t("使用中") : t("启用官方账号")}
-                    aria-label={official ? t("使用中") : t("启用官方账号")}
+                    title={
+                      official ? t("已选择，登录状态未确认") : t("启用官方账号")
+                    }
+                    aria-label={
+                      official ? t("已选择，登录状态未确认") : t("启用官方账号")
+                    }
                     disabled={busy || official}
                     onClick={() => void activate("official")}
                   >
                     {official ? (
-                      <span className="active-badge">{t("使用中")}</span>
+                      <span className="active-badge">
+                        {t("已选择，登录状态未确认")}
+                      </span>
                     ) : (
                       <ActionIcon name="activate" />
                     )}

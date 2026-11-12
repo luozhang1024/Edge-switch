@@ -3,6 +3,8 @@
 
 # Edge Switch
 
+Recent workspace updates: drag home shortcuts to persist their order; switch DeepSeek Harness back from API providers to its account channel; distinguish an explicitly selected official entry from a verified login. The sidebar now includes a session center with search, tool filters, conversation reading, Markdown export, and resume-command copying. Local Windows scans native tool directories; SSH workspaces scan only their managed environment. OpenCode SQLite and compressed Harness logs are not yet supported. Lists show up to 200 files with 4 KiB previews; details read at most 1 MiB and indicate truncation. Exports contain only the loaded content.
+
 Configure AI tools, proxy networking, and model APIs on Linux boards over SSH.
 
 [中文](README.md) · [English](README.en.md) · [Download v2.0.0-alpha.6](https://github.com/luozhang1024/Edge-switch/releases/tag/v2.0.0-alpha.6)

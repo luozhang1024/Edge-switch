@@ -84,6 +84,77 @@ async function refreshSnapshot() {
   });
 }
 describe("桌面工作流", () => {
+  it("快速启动拖动排序持久化，隐藏工具的顺序也保留", async () => {
+    data.preferences = {
+      ...defaultPreferences,
+      home_tools: ["codex", "claude"],
+    };
+    const original = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (name, args) => {
+      if (name === "reorder_items") {
+        data.list_order = { quick_launch: args.ids };
+        return null;
+      }
+      return original(name, args);
+    });
+    render(<App />);
+    const codex = await screen.findByRole("button", { name: "打开 Codex" });
+    const claude = screen.getByRole("button", { name: "打开 Claude Code" });
+    const transfer = { setData: vi.fn(), effectAllowed: "" };
+    fireEvent.dragStart(claude, { dataTransfer: transfer });
+    fireEvent.drop(codex, { dataTransfer: transfer });
+    await waitFor(() =>
+      expect(
+        document
+          .querySelector(".launch-tracks button")
+          ?.getAttribute("aria-label"),
+      ).toBe("打开 Claude Code"),
+    );
+    expect(data.list_order?.quick_launch).toHaveLength(7);
+    expect(data.list_order?.quick_launch).toContain("harness");
+    await refreshSnapshot();
+    expect(
+      document
+        .querySelector(".launch-tracks button")
+        ?.getAttribute("aria-label"),
+    ).toBe("打开 Claude Code");
+  });
+  it("Claude 未登录不默认显示使用中，显式选择也只标记登录待确认", async () => {
+    await models();
+    fireEvent.click(screen.getByRole("tab", { name: "Claude Code" }));
+    expect(screen.queryByRole("button", { name: "使用中" })).toBeNull();
+    expect(screen.getByRole("button", { name: "启用官方账号" })).toBeTruthy();
+    data.profiles[0].tool_services = { claude: "official" };
+    await refreshSnapshot();
+    expect(
+      screen.getByRole("button", { name: "已选择，登录状态未确认" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "使用中" })).toBeNull();
+  });
+  it("Harness 配置多个 API 后仍可从账号通道启用按钮切回", async () => {
+    data.services[data.selected_profile] = [1, 2].map((n) => ({
+      id: String(n).repeat(32),
+      name: `API ${n}`,
+      tool: "harness",
+      base_url: "https://api.deepseek.com/v1",
+      model: "deepseek-chat",
+      protocol: "chat",
+    }));
+    data.profiles[0].tool_services = { harness: "1".repeat(32) };
+    await models();
+    fireEvent.click(screen.getByRole("tab", { name: "DeepSeek Harness" }));
+    fireEvent.click(screen.getByRole("button", { name: "启用 DeepSeek 账号" }));
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith(
+        "start_task",
+        expect.objectContaining({ action: "harness_account_sync" }),
+      ),
+    );
+    expect(
+      screen.getByRole("button", { name: "打开账号 Harness" }),
+    ).toBeTruthy();
+    expect(screen.getAllByText(/API [12]/, { selector: "b" })).toHaveLength(2);
+  });
   it("本机 Windows 环境无需 SSH，保留内置环境并提供本机编辑入口", async () => {
     data.profiles[0] = {
       ...data.profiles[0],
@@ -305,7 +376,14 @@ describe("桌面工作流", () => {
       within(sidebar)
         .getAllByRole("button")
         .map((b) => b.textContent?.trim()),
-    ).toEqual(["← 返回唱片台", "工作环境", "模型服务", "授权中心", "使用统计"]);
+    ).toEqual([
+      "← 返回唱片台",
+      "工作环境",
+      "模型服务",
+      "授权中心",
+      "使用统计",
+      "会话中心",
+    ]);
     expect(screen.queryByRole("tab", { name: "AI 工具" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "编辑" }));
     fireEvent.click(screen.getByRole("tab", { name: "代理连接" }));

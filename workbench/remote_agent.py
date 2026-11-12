@@ -1087,7 +1087,9 @@ def main():
                    harness_account_read=harness_account_read, harness_account_write=harness_account_write,
                    harness_prepare=harness_prepare, harness_start=harness_start,
                    harness_status=harness_status, harness_stop=harness_stop)
-    if action == 'usage':
+    if action == 'session_files':
+        result = session_files(scope(p), p)
+    elif action == 'usage':
         result = usage_query(scope(p), p)
     elif action == 'prepare':
         root = scope(p)

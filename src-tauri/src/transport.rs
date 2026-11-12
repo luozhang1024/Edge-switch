@@ -81,7 +81,7 @@ pub async fn output(mut c: Command, seconds: u64) -> Result<String, String> {
 pub(crate) fn bootstrap_source() -> Result<String, String> {
     let source=format!("import base64\nns={{'__name__':'edge_remote','SERVICE_SOURCE':base64.b64decode('{}')}}\nexec(compile(base64.b64decode('{}'),'edge-agent','exec'),ns)\nexec(compile(base64.b64decode('{}'),'edge-rpc','exec'))\nserve(ns)\n",
         STANDARD.encode(include_bytes!("../../workbench/harness_service.py")),
-        STANDARD.encode([include_bytes!("../../workbench/usage.py").as_slice(), b"\nusage_query = query\n", include_bytes!("../../workbench/remote_agent.py").as_slice()].concat()),
+        STANDARD.encode([include_bytes!("../../workbench/usage.py").as_slice(), b"\nusage_query = query\n", include_bytes!("../../workbench/sessions.py").as_slice(), b"\n", include_bytes!("../../workbench/remote_agent.py").as_slice()].concat()),
         STANDARD.encode(include_bytes!("agent_rpc.py")));
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
     encoder
@@ -110,7 +110,7 @@ impl Rpc {
         let mut c = ssh(p, true);
         c.arg("-T");
         destination(&mut c, p);
-        c.arg(format!("python3 -u -c {}", quote(bootstrap)));
+        c.arg(format!("python3 -X utf8 -u -c {}", quote(bootstrap)));
         c.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -210,7 +210,7 @@ mod protocol_tests {
     #[tokio::test]
     async fn embedded_agent_serves_multiple_requests_and_recovers_after_error() {
         let mut c = command("python");
-        c.args(["-u","-c","import sys,base64,zlib;exec(compile(zlib.decompress(base64.b64decode(sys.stdin.readline())),'bootstrap','exec'))"]);
+        c.args(["-X","utf8","-u","-c","import sys,base64,zlib;exec(compile(zlib.decompress(base64.b64decode(sys.stdin.readline())),'bootstrap','exec'))"]);
         c.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -258,6 +258,15 @@ mod protocol_tests {
         assert_eq!(usage["totals"]["requests"], 0);
         assert_eq!(usage["trend"].as_array().unwrap().len(), 24);
         assert!(rpc.child_alive());
+        let sessions = rpc
+            .call(
+                json!({"action":"session_files","scope":crate::store::new_id()}),
+                5,
+            )
+            .await
+            .unwrap();
+        assert_eq!(sessions["files"], json!([]));
+        assert!(rpc.call(json!({"action":"session_files","scope":crate::store::new_id(),"key":"0/../auth.json"}),5).await.is_err());
         rpc.child.kill().await.unwrap();
     }
     #[tokio::test]
