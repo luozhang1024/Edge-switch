@@ -1,6 +1,7 @@
 ﻿export type Profile = {
   id: string;
   name: string;
+  kind?: "ssh" | "local";
   host: string;
   user: string;
   port: number;

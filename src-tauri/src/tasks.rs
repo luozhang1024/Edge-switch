@@ -398,6 +398,9 @@ async fn execute(
     action: &str,
     v: Value,
 ) -> Result<Value, String> {
+    if p.is_local() {
+        return crate::local::execute(p, action).await;
+    }
     match action {
         "login_browser" => crate::accounts::chatgpt_browser(&core, p).await,
         "harness_login" => crate::accounts::harness_browser().await,

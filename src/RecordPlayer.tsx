@@ -34,7 +34,12 @@ export function RecordPlayer({
     ["01", "Codex", "AI 编程 · 终端工作流", "codex"],
     ["02", "VS Code", "远程编辑 · 专注创造", "vscode"],
     ["03", "DeepSeek Harness", "浏览器里的 AI 工作空间", "harness"],
-    ["04", "SSH 终端", "直达板卡 · 自由掌控", "ssh_console"],
+    [
+      "04",
+      current.kind === "local" ? "本机终端" : "SSH 终端",
+      current.kind === "local" ? "Windows PowerShell" : "直达板卡 · 自由掌控",
+      "ssh_console",
+    ],
     ["05", "Claude Code", "用自然语言，雕琢想法", "claude"],
     ["06", "Gemini CLI", "另一种灵感，另一种可能", "gemini"],
     ["07", "OpenCode", "开放工具 · 自由创造", "opencode"],
@@ -53,7 +58,13 @@ export function RecordPlayer({
           {t("开始转动")}
           <span>。</span>
         </h2>
-        <p className="room-intro">{t("连接你的板卡，进入创造的节奏。")}</p>
+        <p className="room-intro">
+          {t(
+            current.kind === "local"
+              ? "使用本机 Windows，进入创造的节奏。"
+              : "连接你的板卡，进入创造的节奏。",
+          )}
+        </p>
         <div className="track-heading">
           <span>{t("A SIDE / 快速启动")}</span>
           <span>{String(tracks.length).padStart(2, "0")} TRACKS</span>
@@ -163,23 +174,33 @@ export function RecordPlayer({
         </button>
         <div className="sleeve-meta">
           <span>{t("当前工作环境")}</span>
-          <span>↗ SSH</span>
+          <span>{current.kind === "local" ? "Windows" : "↗ SSH"}</span>
         </div>
         <h3>{current.name}</h3>
         <p className="sleeve-address">
-          {current.user}@{current.host || t("待配置主机")}:{current.port}
+          {current.kind === "local"
+            ? t("本机 Windows · 无需 SSH")
+            : `${current.user}@${current.host || t("待配置主机")}:${current.port}`}
         </p>
         <div className="sleeve-note">
           <span className="edition-label">{t("LINER NOTES / 环境信息")}</span>
           <p>{current.project}</p>
           <span
             className="connection-indicator"
-            title={t(
-              "这里只统计应用维护的代理和网页隧道；外部 SSH 终端独立连接，不以隧道状态判断 SSH 是否可用。",
-            )}
+            title={
+              current.kind === "local"
+                ? t("本机工具使用已有配置")
+                : t(
+                    "这里只统计应用维护的代理和网页隧道；外部 SSH 终端独立连接，不以隧道状态判断 SSH 是否可用。",
+                  )
+            }
           >
             <i className={connected ? "connected" : ""} />
-            {connected ? t("代理 / 网页隧道已连接") : t("SSH 终端按需连接")}
+            {current.kind === "local"
+              ? t("本机工具使用已有配置")
+              : connected
+                ? t("代理 / 网页隧道已连接")
+                : t("SSH 终端按需连接")}
           </span>
         </div>
         <button

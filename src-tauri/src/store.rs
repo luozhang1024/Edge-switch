@@ -13,6 +13,7 @@ use uuid::Uuid;
 pub struct Profile {
     pub id: String,
     pub name: String,
+    pub kind: String,
     pub host: String,
     pub user: String,
     pub port: u16,
@@ -40,6 +41,7 @@ impl Default for Profile {
         Self {
             id: new_id(),
             name: "新工作环境".into(),
+            kind: "ssh".into(),
             host: "192.168.1.100".into(),
             user: "developer".into(),
             port: 22,
@@ -104,10 +106,39 @@ pub fn validate_tool_protocol(tool: &str, protocol: &str) -> Result<(), String> 
     }
 }
 
+pub const LOCAL_PROFILE_ID: &str = "00000000000000000000000000000001";
+
 impl Profile {
+    pub fn local() -> Self {
+        Self {
+            id: LOCAL_PROFILE_ID.into(),
+            name: "本机 Windows".into(),
+            kind: "local".into(),
+            host: "localhost".into(),
+            user: std::env::var("USERNAME").unwrap_or_default(),
+            project: std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\".into()),
+            ..Self::default()
+        }
+    }
+    pub fn is_local(&self) -> bool {
+        self.kind == "local"
+    }
     pub fn validate(&self) -> Result<(), String> {
         if !valid_id(&self.id) || self.name.trim().is_empty() {
             return Err("环境 ID 或名称无效".into());
+        }
+        if self.is_local() {
+            if self.id != LOCAL_PROFILE_ID
+                || !Path::new(&self.project).is_absolute()
+                || self.project.chars().any(char::is_control)
+                || self.proxy_port == 0
+            {
+                return Err("本机环境标识、工程目录或代理端口无效".into());
+            }
+            return validate_url(&self.base_url);
+        }
+        if self.kind != "ssh" || self.id == LOCAL_PROFILE_ID {
+            return Err("环境类型无效".into());
         }
         if !Regex::new(r"^[A-Za-z0-9_.-]+$")
             .unwrap()
@@ -215,7 +246,7 @@ impl Store {
             serde_json::from_slice(&fs::read(&path).map_err(|e| e.to_string())?)
                 .map_err(|_| "本地配置损坏，已保留原文件")?
         } else {
-            json!({"client_id":new_id(),"profiles":[Profile::default()],"selected_profile":""})
+            json!({"client_id":new_id(),"profiles":[Profile::local()],"selected_profile":""})
         };
         if !data.is_object() || !valid_id(data["client_id"].as_str().unwrap_or("")) {
             return Err("本地客户端标识损坏".into());
@@ -235,6 +266,15 @@ impl Store {
                 return Err("环境标识损坏或重复".into());
             }
             normalized.push(json!(p));
+        }
+        let mut local_ids = normalized.iter().filter(|p| p["kind"] == "local");
+        if let Some(local) = local_ids.next() {
+            if local["id"] != LOCAL_PROFILE_ID || local_ids.next().is_some() {
+                return Err("本机环境标识损坏或重复".into());
+            }
+        } else {
+            let local = Profile::local();
+            normalized.insert(0, json!(local));
         }
         data["profiles"] = json!(normalized);
         for field in ["secrets", "services", "applied", "official"] {
@@ -256,7 +296,7 @@ impl Store {
         for value in profiles {
             let id = value["id"].as_str().unwrap();
             if data["services"].get(id).is_none() {
-                if !exists {
+                if !exists || value["kind"] == "local" {
                     data["services"][id] = json!([]);
                     continue;
                 }
@@ -366,6 +406,11 @@ impl Store {
     }
     pub fn save_profile(&mut self, p: Profile) -> Result<(), String> {
         p.validate()?;
+        if let Ok(old) = self.profile(&p.id) {
+            if old.kind != p.kind {
+                return Err("不能修改环境类型".into());
+            }
+        }
         let mut candidate = self.clone();
         let entries = candidate.data["profiles"].as_array_mut().unwrap();
         if let Some(old) = entries.iter_mut().find(|v| v["id"] == p.id) {
@@ -394,10 +439,37 @@ mod tests {
         let dir = std::env::temp_dir().join(new_id());
         let first = Store::load(dir.clone()).unwrap();
         let id = first.data["profiles"][0]["id"].as_str().unwrap();
+        assert_eq!(id, LOCAL_PROFILE_ID);
+        assert!(first.profile(id).unwrap().is_local());
+        assert_eq!(first.data["selected_profile"], id);
+        assert_eq!(first.data["services"][id], json!([]));
         let next = Store::load(dir.clone()).unwrap();
         assert_eq!(first.scope(id), next.scope(id));
         assert_eq!(first.data, next.data);
         assert!(!dir.join("profiles.pre-tauri.json").exists());
+        fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn adds_local_environment_without_changing_existing_selection_or_services() {
+        let dir = std::env::temp_dir().join(new_id());
+        fs::create_dir_all(&dir).unwrap();
+        let remote = Profile::default();
+        let mut legacy = json!(remote);
+        legacy.as_object_mut().unwrap().remove("kind");
+        let original = json!({"client_id":new_id(), "schema_version":2,
+            "profiles":[legacy], "selected_profile":remote.id,
+            "services":{remote.id.clone():[]}});
+        fs::write(dir.join("profiles.json"), original.to_string()).unwrap();
+        let store = Store::load(dir.clone()).unwrap();
+        assert_eq!(store.data["profiles"].as_array().unwrap().len(), 2);
+        assert_eq!(store.data["selected_profile"], remote.id);
+        assert_eq!(store.profile(&remote.id).unwrap().kind, "ssh");
+        assert_eq!(store.data["services"][LOCAL_PROFILE_ID], json!([]));
+        let next = Store::load(dir.clone()).unwrap();
+        assert_eq!(store.data, next.data);
+        let mut local = store.profile(LOCAL_PROFILE_ID).unwrap();
+        local.project = "relative".into();
+        assert!(local.validate().is_err());
         fs::remove_dir_all(dir).unwrap();
     }
     #[test]

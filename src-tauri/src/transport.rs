@@ -102,6 +102,9 @@ impl Rpc {
     }
     pub async fn connect(p: &Profile) -> Result<Self, String> {
         p.validate()?;
+        if p.is_local() {
+            return Err("本机环境不使用 SSH".into());
+        }
         let encoded = bootstrap_source()?;
         let bootstrap = "import sys,base64,zlib;exec(compile(zlib.decompress(base64.b64decode(sys.stdin.readline())),'edge-bootstrap','exec'))";
         let mut c = ssh(p, true);

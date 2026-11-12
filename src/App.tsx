@@ -559,7 +559,11 @@ export function App() {
                     <Card
                       title={t("工程目录")}
                       value={current.project}
-                      detail={current.identity || t("使用系统 SSH 身份")}
+                      detail={
+                        current.kind === "local"
+                          ? t("本机工具使用已有配置")
+                          : current.identity || t("使用系统 SSH 身份")
+                      }
                     />
                     <Card
                       title={t("模型服务")}
@@ -573,17 +577,25 @@ export function App() {
                     <Card
                       title={t("连接")}
                       value={
-                        currentConnections
-                          .map(([, c]) => c.state)
-                          .join(" / ") || t("尚未建立隧道")
+                        current.kind === "local"
+                          ? "Windows"
+                          : currentConnections
+                              .map(([, c]) => c.state)
+                              .join(" / ") || t("尚未建立隧道")
                       }
-                      detail={t(
-                        "这里只统计代理和网页隧道；SSH 终端独立连接，可检查设备验证 SSH 是否可用",
-                      )}
+                      detail={
+                        current.kind === "local"
+                          ? t("本机 Windows · 无需 SSH")
+                          : t(
+                              "这里只统计代理和网页隧道；SSH 终端独立连接，可检查设备验证 SSH 是否可用",
+                            )
+                      }
                     />
                   </div>
                   <p className="info-address">
-                    {current.user}@{current.host}:{current.port}
+                    {current.kind === "local"
+                      ? t("本机 Windows · 无需 SSH")
+                      : `${current.user}@${current.host}:${current.port}`}
                   </p>
                 </>
               )}
@@ -637,7 +649,9 @@ export function App() {
                           <div>
                             <b>{p.name}</b>
                             <p>
-                              {p.user}@{p.host}:{p.port}
+                              {p.kind === "local"
+                                ? t("本机 Windows · 无需 SSH")
+                                : `${p.user}@${p.host}:${p.port}`}
                             </p>
                             <small>{p.project}</small>
                           </div>
@@ -675,7 +689,11 @@ export function App() {
                             <button
                               title={t("删除")}
                               aria-label={t("删除")}
-                              disabled={pending || data.profiles.length <= 1}
+                              disabled={
+                                pending ||
+                                data.profiles.length <= 1 ||
+                                p.kind === "local"
+                              }
                               onClick={() =>
                                 void remove(
                                   "delete_profile",
@@ -692,40 +710,95 @@ export function App() {
                     )}
                   </ScrollList>
                   <div className="buttons">
-                    {button("配置 SSH 登录", "setup_ssh")}
-                    {button("打开 SSH 终端", "ssh_console")}
+                    {current.kind !== "local" &&
+                      button("配置 SSH 登录", "setup_ssh")}
+                    {button(
+                      current.kind === "local"
+                        ? "打开本机终端"
+                        : "打开 SSH 终端",
+                      "ssh_console",
+                    )}
                     {button("检查设备", "diagnose")}
                   </div>
                 </section>
               )}
               {tab === "models" && (
-                <ModelServices
-                  data={data}
-                  current={current}
-                  tool={modelTool}
-                  busy={busy}
-                  onTool={setModelTool}
-                  command={command}
-                  run={run}
-                  remove={remove}
-                  onEdit={(entry) => {
-                    setService(entry);
-                  }}
-                  onOfficial={(entry) => {
-                    setAuthPath("");
-                    setOfficial(entry);
-                  }}
-                  onAuthenticate={() => {
-                    setCheckOnOpen(false);
-                    setTab("auth");
-                  }}
-                />
+                <>
+                  {current.kind === "local" && (
+                    <p role="note">
+                      {t(
+                        "本机工具使用 Windows 上已有的安装和配置；安装、模型配置与账号登录请在本机终端完成。",
+                      )}
+                    </p>
+                  )}
+                  <ModelServices
+                    data={data}
+                    current={current}
+                    tool={modelTool}
+                    busy={busy}
+                    onTool={setModelTool}
+                    command={command}
+                    run={run}
+                    remove={remove}
+                    onEdit={(entry) => {
+                      setService(entry);
+                    }}
+                    onOfficial={(entry) => {
+                      setAuthPath("");
+                      setOfficial(entry);
+                    }}
+                    onAuthenticate={() => {
+                      setCheckOnOpen(false);
+                      setTab("auth");
+                    }}
+                  />
+                </>
               )}
             </div>
           </div>
         </Modal>
       )}
-      {editing && (
+      {editing?.kind === "local" && (
+        <Modal title={t("编辑工作环境")} close={() => setEditing(null)}>
+          <p>
+            {t(
+              "本机工具使用 Windows 上已有的安装和配置；安装、模型配置与账号登录请在本机终端完成。",
+            )}
+          </p>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (await command("save_profile", { profile: editing }))
+                setEditing(null);
+            }}
+          >
+            <div className="form">
+              {(["name", "project"] as const).map((field) => (
+                <label key={field}>
+                  {t(field === "name" ? "名称" : "工程绝对路径")}
+                  <input
+                    required
+                    value={editing[field]}
+                    onChange={(e) =>
+                      setEditing({ ...editing, [field]: e.target.value })
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="buttons">
+              <button type="submit" disabled={editingBusy}>
+                {t("保存")}
+              </button>
+            </div>
+          </form>
+          <div className="buttons">
+            {editorButton("检查设备", "diagnose")}
+            {editorButton("打开本机终端", "ssh_console")}
+          </div>
+        </Modal>
+      )}
+      {editing && editing.kind !== "local" && (
         <Modal title={t("编辑工作环境")} close={() => setEditing(null)}>
           <div
             className="environment-tabs"

@@ -84,6 +84,28 @@ async function refreshSnapshot() {
   });
 }
 describe("桌面工作流", () => {
+  it("本机 Windows 环境无需 SSH，保留内置环境并提供本机编辑入口", async () => {
+    data.profiles[0] = {
+      ...data.profiles[0],
+      kind: "local",
+      name: "本机 Windows",
+      project: "C:\\Users\\Developer",
+    };
+    render(<App />);
+    expect(
+      await screen.findByRole("button", { name: "打开 本机终端" }),
+    ).toBeTruthy();
+    expect(screen.queryByText("SSH 终端按需连接")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "配置工作环境" }));
+    expect(screen.queryByRole("button", { name: "配置 SSH 登录" })).toBeNull();
+    expect(
+      (screen.getByRole("button", { name: "删除" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "编辑" }));
+    expect(screen.getByLabelText("工程绝对路径")).toBeTruthy();
+    expect(screen.queryByLabelText("主机地址")).toBeNull();
+  });
   it("通用设置保存窗口行为，界面语言即时切换并保留环境名称", async () => {
     const original = mocks.invoke.getMockImplementation()!;
     mocks.invoke.mockImplementation(async (name, args) => {

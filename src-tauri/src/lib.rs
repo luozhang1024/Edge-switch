@@ -1,5 +1,6 @@
 mod accounts;
 mod editor;
+mod local;
 mod ordering;
 mod providers;
 mod resources;
@@ -44,6 +45,9 @@ impl Core {
         mut payload: Value,
         seconds: u64,
     ) -> Result<Value, String> {
+        if p.is_local() {
+            return Err("本机环境暂不支持此受管操作，请使用本机终端配置工具".into());
+        }
         payload["action"] = json!(action);
         payload["scope"] = json!(scope);
         let slot = {
@@ -72,6 +76,13 @@ impl Core {
         result
     }
     async fn route(&self, p: &Profile, tool: &str) -> Result<String, String> {
+        if p.is_local() {
+            return Ok(if p.uses_proxy(tool) {
+                format!("http://127.0.0.1:{}", p.proxy_port)
+            } else {
+                String::new()
+            });
+        }
         if !p.uses_proxy(tool) {
             return Ok(String::new());
         }
@@ -228,7 +239,9 @@ async fn delete_profile(state: tauri::State<'_, State>, id: String) -> Result<Va
     tokio::task::spawn_blocking(move || {
         let mut live = core.store.lock().unwrap();
         let mut s = live.clone();
-        s.profile(&id)?;
+        if s.profile(&id)?.is_local() {
+            return Err("本机 Windows 是内置环境，不能删除".into());
+        }
         if s.data["profiles"].as_array().unwrap().len() <= 1 {
             return Err("至少保留一个工作环境".into());
         }

@@ -381,5 +381,12 @@
   "部分 Claude Code 会话无法读取": "Some Claude Code sessions could not be read",
   "部分 Gemini CLI 会话无法读取": "Some Gemini CLI sessions could not be read",
   "部分 Harness 会话无法读取；压缩日志需要板卡安装 zstd": "Some Harness sessions could not be read; compressed logs require zstd on the device",
-  "部分 OpenCode 会话无法读取": "Some OpenCode sessions could not be read"
+  "部分 OpenCode 会话无法读取": "Some OpenCode sessions could not be read",
+  "本机 Windows · 无需 SSH": "Local Windows · No SSH required",
+  "打开本机终端": "Open local terminal",
+  "打开 本机终端": "Open local terminal",
+  "本机终端": "Local terminal",
+  "使用本机 Windows，进入创造的节奏。": "Create with your local Windows workspace.",
+  "本机工具使用已有配置": "Local tools use their existing configuration",
+  "本机工具使用 Windows 上已有的安装和配置；安装、模型配置与账号登录请在本机终端完成。": "Local tools use existing Windows installations and configuration. Install tools, configure models, and sign in through the local terminal."
 }
