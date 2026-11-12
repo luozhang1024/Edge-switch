@@ -162,7 +162,12 @@ fn parse(file: &Value, p: &Profile, scope: &str) -> Value {
     let mut id = String::new();
     let mut project = String::new();
     let mut title = String::new();
+    let mut pending_steps: Vec<Value> = Vec::new();
+    let mut model = String::new();
     for event in &events {
+        if event["type"] == "turn_context" {
+            model = event["payload"]["model"].as_str().unwrap_or("").into();
+        }
         if id.is_empty() {
             id = event["sessionId"]
                 .as_str()
@@ -212,8 +217,35 @@ fn parse(file: &Value, p: &Profile, scope: &str) -> Value {
         } else {
             role
         };
+        let kind = message["type"].as_str().unwrap_or("");
+        if ["function_call", "custom_tool_call"].contains(&kind) {
+            pending_steps.push(json!({"name":message["name"].as_str().unwrap_or("tool"),
+                "content":message["arguments"].as_str().or(message["input"].as_str()).unwrap_or("")}));
+            continue;
+        }
+        if ["function_call_output", "custom_tool_call_output"].contains(&kind) {
+            if let Some(step) = pending_steps.last_mut() {
+                let output = message["output"].as_str().unwrap_or("");
+                step["content"] = json!(format!(
+                    "{}\n\n{}",
+                    step["content"].as_str().unwrap_or(""),
+                    output
+                ));
+            }
+            continue;
+        }
+        for block in message["content"].as_array().into_iter().flatten() {
+            if ["tool_use", "tool-call"].contains(&block["type"].as_str().unwrap_or("")) {
+                pending_steps.push(json!({"name":block["name"].as_str().unwrap_or("tool"),"content":block.get("input").or(block.get("arguments")).map(|v| if let Some(s)=v.as_str(){s.to_string()}else{v.to_string()}).unwrap_or_default()}));
+            }
+        }
         if !["user", "assistant"].contains(&role) {
             continue;
+        }
+        if role == "user" && !pending_steps.is_empty() {
+            messages.push(
+                json!({"role":"assistant","content":"","steps":std::mem::take(&mut pending_steps)}),
+            );
         }
         let content = text_content(
             message
@@ -227,7 +259,23 @@ fn parse(file: &Value, p: &Profile, scope: &str) -> Value {
         if title.is_empty() && role == "user" {
             title = content.chars().take(100).collect();
         }
-        messages.push(json!({"role":role,"content":content}));
+        let steps = if role == "assistant" {
+            std::mem::take(&mut pending_steps)
+        } else {
+            Vec::new()
+        };
+        let timestamp = event["timestamp"].as_str().map(String::from).or_else(|| {
+            event["time"].as_i64().and_then(|ms| {
+                chrono::DateTime::from_timestamp_millis(ms).map(|time| time.to_rfc3339())
+            })
+        });
+        messages.push(
+            json!({"role":role,"content":content,"steps":steps,"timestamp":timestamp,
+            "model":message["model"].as_str().unwrap_or(&model)}),
+        );
+    }
+    if !pending_steps.is_empty() {
+        messages.push(json!({"role":"assistant","content":"","steps":pending_steps}));
     }
     let key = file["key"].as_str().unwrap_or("");
     let tool = file["tool"].as_str().unwrap_or("");
@@ -344,6 +392,28 @@ mod tests {
         assert_eq!(parsed["resume"], "codex resume safe-id");
         file["text"] = json!(raw.replace("safe-id", "bad;calc"));
         assert_eq!(parse(&file, &p, "scope")["resume"], "");
+    }
+    #[test]
+    fn captures_tool_calls_with_following_reply_and_metadata() {
+        let raw = [json!({"type":"session_meta","payload":{"id":"test","cwd":"/project"}}),
+            json!({"type":"turn_context","payload":{"model":"test-model"}}),
+            json!({"type":"response_item","payload":{"role":"user","content":[{"text":"Fix it"}]}}),
+            json!({"type":"response_item","payload":{"type":"function_call","name":"apply_patch","arguments":"patch content"}}),
+            json!({"type":"response_item","payload":{"type":"function_call_output","output":"success"}}),
+            json!({"type":"response_item","timestamp":"2026-11-12T06:00:00Z","payload":{"role":"assistant","content":[{"text":"Done"}]}})]
+            .iter().map(Value::to_string).collect::<Vec<_>>().join("\n");
+        let parsed = parse(
+            &json!({"key":"0/test.jsonl","tool":"codex","text":raw}),
+            &Profile::local(),
+            "scope",
+        );
+        assert_eq!(parsed["messages"][1]["steps"][0]["name"], "apply_patch");
+        assert_eq!(
+            parsed["messages"][1]["steps"][0]["content"],
+            "patch content\n\nsuccess"
+        );
+        assert_eq!(parsed["messages"][1]["model"], "test-model");
+        assert_eq!(parsed["messages"][1]["timestamp"], "2026-11-12T06:00:00Z");
     }
     #[test]
     fn reads_harness_native_user_and_assistant_messages() {

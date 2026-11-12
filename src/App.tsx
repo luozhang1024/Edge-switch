@@ -459,7 +459,9 @@ export function App() {
                 ))}
               </nav>
             </aside>
-            <div className="management-content">
+            <div
+              className={`management-content ${tab === "sessions" ? "sc-content" : ""}`}
+            >
               <div className="management-notice" role="status">
                 {t(message)}
               </div>

@@ -86,8 +86,8 @@ try {
             checked_at: 1800000000,
           };
         if (name === "snapshot") return structuredClone(snapshot);
-        if (name === "query_sessions")
-          return {
+        if (name === "query_sessions") {
+          const sessionResult = {
             sessions: [
               {
                 key: "0/test.jsonl",
@@ -95,20 +95,64 @@ try {
                 id: "demo-session",
                 title: "为板卡配置工具",
                 project: "/home/developer/project",
-                modified: 1800000000,
+                modified: Date.parse("2026-11-12T06:24:00Z") / 1000,
                 truncated: false,
                 resume: "codex resume demo-session",
                 messages: [
                   { role: "user", content: "帮我检查板卡环境并配置开发工具。" },
                   {
                     role: "assistant",
-                    content: "环境检查已完成，可以开始配置开发工具。",
+                    content:
+                      "环境检查已完成，可以开始配置开发工具。\n\n已准备好开发工作空间：\n- 独立安装 Node.js 与 CLI 工具\n- 配置当前工程的模型服务\n- 验证板卡网络连接\n\n使用 `codex` 命令即可继续开发。",
+                    timestamp: "2026-11-12T06:01:00Z",
+                    model: "gpt-test",
+                    steps: [
+                      { name: "shell_command", content: "uname -m\naarch64" },
+                      {
+                        name: "apply_patch",
+                        content:
+                          "*** Update File: config.json\n+ enabled: true",
+                      },
+                    ],
+                  },
+                  {
+                    role: "user",
+                    content: "继续优化工作环境，让工具切换更方便。",
+                    timestamp: "2026-11-12T06:22:00Z",
+                  },
+                  {
+                    role: "assistant",
+                    content:
+                      "已完成工具切换优化。\n\n1. 保存环境配置。\n2. 选择工具和供应商。\n3. 启动开发终端。",
+                    timestamp: "2026-11-12T06:24:00Z",
                   },
                 ],
               },
             ],
             warnings: [],
           };
+          if (!args.key) {
+            const base = sessionResult.sessions[0];
+            sessionResult.sessions.push(
+              ...Array.from({ length: 9 }, (_, index) => ({
+                ...base,
+                key: `0/demo-${index}.jsonl`,
+                id: `demo-${index}`,
+                title: ["优化模型服务切换", "检查远程网络", "搭建可视化面板"][
+                  index % 3
+                ],
+                tool: ["codex", "harness", "claude"][index % 3],
+                project: [
+                  "/home/developer/project",
+                  "/home/developer/Embedded-Visualization",
+                  "/home/developer/Remote-STM32",
+                ][index % 3],
+                modified: base.modified - index * 5000,
+              })),
+            );
+          }
+          return sessionResult;
+        }
         if (name === "query_usage") {
           const rows = Array.from({ length: 12 }, (_, index) => ({
             id: String(index),
@@ -315,10 +359,39 @@ try {
   ).toBeVisible();
   await page.getByRole("button", { name: "会话中心", exact: true }).click();
   await page.getByRole("button", { name: /为板卡配置工具/ }).click();
+  await page.getByRole("button", { name: "改动", exact: true }).click();
+  await expect(page.locator(".sc-execution")).toContainText("apply_patch");
+  await page.getByRole("button", { name: "对话", exact: true }).click();
+  await expect(page.locator(".sc-execution")).toHaveCount(0);
+  await page.getByRole("button", { name: "全部", exact: true }).click();
+  await page.getByRole("button", { name: "查找对话", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "查找对话", exact: true })
+    .fill("继续优化");
+  await expect(page.locator(".sc-message")).toHaveCount(1);
+  await page.getByRole("textbox", { name: "查找对话", exact: true }).fill("");
+  await page.getByRole("button", { name: "查找对话", exact: true }).click();
+  await page.setViewportSize({ width: 980, height: 660 });
+  await page.screenshot({
+    path: resolve(output, "sessions-reader-compact.png"),
+  });
+  expect(
+    await page
+      .locator(".sc-browser")
+      .evaluate((node) => node.scrollWidth <= node.clientWidth),
+  ).toBe(true);
+  await page.setViewportSize({ width: 1180, height: 790 });
   await expect(page.locator(".session-messages")).toContainText(
     "环境检查已完成",
   );
   await page.screenshot({ path: resolve(output, "sessions-light.png") });
+  await page.getByRole("button", { name: "返回会话列表", exact: true }).click();
+  await page.getByRole("button", { name: "筛选应用", exact: true }).click();
+  await page.screenshot({
+    path: resolve(output, "sessions-list-app-menu.png"),
+  });
+  await page.getByRole("menuitemradio", { name: /全部应用/ }).click();
+  await page.getByRole("button", { name: /为板卡配置工具/ }).click();
   const downloaded = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "导出 Markdown", exact: true })
@@ -417,6 +490,19 @@ try {
     fullPage: true,
   });
   await page.setViewportSize({ width: 1180, height: 790 });
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByRole("button", { name: "☼ 浅色", exact: true }).click();
+  await page.getByRole("button", { name: "☾ 深色", exact: true }).click();
+  await page.getByRole("button", { name: "会话中心", exact: true }).click();
+  await page.screenshot({ path: resolve(output, "sessions-list-dark.png") });
+  await page.getByRole("button", { name: /为板卡配置工具/ }).click();
+  await page
+    .getByRole("navigation", { name: "对话目录", exact: true })
+    .getByRole("button")
+    .nth(1)
+    .click();
+  await expect(page.locator(".sc-outline button").nth(1)).toHaveClass(/active/);
+  await page.screenshot({ path: resolve(output, "sessions-reader-dark.png") });
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByRole("button", { name: "☼ 浅色", exact: true }).click();
   await page.getByRole("button", { name: "English", exact: true }).click();
