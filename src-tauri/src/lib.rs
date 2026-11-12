@@ -3,6 +3,7 @@ mod editor;
 mod local;
 mod native_sessions;
 mod ordering;
+mod prompts;
 mod providers;
 mod resources;
 mod secrets;
@@ -754,6 +755,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             sessions::query_sessions,
+            prompts::prompt_library,
             native_sessions::native_tool_config,
             accounts::local_harness_account,
             settings::save_preferences,

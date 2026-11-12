@@ -66,6 +66,10 @@ await writeFile(
   join(output, "native-home/.codex/config.toml"),
   "model_provider='smoke-api'\nmodel='smoke-model'\n[model_providers.smoke-api]\nname='Smoke API'\nbase_url='https://example.com/v1'\n",
 );
+await writeFile(
+  join(output, "native-home/.codex/AGENTS.md"),
+  "# Imported instructions\nPreserve original content.\n",
+);
 const server = createServer();
 server.listen(0, "127.0.0.1");
 await once(server, "listening");
@@ -259,6 +263,124 @@ try {
   await expect(page.locator(".sc-session-meta")).toContainText("120 Tokens");
   await checkVisuals("sessions-native");
   await page.keyboard.press("Escape");
+  await navigate("提示词组");
+  await expect(page.locator(".pg-row")).toHaveCount(1);
+  await expect(page.locator(".pg-row")).toContainText("已启用");
+  await expect(page.locator(".pg-target")).toContainText("AGENTS.md");
+  await page
+    .getByRole("button", { name: "＋ 添加提示词", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "提示词名称", exact: true })
+    .fill("桌面提示词验证");
+  await page
+    .getByRole("textbox", { name: "提示词说明", exact: true })
+    .fill("验证新增、编辑和工具隔离");
+  await page
+    .getByRole("textbox", { name: "提示词正文", exact: true })
+    .fill("# Test instructions\nUse Chinese.\n");
+  await checkVisuals("prompts-editor");
+  await page.getByRole("button", { name: "添加", exact: true }).click();
+  await expect(page.locator(".pg-row")).toHaveCount(2);
+  const promptRow = page
+    .locator(".pg-row")
+    .filter({ hasText: "桌面提示词验证" });
+  await promptRow.getByRole("button", { name: "启用", exact: true }).click();
+  await expect(promptRow).toContainText("已启用");
+  expect(
+    await readFile(join(output, "native-home/.codex/AGENTS.md"), "utf8"),
+  ).toBe("# Test instructions\nUse Chinese.\n");
+  await checkVisuals("prompts-list");
+  await page
+    .getByRole("textbox", { name: "搜索提示词", exact: true })
+    .fill("不存在的提示词");
+  await expect(page.locator(".pg-row")).toHaveCount(0);
+  await page
+    .getByRole("textbox", { name: "搜索提示词", exact: true })
+    .fill("Use Chinese");
+  await expect(page.locator(".pg-row")).toHaveCount(1);
+  await page.getByRole("textbox", { name: "搜索提示词", exact: true }).fill("");
+  await promptRow
+    .getByRole("button", { name: "编辑提示词 桌面提示词验证", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "提示词正文", exact: true })
+    .fill("# Updated instructions\n");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.locator(".pg-editor")).toHaveCount(0);
+  expect(
+    await readFile(join(output, "native-home/.codex/AGENTS.md"), "utf8"),
+  ).toBe("# Updated instructions\n");
+  await promptRow.getByRole("button", { name: "停用", exact: true }).click();
+  await expect(page.locator(".pg-row.enabled")).toHaveCount(0);
+  expect(
+    await readFile(join(output, "native-home/.codex/AGENTS.md"), "utf8"),
+  ).toBe("");
+  await page
+    .getByRole("combobox", { name: "提示词工具", exact: true })
+    .selectOption("claude");
+  await expect(page.locator(".pg-row")).toHaveCount(0);
+  await expect(page.locator(".pg-target")).toContainText("CLAUDE.md");
+  await page
+    .getByRole("combobox", { name: "提示词工具", exact: true })
+    .selectOption("codex");
+  await expect(page.locator(".pg-row")).toHaveCount(2);
+  const promptArgs = {
+    profileId: snapshot.selected_profile,
+    tool: "codex",
+    action: "list",
+    id: null,
+    prompt: null,
+    revision: null,
+  };
+  const savedPrompts = await ipc("prompt_library", promptArgs);
+  expect(savedPrompts.active).toBeNull();
+  expect(
+    savedPrompts.prompts.find((p) => p.name === "桌面提示词验证").content,
+  ).toBe("# Updated instructions\n");
+  await writeFile(
+    join(output, "native-home/.codex/AGENTS.md"),
+    "External edit\n",
+  );
+  let staleRejected = false;
+  try {
+    await ipc("prompt_library", {
+      ...promptArgs,
+      action: "enable",
+      id: savedPrompts.prompts[0].id,
+      revision: savedPrompts.revision,
+    });
+  } catch {
+    staleRejected = true;
+  }
+  expect(staleRejected).toBe(true);
+  expect(
+    await readFile(join(output, "native-home/.codex/AGENTS.md"), "utf8"),
+  ).toBe("External edit\n");
+  const refreshed = await ipc("prompt_library", promptArgs);
+  expect(refreshed.prompts.some((p) => p.content === "External edit\n")).toBe(
+    true,
+  );
+  const inactivePrompt = refreshed.prompts.find(
+    (p) => p.name === "桌面提示词验证",
+  );
+  const deletedPrompt = await ipc("prompt_library", {
+    ...promptArgs,
+    action: "delete",
+    id: inactivePrompt.id,
+    revision: refreshed.revision,
+  });
+  expect(deletedPrompt.prompts.some((p) => p.id === inactivePrompt.id)).toBe(
+    false,
+  );
+  expect(
+    await readFile(join(output, "native-home/.codex/AGENTS.md"), "utf8"),
+  ).toBe("External edit\n");
+  const reopenedPrompts = await ipc("prompt_library", promptArgs);
+  expect(reopenedPrompts.prompts.some((p) => p.id === inactivePrompt.id)).toBe(
+    false,
+  );
+  await page.getByRole("button", { name: "← 返回唱片台", exact: true }).click();
   let rejectedUnauthenticated = false;
   try {
     await ipc("activate_service", {

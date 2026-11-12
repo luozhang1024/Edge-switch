@@ -32,6 +32,8 @@ Startup registration applies to the current Windows user without administrator r
 
 ## Screenshots
 
+**Prompt groups** in the sidebar manages lasting instructions for Codex, Claude Code, Gemini CLI, DeepSeek Harness, and OpenCode. Add, search, edit, copy, duplicate, enable, disable, and delete entries; each tool has one active prompt. The page displays the actual target file and size. Existing file contents are imported automatically, external edits are preserved, and replacements create `.edge-switch-*.bak` backups. Disabling clears the target while keeping the library entry. Native Windows and SSH workspaces use separate libraries; SSH targets stay within the selected managed workspace and account/API channel.
+
 | Studio | General settings |
 | --- | --- |
 | ![Studio](docs/current/home-english.png) | ![General settings](docs/current/settings-english.png) |

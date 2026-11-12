@@ -38,6 +38,7 @@ import { WindowControls } from "./WindowControls";
 import { ScrollList } from "./ScrollList";
 import { SettingsPage, SettingsTab } from "./SettingsPage";
 import { UsagePage } from "./UsagePage";
+import { PromptGroups } from "./PromptGroups";
 import { SessionCenter } from "./SessionCenter";
 import { ActionIcon } from "./ActionIcon";
 import { tools } from "./catalog";
@@ -62,6 +63,12 @@ const navigation = [
     label: "授权中心",
     icon: "",
     description: "管理工具账号授权。",
+  },
+  {
+    id: "prompts",
+    label: "提示词组",
+    icon: "",
+    description: "管理工具的长期提示词。",
   },
   { id: "usage", label: "使用统计", icon: "", description: "查询模型用量。" },
   {
@@ -441,14 +448,19 @@ export function App() {
                     aria-current={tab === id ? "page" : undefined}
                     onClick={() => setTab(id)}
                   >
-                    {id === "auth" || id === "usage" || id === "sessions" ? (
+                    {id === "auth" ||
+                    id === "usage" ||
+                    id === "sessions" ||
+                    id === "prompts" ? (
                       <ActionIcon
                         name={
-                          id === "auth"
-                            ? "authorization"
-                            : id === "sessions"
-                              ? "logs"
-                              : "usage"
+                          id === "prompts"
+                            ? "prompts"
+                            : id === "auth"
+                              ? "authorization"
+                              : id === "sessions"
+                                ? "logs"
+                                : "usage"
                         }
                       />
                     ) : (
@@ -465,6 +477,13 @@ export function App() {
               <div className="management-notice" role="status">
                 {t(message)}
               </div>
+              {tab === "prompts" && (
+                <PromptGroups
+                  key={current.id}
+                  profileId={current.id}
+                  environment={current.name}
+                />
+              )}
               {tab === "usage" && (
                 <UsagePage
                   key={current.id}

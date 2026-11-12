@@ -86,6 +86,22 @@ try {
             checked_at: 1800000000,
           };
         if (name === "snapshot") return structuredClone(snapshot);
+        if (name === "prompt_library")
+          return {
+            prompts: [
+              {
+                id: "prompt-example",
+                name: "团队编码规范",
+                description: "统一代码风格与协作约定",
+                content: "# AGENTS.md\n\n使用中文回复，修改后运行相关测试。",
+                updated: 1794441600,
+              },
+            ],
+            active: "prompt-example",
+            path: "C:\\Users\\Developer\\.codex\\AGENTS.md",
+            revision: "demo",
+            bytes: 81,
+          };
         if (name === "query_sessions") {
           const sessionResult = {
             sessions: [
@@ -503,6 +519,29 @@ try {
     .click();
   await expect(page.locator(".sc-outline button").nth(1)).toHaveClass(/active/);
   await page.screenshot({ path: resolve(output, "sessions-reader-dark.png") });
+  await page.getByRole("button", { name: "提示词组", exact: true }).click();
+  await expect(page.locator(".pg-row")).toContainText("团队编码规范");
+  await page.screenshot({ path: resolve(output, "prompts-list-dark.png") });
+  await page
+    .getByRole("button", { name: "＋ 添加提示词", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "提示词名称", exact: true })
+    .fill("团队编码规范");
+  await page
+    .getByRole("textbox", { name: "提示词正文", exact: true })
+    .fill("# AGENTS.md\n\n使用中文回复，修改后运行相关测试。");
+  await page.screenshot({ path: resolve(output, "prompts-editor-dark.png") });
+  await page.setViewportSize({ width: 980, height: 660 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: resolve(output, "prompts-editor-compact.png"),
+  });
+  await page.setViewportSize({ width: 1180, height: 790 });
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByRole("button", { name: "☼ 浅色", exact: true }).click();
   await page.getByRole("button", { name: "English", exact: true }).click();

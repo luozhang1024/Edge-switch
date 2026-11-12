@@ -1079,6 +1079,53 @@ os.execvpe(binary, [binary] + args + sys.argv[1:], env)
 '''
 
 
+def prompt_file(p):
+    root = scope(p)
+    official = bool(p.get('official'))
+    paths = {
+        'codex': ('codex-chatgpt-home' if official else 'codex-home') + '/AGENTS.md',
+        'claude': ('claude-official-home' if official else 'claude-home') + '/CLAUDE.md',
+        'gemini': ('gemini-official-home' if official else 'gemini-home') + '/.gemini/GEMINI.md',
+        'harness': 'harness-home/AGENTS.md',
+        'opencode': ('opencode-official-home' if official else 'opencode-home') + '/config/opencode/AGENTS.md',
+    }
+    if p.get('tool') not in paths:
+        raise ValueError('工具无效')
+    path = root / paths[p['tool']]
+    try:
+        path.resolve().relative_to(root.resolve())
+    except ValueError:
+        raise ValueError('提示词文件不属于当前环境')
+
+    def read():
+        try:
+            with path.open('rb') as stream:
+                raw = stream.read(1024 * 1024 + 1)
+        except FileNotFoundError:
+            return None
+        if len(raw) > 1024 * 1024:
+            raise ValueError('提示词文件超过 1 MiB，无法管理')
+        return raw.decode('utf-8')
+
+    def revision(content):
+        return 'missing' if content is None else hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+    content = read()
+    if p.get('expected') is not None:
+        if revision(content) != p['expected']:
+            raise ValueError('目标文件已被外部修改，请刷新后重试')
+        replacement = p.get('content')
+        if not isinstance(replacement, str) or len(replacement.encode('utf-8')) > 1024 * 1024:
+            raise ValueError('提示词正文无效或超过 1 MiB')
+        if content is not None:
+            private_write(path.with_name(path.name + '.edge-switch-' + os.urandom(16).hex() + '.bak'), content)
+        if revision(read()) != p['expected']:
+            raise ValueError('目标文件已被外部修改，请刷新后重试')
+        private_write(path, replacement)
+        content = replacement
+    return dict(path=str(path), content=content, revision=revision(content))
+
+
 def main():
     p = json.load(sys.stdin)
     action = p['action']
@@ -1087,7 +1134,9 @@ def main():
                    harness_account_read=harness_account_read, harness_account_write=harness_account_write,
                    harness_prepare=harness_prepare, harness_start=harness_start,
                    harness_status=harness_status, harness_stop=harness_stop)
-    if action == 'session_files':
+    if action == 'prompt_file':
+        result = prompt_file(p)
+    elif action == 'session_files':
         result = session_files(scope(p), p)
     elif action == 'usage':
         result = usage_query(scope(p), p)
