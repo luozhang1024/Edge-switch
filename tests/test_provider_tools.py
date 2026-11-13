@@ -96,6 +96,18 @@ class ProviderToolTests(unittest.TestCase):
             agent.configure_tool(dict(self.payload, tool='claude'))
         self.assertFalse((self.root / 'claude-api.json').exists())
 
+    def test_model_route_allows_only_its_loopback_http_endpoint(self):
+        payload = dict(self.payload, tool='claude', protocol='anthropic', service_id='edge-routing',
+                       base_url='http://127.0.0.1:15721/claude')
+        agent.configure_tool(payload)
+        self.assertEqual(json.loads((self.root / 'claude-api.json').read_text())['base_url'], payload['base_url'])
+        for url in ('http://remote.example/claude', 'http://127.0.0.1/claude',
+                    'http://127.0.0.1:15721/codex', 'http://127.0.0.1:15721/claude?key=secret'):
+            with self.subTest(url=url), self.assertRaisesRegex(ValueError, 'HTTPS'):
+                agent.configure_tool(dict(payload, base_url=url))
+        with self.assertRaisesRegex(ValueError, 'HTTPS'):
+            agent.configure_tool(dict(payload, service_id='ordinary-provider'))
+
     def test_opencode_protocol_specific_sdk_and_no_embedded_key(self):
         for protocol, sdk in [('chat', 'openai-compatible'), ('responses', 'openai'), ('anthropic', 'anthropic'), ('gemini', 'google')]:
             self.configure('opencode', protocol)

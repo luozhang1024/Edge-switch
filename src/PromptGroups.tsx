@@ -44,6 +44,9 @@ export function PromptGroups({
   const [draft, setDraft] = useState<Prompt | null>(null);
   const [query, setQuery] = useState("");
   const [menu, setMenu] = useState<string | null>(null);
+  const [copying, setCopying] = useState<Prompt | null>(null);
+  const [copyTargets, setCopyTargets] = useState<ToolId[]>([]);
+  const copyDialog = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -89,12 +92,40 @@ export function PromptGroups({
   useEffect(() => {
     setLibrary(null);
     setDraft(null);
+    setCopying(null);
     setQuery("");
     void request();
     return () => {
       ++generation.current;
     };
   }, [profileId, tool]);
+  useEffect(() => {
+    if (copying && !copyDialog.current?.open) copyDialog.current?.showModal();
+  }, [copying]);
+  async function copyToTools() {
+    if (!copying || !library || !copyTargets.length) return;
+    const token = ++generation.current;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await invoke("copy_prompt_to_tools", {
+        profileId,
+        tool,
+        id: copying.id,
+        targets: copyTargets,
+        revision: library.revision,
+      });
+      if (token === generation.current) {
+        setCopying(null);
+        setNotice(t("已复制到所选工具，副本未启用，后续修改互不影响。"));
+      }
+    } catch (e) {
+      if (token === generation.current) setError(String(e));
+    } finally {
+      if (token === generation.current) setBusy(false);
+    }
+  }
   useEffect(() => {
     const close = () => setMenu(null);
     const escape = (event: KeyboardEvent) => {
@@ -301,14 +332,17 @@ export function PromptGroups({
                           role="menuitem"
                           onClick={() => {
                             setMenu(null);
-                            setDraft({
-                              ...p,
-                              id: "",
-                              name: `${p.name} (${t("副本")})`,
-                            });
+                            setCopyTargets(
+                              tools
+                                .filter((item) => item.id !== tool)
+                                .map((item) => item.id),
+                            );
+                            setCopying(p);
+                            setError("");
+                            setNotice("");
                           }}
                         >
-                          {t("创建副本")}
+                          {t("复制到其他工具")}
                         </button>
                         <button
                           role="menuitem"
@@ -334,6 +368,11 @@ export function PromptGroups({
                         >
                           {t("删除提示词")}
                         </button>
+                        {library?.active === p.id && (
+                          <small className="pg-delete-hint">
+                            {t("启用中的提示词不能删除，请先停用。")}
+                          </small>
+                        )}
                       </div>
                     )}
                   </div>
@@ -423,6 +462,63 @@ export function PromptGroups({
             </button>
           </footer>
         </form>
+      )}
+      {copying && (
+        <dialog
+          ref={copyDialog}
+          className="pg-copy-dialog"
+          aria-labelledby="pg-copy-title"
+          onCancel={(e) => {
+            e.preventDefault();
+            if (!busy) setCopying(null);
+          }}
+        >
+          <h3 id="pg-copy-title">
+            {t("复制到其他工具")} · {copying.name}
+          </h3>
+          <p>{t("各自复制成独立的一条，不自动启用；之后改动互不影响。")}</p>
+          <div className="pg-copy-targets">
+            {tools
+              .filter((item) => item.id !== tool)
+              .map((item) => (
+                <label key={item.id}>
+                  <input
+                    type="checkbox"
+                    checked={copyTargets.includes(item.id)}
+                    disabled={busy}
+                    onChange={(e) =>
+                      setCopyTargets(
+                        e.target.checked
+                          ? [...copyTargets, item.id]
+                          : copyTargets.filter((id) => id !== item.id),
+                      )
+                    }
+                  />
+                  <img src={item.icon} alt="" />
+                  <span>{item.name}</span>
+                </label>
+              ))}
+          </div>
+          {error && (
+            <p className="pg-error" role="alert">
+              {t(error)}
+            </p>
+          )}
+          <footer>
+            <button disabled={busy} onClick={() => setCopying(null)}>
+              {t("取消")}
+            </button>
+            <button
+              className="pg-primary"
+              disabled={busy || copyTargets.length === 0}
+              onClick={() => void copyToTools()}
+            >
+              {busy
+                ? t("正在复制…")
+                : `${t("复制到")} ${copyTargets.length} ${t("个工具")}`}
+            </button>
+          </footer>
+        </dialog>
       )}
     </section>
   );

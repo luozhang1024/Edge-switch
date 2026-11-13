@@ -27,7 +27,7 @@ try {
     Copy-Item -LiteralPath 'image/providers/LICENSE' -Destination (Join-Path $portable 'LobeHub-Icons-LICENSE.txt') -Force
     $portableDocs = Join-Path $portable 'docs'
     New-Item -ItemType Directory -Force $portableDocs | Out-Null
-    Copy-Item -LiteralPath 'docs/tauri-migration.md', 'docs/model-services.md', 'docs/skills.md' -Destination $portableDocs -Force
+    Copy-Item -LiteralPath 'docs/tauri-migration.md', 'docs/model-services.md', 'docs/model-routing.md', 'docs/skills.md' -Destination $portableDocs -Force
     $standalone = Join-Path $output 'EdgeSwitch.exe'
     try {
         Copy-Item -LiteralPath 'src-tauri/target/release/edge-switch.exe' -Destination $standalone -Force

@@ -312,9 +312,152 @@ pub async fn prompt_library(
     )
 }
 
+fn library_path(directory: &Path, profile: &str, tool: &str, target: &str) -> PathBuf {
+    let key = format!("{:x}", Sha256::digest(target.as_bytes()));
+    directory
+        .join("prompts")
+        .join(profile)
+        .join(format!("{tool}-{key}.json"))
+}
+fn load_library(path: &Path) -> Result<Library, String> {
+    match fs::read(path) {
+        Ok(bytes) => {
+            serde_json::from_slice(&bytes).map_err(|_| "提示词库损坏，未覆盖原文件".into())
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Library::default()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+fn append_copy(lib: &mut Library, source: &Prompt) -> Result<(), String> {
+    let mut copy = source.clone();
+    copy.id.clear();
+    update(lib, "save", None, Some(copy))?;
+    Ok(())
+}
+#[tauri::command]
+pub async fn copy_prompt_to_tools(
+    state: tauri::State<'_, State>,
+    profile_id: String,
+    tool: String,
+    id: String,
+    targets: Vec<String>,
+    revision: String,
+) -> Result<(), String> {
+    if !store::TOOLS.contains(&tool.as_str())
+        || targets.is_empty()
+        || targets.len() >= store::TOOLS.len()
+    {
+        return Err("请选择其他目标工具".into());
+    }
+    let mut unique = std::collections::HashSet::new();
+    if targets
+        .iter()
+        .any(|t| t == &tool || !store::TOOLS.contains(&t.as_str()) || !unique.insert(t))
+    {
+        return Err("目标工具无效或重复".into());
+    }
+    let _guard = state.0.mutation.lock().await;
+    let (p, scope, directory) = {
+        let s = state.0.store.lock().unwrap();
+        (
+            s.profile(&profile_id)?,
+            s.scope(&profile_id),
+            s.directory.clone(),
+        )
+    };
+    let live = target(&state.0, &p, &scope, &tool, None, None).await?;
+    if live["revision"] != revision {
+        return Err("目标文件已变化，请刷新列表后重试".into());
+    }
+    let mut source = load_library(&library_path(
+        &directory,
+        &profile_id,
+        &tool,
+        live["path"].as_str().ok_or("目标路径缺失")?,
+    ))?;
+    reconcile(&mut source, live["content"].as_str());
+    let prompt = source
+        .prompts
+        .iter()
+        .find(|v| v.id == id)
+        .ok_or("提示词不存在，请刷新后重试")?;
+    let mut staged = Vec::new();
+    // Resolve and validate every destination before writing any library.
+    for tool in targets {
+        let live = target(&state.0, &p, &scope, &tool, None, None).await?;
+        let path = library_path(
+            &directory,
+            &profile_id,
+            &tool,
+            live["path"].as_str().ok_or("目标路径缺失")?,
+        );
+        let previous = match fs::read(&path) {
+            Ok(v) => Some(v),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(e.to_string()),
+        };
+        let mut lib = load_library(&path)?;
+        reconcile(&mut lib, live["content"].as_str());
+        append_copy(&mut lib, prompt)?;
+        staged.push((
+            path,
+            previous,
+            serde_json::to_vec_pretty(&lib).map_err(|e| e.to_string())?,
+        ));
+    }
+    for (index, (path, _, bytes)) in staged.iter().enumerate() {
+        if let Err(error) = store::atomic_write(path, bytes) {
+            let mut failures = vec![];
+            for (path, previous, _) in staged.iter().take(index) {
+                let result = if let Some(previous) = previous {
+                    store::atomic_write(path, previous)
+                } else {
+                    fs::remove_file(path).map_err(|e| e.to_string())
+                };
+                if let Err(e) = result {
+                    failures.push(e);
+                }
+            }
+            return Err(if failures.is_empty() {
+                error
+            } else {
+                format!("{error}；部分副本回滚失败：{}", failures.join("；"))
+            });
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn copies_have_independent_ids_and_do_not_change_active_prompt() {
+        let source = Prompt {
+            id: store::new_id(),
+            name: "Rules".into(),
+            description: "Team".into(),
+            content: "Original".into(),
+            updated: 0,
+        };
+        let mut lib = Library {
+            prompts: vec![source.clone()],
+            active: Some(source.id.clone()),
+        };
+        append_copy(&mut lib, &source).unwrap();
+        append_copy(&mut lib, &source).unwrap();
+        assert_eq!(lib.active.as_ref(), Some(&source.id));
+        assert_ne!(lib.prompts[1].id, source.id);
+        assert_ne!(lib.prompts[1].id, lib.prompts[2].id);
+        assert_eq!(lib.prompts[1].name, source.name);
+        assert_eq!(lib.prompts[1].description, source.description);
+        lib.prompts[1].content = "Changed copy".into();
+        assert_eq!(source.content, "Original");
+        assert_eq!(lib.prompts[0].content, "Original");
+        let mut empty = Library::default();
+        append_copy(&mut empty, &source).unwrap();
+        assert!(empty.active.is_none());
+    }
     #[test]
     fn imports_preserves_external_edits_and_switches_exclusively() {
         let mut lib = Library::default();

@@ -6,6 +6,7 @@ import chatgptIcon from "../image/providers/openai.svg";
 import { HarnessAccount } from "./HarnessAccount";
 import { AccountMenu, LoginProgress } from "./AccountActions";
 import { NetworkSettings } from "./NetworkSettings";
+import { RoutingSettings } from "./RoutingSettings";
 import {
   defaultPreferences,
   isRunning,
@@ -307,6 +308,12 @@ export function SettingsPage({
         )}
         {tab === "routing" && (
           <>
+            <RoutingSettings
+              key={current.id}
+              current={current}
+              services={data.services[current.id] || []}
+              busy={busy}
+            />
             <SettingsField
               title={t("当前环境的网络路由")}
               description={t(`为 ${current.name} 配置下载与工具访问网络。`)}

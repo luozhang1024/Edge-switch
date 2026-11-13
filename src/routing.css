@@ -1,0 +1,95 @@
+.model-routing {
+  max-width: 900px;
+}
+.routing-card {
+  border: 1px solid var(--border, #ddded4);
+  border-radius: 12px;
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+}
+.routing-card h4 {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+.routing-service-row,
+.routing-actions,
+.routing-save {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.routing-service-row small {
+  display: block;
+  margin-top: 6px;
+  color: #858a82;
+}
+.routing-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 16px;
+}
+.routing-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+}
+.routing-inputs input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.routing-inputs small {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #858a82;
+}
+.routing-group,
+.routing-info {
+  padding: 16px;
+  border-radius: 10px;
+  background: rgb(128 128 128 / 8%);
+}
+.routing-info {
+  font-size: 12px;
+  line-height: 1.8;
+  margin: 0;
+}
+.routing-queue {
+  padding-left: 24px;
+  margin: 12px 0;
+}
+.routing-queue li {
+  padding: 5px 0;
+}
+.routing-queue li span {
+  display: inline-block;
+  min-width: 140px;
+  margin-right: 12px;
+}
+.routing-queue button {
+  margin-right: 6px;
+}
+.routing-save {
+  position: sticky;
+  bottom: 0;
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--panel, #f5f5ef);
+  z-index: 1;
+  font-size: 12px;
+}
+:root[data-theme="dark"] .routing-save {
+  background: #262824;
+}
+.routing-card .behavior-switch {
+  background: transparent;
+  padding: 6px 0;
+}
+.routing-card hr {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid #858a8240;
+}

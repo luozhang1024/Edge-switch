@@ -291,6 +291,10 @@ async fn configure_tool(
     scope: &str,
     tool: &str,
 ) -> Result<Value, String> {
+    if crate::routing::connected(core, &p.id, tool) {
+        crate::routing::connect(core, &p.id, tool).await?;
+        return Ok(json!({"message":"工具已同步模型路由配置"}));
+    }
     if ["kimi", "grok", "qwen", "copilot"].contains(&tool) {
         let mut payload = json!({"tool":tool,"official":true});
         if p.tool_services.get(tool).is_some_and(|id| id != "official") {
@@ -359,6 +363,10 @@ pub async fn api(core: &Core, p: &Profile) -> Result<Value, String> {
     )
 }
 pub async fn configure(core: &Core, p: &Profile, scope: &str, ide: bool) -> Result<Value, String> {
+    if crate::routing::connected(core, &p.id, "codex") {
+        crate::routing::connect(core, &p.id, "codex").await?;
+        return Ok(json!({"message":"Codex 已同步模型路由配置"}));
+    }
     if p.codex_auth == "api" && (p.protocol != "responses" || p.model.trim().is_empty()) {
         return Err("Codex 需要 Responses 协议和明确的模型 ID".into());
     }
@@ -447,7 +455,10 @@ async fn execute(
             action
         };
         let mut payload = json!({"tool":tool,"official":true});
-        if p.tool_services.get(tool).is_some_and(|id| id != "official") {
+        if crate::routing::connected(&core, &p.id, tool) {
+            payload = crate::routing::connect(&core, &p.id, tool).await?;
+            payload["official"] = json!(false);
+        } else if p.tool_services.get(tool).is_some_and(|id| id != "official") {
             let selected = tool_profile(&core, p, tool)?;
             payload = api(&core, &selected).await?;
             payload["tool"] = json!(tool);
@@ -596,6 +607,10 @@ async fn execute(
                 .insert("harness".into(), "official".into());
             store.save_profile(current)?;
             return Ok(json!({"message":"已选择本机 DeepSeek 账号，工具沿用本机账号配置"}));
+        }
+        if crate::routing::connected(&core, &p.id, action) {
+            crate::routing::connect(&core, &p.id, action).await?;
+            return crate::local::execute(p, action).await;
         }
         if (action == "codex" && p.codex_auth == "chatgpt")
             || (action == "claude"

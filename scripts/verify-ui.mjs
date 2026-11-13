@@ -64,6 +64,40 @@ try {
       list_order: {},
     };
     const callbacks = new Map();
+    let routingRunning = false;
+    let routingConfig = {
+      host: "127.0.0.1",
+      port: 15721,
+      connect_host: "",
+      record_usage: true,
+      tools: Object.fromEntries(
+        ["claude", "codex", "gemini", "grok"].map((tool) => [
+          tool,
+          {
+            queue: [],
+            retries: 3,
+            failure_threshold: 4,
+            first_timeout: 60,
+            idle_timeout: 120,
+            request_timeout: 600,
+            recovery_successes: 2,
+            recovery_wait: 60,
+            error_percent: 60,
+            min_requests: 10,
+          },
+        ]),
+      ),
+      rectifier: {
+        enabled: true,
+        signature: true,
+        budget: true,
+        image: true,
+        heuristic: true,
+        optimizer: false,
+        thinking: true,
+        cache: true,
+      },
+    };
     const listeners = new Map();
     let sequence = 0;
     const emit = (name, payload) =>
@@ -76,6 +110,24 @@ try {
         return id;
       },
       async invoke(name, args = {}) {
+        if (name === "routing_status")
+          return {
+            config: structuredClone(routingConfig),
+            running: routingRunning,
+            usage: null,
+          };
+        if (name === "save_routing") {
+          routingConfig = structuredClone(args.config);
+          return;
+        }
+        if (name === "routing_service") {
+          routingRunning = args.start;
+          return;
+        }
+        if (name === "copy_prompt_to_tools") {
+          window.__promptCopy = args;
+          return;
+        }
         if (name === "local_harness_account")
           return {
             signed_in: true,
@@ -445,6 +497,28 @@ try {
     "环境检查已完成",
   );
   await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByRole("tab", { name: "路由", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "自动故障转移", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("spinbutton", { name: "最大重试次数", exact: true })
+    .fill("5");
+  await page.getByRole("button", { name: "保存路由设置", exact: true }).click();
+  await expect(page.getByText("路由配置已保存", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Claude Code", exact: true }).click();
+  await expect(
+    page.getByRole("spinbutton", { name: "最大重试次数", exact: true }),
+  ).toHaveValue("3");
+  await page.getByRole("button", { name: "Codex", exact: true }).click();
+  await expect(
+    page.getByRole("spinbutton", { name: "最大重试次数", exact: true }),
+  ).toHaveValue("5");
+  await page.screenshot({
+    path: resolve(output, "routing-settings.png"),
+    fullPage: true,
+  });
+  await page.getByRole("tab", { name: "通用", exact: true }).click();
   await expect(
     page.getByRole("switch", { name: "开机自启" }),
   ).not.toBeChecked();
@@ -552,6 +626,28 @@ try {
   await expect(page.locator(".pg-row")).toContainText("团队编码规范");
   await page.screenshot({ path: resolve(output, "prompts-list-dark.png") });
   await page
+    .getByRole("button", { name: "更多操作 团队编码规范", exact: true })
+    .click();
+  await expect(
+    page.getByRole("menuitem", { name: "删除提示词", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText("启用中的提示词不能删除，请先停用。", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("menuitem", { name: "复制到其他工具", exact: true })
+    .click();
+  await expect(page.getByRole("dialog").getByRole("checkbox")).toHaveCount(8);
+  await page.screenshot({
+    path: resolve(output, "prompts-copy-tools-dark.png"),
+  });
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "复制到 8 个工具", exact: true })
+    .click();
+  await expect(page.locator(".pg-copy-dialog")).toHaveCount(0);
+  expect(await page.evaluate(() => window.__promptCopy.targets.length)).toBe(8);
+  await page
     .getByRole("button", { name: "＋ 添加提示词", exact: true })
     .click();
   await page
@@ -606,6 +702,11 @@ try {
     .toBe(true);
   expect(errors).toEqual([]);
   console.log(`UI verification passed. Screenshots: ${output}`);
+} catch (error) {
+  const failedPage = browser.contexts()[0]?.pages()[0];
+  if (failedPage)
+    await failedPage.screenshot({ path: resolve(output, "failure.png") });
+  throw error;
 } finally {
   await browser.close();
   await server.close();

@@ -11,6 +11,7 @@ mod ordering;
 mod prompts;
 mod providers;
 mod resources;
+mod routing;
 mod secrets;
 mod sessions;
 mod settings;
@@ -35,6 +36,7 @@ use tokio::sync::{watch, Mutex as AsyncMutex, Semaphore};
 
 type RpcSlot = Arc<AsyncMutex<Option<transport::Rpc>>>;
 pub struct Core {
+    pub(crate) routing: routing::Runtime,
     pub(crate) mutation: AsyncMutex<()>,
     pub(crate) store: Mutex<Store>,
     pub(crate) connections: AsyncMutex<HashMap<String, RpcSlot>>,
@@ -254,6 +256,9 @@ async fn select_profile(state: tauri::State<'_, State>, id: String) -> Result<()
 #[tauri::command]
 async fn delete_profile(state: tauri::State<'_, State>, id: String) -> Result<Value, String> {
     let _mutation = state.0.mutation.lock().await;
+    if state.0.routing.servers.lock().await.contains_key(&id) {
+        return Err("请先停止此环境的模型路由服务".into());
+    }
     if state.0.active.lock().unwrap().contains_key(&id) {
         return Err("此环境任务进行中".into());
     }
@@ -295,6 +300,11 @@ async fn delete_profile(state: tauri::State<'_, State>, id: String) -> Result<Va
             .retain(|p| p["id"] != id);
         for field in ["services", "official", "applied"] {
             s.data[field].as_object_mut().unwrap().remove(&id);
+        }
+        for field in ["routing", "routing_connected", "routing_tokens"] {
+            if let Some(entries) = s.data[field].as_object_mut() {
+                entries.remove(&id);
+            }
         }
         if s.data["selected_profile"] == id {
             s.data["selected_profile"] = s.data["profiles"][0]["id"].clone();
@@ -459,6 +469,9 @@ async fn activate_service(
         let tool = tool.as_deref().unwrap_or("codex");
         if !store::TOOLS.contains(&tool) {
             return Err("工具无效".into());
+        }
+        if let Some(connected) = s.data["routing_connected"][&profile_id].as_object_mut() {
+            connected.remove(tool);
         }
         if service_id == "official" {
             if ["claude", "gemini", "opencode", "kimi", "qwen", "copilot"].contains(&tool) {
@@ -664,6 +677,7 @@ async fn shutdown(app: tauri::AppHandle, core: Arc<Core>) -> Result<(), String> 
         resource.stop().await;
     }
     core.connections.lock().await.clear();
+    core.routing.servers.lock().await.clear();
     app.exit(0);
     Ok(())
 }
@@ -694,6 +708,7 @@ pub fn run() {
             lock.try_lock_exclusive()
                 .map_err(|_| "旧版或另一个工作台正在运行，请先从托盘退出")?;
             let core = Arc::new(Core {
+                routing: Default::default(),
                 mutation: Default::default(),
                 store: Mutex::new(Store::load(directory).map_err(std::io::Error::other)?),
                 connections: Default::default(),
@@ -776,6 +791,12 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            routing::routing_status,
+            routing::save_routing,
+            routing::routing_service,
+            routing::routing_connect,
+            routing::routing_disconnect,
+            prompts::copy_prompt_to_tools,
             sessions::query_sessions,
             prompts::prompt_library,
             skills::skills_request,
@@ -834,6 +855,7 @@ mod tests {
             .open(dir.join("lock"))
             .unwrap();
         Core {
+            routing: Default::default(),
             mutation: Default::default(),
             store: Mutex::new(Store::load(dir).unwrap()),
             connections: Default::default(),

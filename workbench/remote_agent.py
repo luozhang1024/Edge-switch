@@ -990,7 +990,10 @@ def configure_tool(p):
     if not str(p.get('model', '')).strip():
         raise ValueError('请填写模型 ID')
     parsed = urllib.parse.urlparse(p.get('base_url', ''))
-    if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+    local_route = (p.get('service_id') == 'edge-routing' and parsed.scheme == 'http'
+                   and parsed.hostname == '127.0.0.1' and parsed.port
+                   and (parsed.path == '/' + str(tool) or parsed.path.startswith('/' + str(tool) + '/')))
+    if (parsed.scheme != 'https' and not local_route) or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise ValueError('API 地址需要不含账号或参数的 HTTPS URL')
     if p.get('reuse'):
         p = tool_credentials(p)
