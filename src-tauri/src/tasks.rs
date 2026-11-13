@@ -437,7 +437,31 @@ async fn execute(
             )
             .await;
     }
+    // Browser authorization always runs on this PC, including local workspaces.
+    if action == "login_browser" {
+        return crate::accounts::chatgpt_browser(&core, p).await;
+    }
+    if action == "harness_login" {
+        return crate::accounts::harness_browser().await;
+    }
     if p.is_local() {
+        if action == "auth_status" || action == "login" {
+            if action == "login" {
+                crate::local::login(p, "codex", true).await?;
+            }
+            let authenticated = crate::accounts::local_codex_status(&core, p)?;
+            remember_auth(&core, p, authenticated, action == "login" && authenticated)?;
+            if action == "login" && !authenticated {
+                return Err("尚未确认官方登录，请检查终端授权结果".into());
+            }
+            return Ok(
+                json!({"authenticated":authenticated,"message":if authenticated {"已确认本机官方账号登录"} else {"尚未登录，请完成账号授权"}}),
+            );
+        }
+        if action == "tool_login" {
+            let tool = v["tool"].as_str().ok_or("请选择工具")?;
+            return crate::local::login(p, tool, false).await;
+        }
         if action == "harness_account_sync" {
             let account = crate::accounts::local_harness_account().await?;
             if account["signed_in"] != true || account["expired"] == true {

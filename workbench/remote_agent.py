@@ -1204,6 +1204,8 @@ def main():
         result = tool_inventory(p)
     elif action == 'uninstall_tool':
         result = uninstall_tool(p)
+    elif action == 'skills_target':
+        result = skills_target(p, scope(p))
     elif action == 'prompt_file':
         result = prompt_file(p)
     elif action == 'session_files':

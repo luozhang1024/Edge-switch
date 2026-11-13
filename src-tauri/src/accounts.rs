@@ -362,9 +362,52 @@ pub async fn chatgpt_browser(core: &Core, profile: &store::Profile) -> Result<Va
         next.data["official"][&profile.id] = json!({"name":"OpenAI Official"});
     }
     next.data["official"][&profile.id]["credentials"] = json!(encrypted);
+    if profile.is_local() {
+        save_local_codex(&auth)?;
+    }
     next.save()?;
     *live = next;
-    Ok(json!({"message":"ChatGPT 浏览器授权成功，可在模型服务中启用并同步到板卡"}))
+    Ok(
+        json!({"message":if profile.is_local() {"ChatGPT 浏览器授权成功，已保存到本机 Codex"} else {"ChatGPT 浏览器授权成功，可在模型服务中启用并同步到板卡"}}),
+    )
+}
+
+fn save_local_codex(auth: &Value) -> Result<(), String> {
+    let path = crate::native_sessions::codex_home().join("auth.json");
+    if path.exists() {
+        let backup = path.with_file_name(format!("auth.edge-switch-{}.bak", store::new_id()));
+        fs::copy(&path, backup).map_err(|_| "无法备份本机 Codex 凭据，原文件已保留")?;
+    }
+    store::atomic_write(&path, auth.to_string().as_bytes())
+}
+
+pub fn local_codex_status(core: &Core, profile: &store::Profile) -> Result<bool, String> {
+    let path = crate::native_sessions::codex_home().join("auth.json");
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => "null".into(),
+        Err(_) => return Err("无法读取本机 Codex 凭据".into()),
+    };
+    let auth: Value = serde_json::from_str(&text).map_err(|_| "本机 Codex 凭据格式无效")?;
+    let signed_in = auth["tokens"]["access_token"]
+        .as_str()
+        .is_some_and(|s| !s.is_empty())
+        && auth["tokens"]["refresh_token"]
+            .as_str()
+            .is_some_and(|s| !s.is_empty());
+    let mut live = core.store.lock().unwrap();
+    let mut next = live.clone();
+    if !next.data["official"][&profile.id].is_object() {
+        next.data["official"][&profile.id] = json!({"name":"OpenAI Official"});
+    }
+    next.data["official"][&profile.id]["credentials"] = if signed_in {
+        json!(crate::secrets::protect(&text)?)
+    } else {
+        Value::Null
+    };
+    next.save()?;
+    *live = next;
+    Ok(signed_in)
 }
 async fn platform_call(method: &str, value: Value) -> Result<Value, String> {
     platform_response(identity(

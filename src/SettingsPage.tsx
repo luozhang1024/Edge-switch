@@ -446,7 +446,9 @@ export function SettingsPage({
                 </div>
                 <p className="settings-note">
                   {t(
-                    "浏览器登录在本机打开官方授权网页，完成后加密保存到当前工作环境；设备码登录通过板卡 SSH 终端完成。每个工作环境保存一份 ChatGPT 授权，凭据导入可在管理入口中操作。",
+                    current.kind === "local"
+                      ? "浏览器登录在本机打开官方授权网页，完成后保存到本机 Codex，并在当前环境加密记录；设备码登录会打开本机终端。"
+                      : "浏览器登录在本机打开官方授权网页，完成后加密保存到当前工作环境；设备码登录通过板卡 SSH 终端完成。每个工作环境保存一份 ChatGPT 授权，凭据导入可在管理入口中操作。",
                   )}
                 </p>
                 {account?.verified_at && (

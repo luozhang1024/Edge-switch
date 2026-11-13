@@ -10,6 +10,57 @@ fn powershell(script: &str) -> tokio::process::Command {
     c
 }
 
+pub async fn login(p: &Profile, tool: &str, wait: bool) -> Result<Value, String> {
+    let args = match tool {
+        "codex" => " login --device-auth",
+        "claude" | "opencode" => " auth login",
+        "gemini" => "",
+        _ => return Err("此工具不支持官方终端登录".into()),
+    };
+    if !std::path::Path::new(&p.project).is_dir() {
+        return Err("本机工程目录不存在，请编辑工作环境".into());
+    }
+    let mut check = powershell(
+        "if (!(Get-Command $env:EDGE_LOCAL_TOOL -ErrorAction SilentlyContinue)) { exit 1 }",
+    );
+    check.env("EDGE_LOCAL_TOOL", tool);
+    if !tokio::time::timeout(std::time::Duration::from_secs(20), check.status())
+        .await
+        .map_err(|_| "检查本机工具超时")?
+        .map_err(|e| e.to_string())?
+        .success()
+    {
+        return Err(format!("本机未找到 {tool}，请先在工具安装页安装"));
+    }
+    let mut command = powershell(&format!("Set-Location -LiteralPath $env:EDGE_LOCAL_PROJECT; & $env:EDGE_LOCAL_TOOL{args}; if ($LASTEXITCODE) {{ exit $LASTEXITCODE }}"));
+    command
+        .env("EDGE_LOCAL_TOOL", tool)
+        .env("EDGE_LOCAL_PROJECT", &p.project);
+    if p.uses_proxy(tool) {
+        let proxy = format!("http://127.0.0.1:{}", p.proxy_port);
+        command.env("HTTP_PROXY", &proxy).env("HTTPS_PROXY", &proxy);
+    }
+    if !wait {
+        command.arg("-NoExit");
+    }
+    #[cfg(windows)]
+    command.creation_flags(0x00000010);
+    command.kill_on_drop(wait);
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("无法打开本机授权终端：{e}"))?;
+    if wait {
+        let status = tokio::time::timeout(std::time::Duration::from_secs(900), child.wait())
+            .await
+            .map_err(|_| "本机授权等待超时，请重试")?
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err("本机授权未完成，请检查终端结果".into());
+        }
+    }
+    Ok(json!({"message":"已打开本机官方授权终端，请按提示完成登录；打开终端不代表授权成功"}))
+}
+
 pub async fn execute(p: &Profile, action: &str) -> Result<Value, String> {
     p.validate()?;
     if !cfg!(windows) {

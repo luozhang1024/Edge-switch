@@ -384,6 +384,7 @@ describe("桌面工作流", () => {
       "工具安装",
       "提示词组",
       "使用统计",
+      "Skills 技能",
       "会话中心",
     ]);
     expect(screen.queryByRole("tab", { name: "AI 工具" })).toBeNull();

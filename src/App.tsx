@@ -40,6 +40,7 @@ import { SettingsPage, SettingsTab } from "./SettingsPage";
 import { UsagePage } from "./UsagePage";
 import { ToolInstallation } from "./ToolInstallation";
 import { PromptGroups } from "./PromptGroups";
+import { SkillsPage } from "./SkillsPage";
 import { SessionCenter } from "./SessionCenter";
 import { ActionIcon } from "./ActionIcon";
 import { tools } from "./catalog";
@@ -78,6 +79,12 @@ const navigation = [
     description: "管理工具的长期提示词。",
   },
   { id: "usage", label: "使用统计", icon: "", description: "查询模型用量。" },
+  {
+    id: "skills",
+    label: "Skills 技能",
+    icon: "",
+    description: "发现、安装并管理工具技能。",
+  },
   {
     id: "sessions",
     label: "会话中心",
@@ -460,16 +467,19 @@ export function App() {
                     {id === "auth" ||
                     id === "usage" ||
                     id === "sessions" ||
-                    id === "prompts" ? (
+                    id === "prompts" ||
+                    id === "skills" ? (
                       <ActionIcon
                         name={
-                          id === "prompts"
-                            ? "prompts"
-                            : id === "auth"
-                              ? "authorization"
-                              : id === "sessions"
-                                ? "logs"
-                                : "usage"
+                          id === "skills"
+                            ? "skills"
+                            : id === "prompts"
+                              ? "prompts"
+                              : id === "auth"
+                                ? "authorization"
+                                : id === "sessions"
+                                  ? "logs"
+                                  : "usage"
                         }
                       />
                     ) : (
@@ -546,6 +556,13 @@ export function App() {
                     </section>
                   )}
                 </>
+              )}
+              {tab === "skills" && (
+                <SkillsPage
+                  key={current.id}
+                  profileId={current.id}
+                  environment={current.name}
+                />
               )}
               {tab === "prompts" && (
                 <PromptGroups
@@ -843,7 +860,7 @@ export function App() {
                   {current.kind === "local" && (
                     <p role="note">
                       {t(
-                        "本机工具使用 Windows 上已有的安装和配置；安装、模型配置与账号登录请在本机终端完成。",
+                        "本机工具沿用 Windows 配置；可在工具安装页安装，在授权中心登录，模型配置使用本机工具设置。",
                       )}
                     </p>
                   )}
@@ -878,7 +895,7 @@ export function App() {
         <Modal title={t("编辑工作环境")} close={() => setEditing(null)}>
           <p>
             {t(
-              "本机工具使用 Windows 上已有的安装和配置；安装、模型配置与账号登录请在本机终端完成。",
+              "本机工具沿用 Windows 配置；可在工具安装页安装，在授权中心登录，模型配置使用本机工具设置。",
             )}
           </p>
           <form

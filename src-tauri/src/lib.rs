@@ -9,6 +9,7 @@ mod resources;
 mod secrets;
 mod sessions;
 mod settings;
+mod skills;
 pub mod startup;
 mod store;
 mod tasks;
@@ -762,6 +763,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             sessions::query_sessions,
             prompts::prompt_library,
+            skills::skills_request,
             usage_pricing::usage_pricing,
             tool_management::tool_inventory,
             tool_management::set_tool_visibility,

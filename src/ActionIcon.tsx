@@ -19,9 +19,11 @@ export function ActionIcon({
     | "terminal"
     | "authorization"
     | "usage"
-    | "prompts";
+    | "prompts"
+    | "skills";
 }) {
   const paths = {
+    skills: "M5 3h12l3 3v15H5ZM3 3v5h6V3M9 12h7M9 16h7",
     prompts:
       "M12 5C9 3 5 3 2 4v15c3-1 7-1 10 1 3-2 7-2 10-1V4c-3-1-7-1-10 1ZM12 5v15",
     terminal: "M3 4h18v16H3ZM7 9l3 3-3 3M13 15h4",

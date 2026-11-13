@@ -70,6 +70,13 @@ await writeFile(
   join(output, "native-home/.codex/AGENTS.md"),
   "# Imported instructions\nPreserve original content.\n",
 );
+const smokeSkill = join(output, "native-home/.codex/skills/smoke-skill");
+await mkdir(join(smokeSkill, "scripts"), { recursive: true });
+await writeFile(
+  join(smokeSkill, "SKILL.md"),
+  "---\nname: Smoke Skill\ndescription: Desktop skill verification\n---\nInstructions\n",
+);
+await writeFile(join(smokeSkill, "scripts/run.py"), "print('fixture')\n");
 const server = createServer();
 server.listen(0, "127.0.0.1");
 await once(server, "listening");
@@ -83,6 +90,7 @@ const env = {
   CLAUDE_CONFIG_DIR: join(output, "native-home/.claude"),
   GEMINI_CLI_HOME: join(output, "native-home"),
   XDG_DATA_HOME: join(output, "native-home/.local/share"),
+  XDG_CONFIG_HOME: join(output, "native-home/.config"),
   WEBVIEW2_USER_DATA_FOLDER: join(output, "webview"),
   WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port} --remote-debugging-address=127.0.0.1`,
 };
@@ -228,6 +236,115 @@ try {
     profileId: snapshot.selected_profile,
   });
   expect(nativeConfig.provider).toBe("smoke-api");
+  const localId = snapshot.selected_profile;
+  // Occupy the callback port so the real browser task can be exercised without
+  // opening a sign-in page or requesting credentials from the test runner.
+  const callbackBlocker = createServer();
+  const callbackOccupied = new Promise((resolve, reject) => {
+    callbackBlocker.once("listening", () => resolve(true));
+    callbackBlocker.once("error", (error) =>
+      error.code === "EADDRINUSE" ? resolve(false) : reject(error),
+    );
+  });
+  callbackBlocker.listen(1455, "127.0.0.1");
+  const ownsCallbackPort = await callbackOccupied;
+  try {
+    const loginTask = await ipc("start_task", {
+      profileId: localId,
+      action: "login_browser",
+      payload: {},
+    });
+    await expect
+      .poll(
+        async () =>
+          (await ipc("snapshot")).tasks.find((t) => t.id === loginTask.id)
+            ?.state,
+      )
+      .toBe("失败");
+    expect(
+      (await ipc("snapshot")).tasks.find((t) => t.id === loginTask.id).message,
+    ).toContain("1455");
+  } finally {
+    if (ownsCallbackPort)
+      await new Promise((resolve) => callbackBlocker.close(resolve));
+  }
+  const statusTask = await ipc("start_task", {
+    profileId: localId,
+    action: "auth_status",
+    payload: {},
+  });
+  await expect
+    .poll(
+      async () =>
+        (await ipc("snapshot")).tasks.find((t) => t.id === statusTask.id)
+          ?.state,
+    )
+    .toBe("已完成");
+  const skillsArgs = { profileId: localId, payload: {} };
+  let skillList = await ipc("skills_request", {
+    ...skillsArgs,
+    action: "list",
+  });
+  expect(skillList.candidates.some((s) => s.id === "smoke-skill")).toBe(true);
+  await navigate("Skills 技能");
+  await expect(
+    page.getByRole("heading", { name: "还没有 Skill" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "添加 Skill" }).click();
+  await checkVisuals("skills-empty-menu");
+  await page.getByRole("menuitem", { name: /导入本机已有/ }).click();
+  const skillDialog = page.getByRole("dialog", { name: "导入本机已有" });
+  await skillDialog
+    .locator("article")
+    .filter({ hasText: "Smoke Skill" })
+    .getByRole("button", { name: "导入", exact: true })
+    .click();
+  await expect(
+    skillDialog.locator("article").filter({ hasText: "Smoke Skill" }),
+  ).toHaveCount(0);
+  await skillDialog.getByRole("button", { name: "关闭", exact: true }).click();
+  const claudeSkillSwitch = page.getByRole("switch", {
+    name: "Smoke Skill · Claude Code",
+  });
+  await claudeSkillSwitch.click();
+  await expect(claudeSkillSwitch).toBeChecked();
+  const deployedSkill = join(
+    output,
+    "native-home/.claude/skills/smoke-skill/scripts/run.py",
+  );
+  expect(await readFile(deployedSkill, "utf8")).toBe("print('fixture')\n");
+  await checkVisuals("skills-installed");
+  await claudeSkillSwitch.click();
+  await expect(claudeSkillSwitch).not.toBeChecked();
+  expect(await readFile(join(smokeSkill, "SKILL.md"), "utf8")).toContain(
+    "Instructions",
+  );
+  skillList = await ipc("skills_request", { ...skillsArgs, action: "list" });
+  expect(skillList.skills.find((s) => s.id === "smoke-skill").enabled).toEqual([
+    "codex",
+  ]);
+  const skillZip = join(output, "skill-fixture.zip");
+  await writeFile(
+    skillZip,
+    Buffer.from(
+      "UEsDBBQAAAAAAE5fbV1J4mc+JAAAACQAAAASAAAAemlwLXNraWxsL1NLSUxMLm1kLS0tCm5hbWU6IFpJUCBTa2lsbAotLS0KSW5zdHJ1Y3Rpb25zUEsBAhQAFAAAAAAATl9tXUniZz4kAAAAJAAAABIAAAAAAAAAAAAAAIABAAAAAHppcC1za2lsbC9TS0lMTC5tZFBLBQYAAAAAAQABAEAAAABUAAAAAAA=",
+      "base64",
+    ),
+  );
+  expect(
+    await ipc("skills_request", {
+      profileId: localId,
+      action: "install_zip",
+      payload: { path: skillZip },
+    }),
+  ).toEqual({ installed: 1, skipped: 0 });
+  expect(
+    await ipc("skills_request", {
+      profileId: localId,
+      action: "install_zip",
+      payload: { path: skillZip },
+    }),
+  ).toEqual({ installed: 0, skipped: 1 });
   const nativeUsage = await ipc("query_usage", {
     profileId: snapshot.selected_profile,
     start: Date.now() / 1000 - 86400,
