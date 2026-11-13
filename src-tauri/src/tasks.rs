@@ -71,6 +71,10 @@ pub async fn start_task(
         "claude" => "打开 Claude Code",
         "gemini" => "打开 Gemini CLI",
         "opencode" => "打开 OpenCode",
+        "kimi" => "打开 Kimi Code",
+        "grok" => "打开 Grok CLI",
+        "qwen" => "打开 Qwen Code",
+        "copilot" => "打开 GitHub Copilot",
         "harness_stop" => "停止 Harness",
         "proxy_start" => "连接代理",
         "disconnect" => "断开本地连接",
@@ -287,6 +291,23 @@ async fn configure_tool(
     scope: &str,
     tool: &str,
 ) -> Result<Value, String> {
+    if ["kimi", "grok", "qwen", "copilot"].contains(&tool) {
+        let mut payload = json!({"tool":tool,"official":true});
+        if p.tool_services.get(tool).is_some_and(|id| id != "official") {
+            payload = api(core, &tool_profile(core, p, tool)?).await?;
+            payload["tool"] = json!(tool);
+            payload["official"] = json!(false);
+        }
+        if p.is_local() {
+            if payload["official"] == true {
+                crate::extra_tools::select_official(tool)?;
+            } else {
+                crate::extra_tools::configure_local(tool, &payload)?;
+            }
+            return Ok(json!({"message":"已同步工具配置，现有配置已备份"}));
+        }
+        return core.call(p, scope, "configure_extra", payload, 30).await;
+    }
     if tool == "harness" && p.tool_services.get(tool).is_some_and(|id| id == "official") {
         return crate::accounts::sync_harness(core, p, scope).await;
     }
@@ -299,7 +320,7 @@ async fn configure_tool(
                 p,
                 scope,
                 "configure_tool",
-                json!({"tool":tool,"auth_mode":"official","project":p.project,"proxy":proxy}),
+                json!({"tool":tool,"auth_mode":"official","project":p.project,"proxy":proxy,"official_config":crate::official_provider::saved(core,p,tool)?}),
                 120,
             )
             .await;
@@ -345,6 +366,9 @@ pub async fn configure(core: &Core, p: &Profile, scope: &str, ide: bool) -> Resu
         import_auth(core, p, scope).await?;
     }
     let mut v = api(core, p).await?;
+    if p.codex_auth == "chatgpt" {
+        v["official_config"] = json!(crate::official_provider::saved(core, p, "codex")?);
+    }
     v["project"] = json!(p.project);
     v["proxy"] = json!(core.route(p, "codex").await?);
     if ide {
@@ -413,14 +437,31 @@ async fn execute(
     action: &str,
     v: Value,
 ) -> Result<Value, String> {
-    if action == "launch_coding_tool" {
-        let tool = v["tool"]
-            .as_str()
-            .filter(|s| ["kimi", "grok", "qwen", "copilot"].contains(s))
-            .ok_or("工具无效")?;
-        if p.is_local() {
-            return crate::local::execute(p, tool).await;
+    if action == "launch_coding_tool" || ["kimi", "grok", "qwen", "copilot"].contains(&action) {
+        let tool = if action == "launch_coding_tool" {
+            v["tool"]
+                .as_str()
+                .filter(|s| ["kimi", "grok", "qwen", "copilot"].contains(s))
+                .ok_or("工具无效")?
+        } else {
+            action
+        };
+        let mut payload = json!({"tool":tool,"official":true});
+        if p.tool_services.get(tool).is_some_and(|id| id != "official") {
+            let selected = tool_profile(&core, p, tool)?;
+            payload = api(&core, &selected).await?;
+            payload["tool"] = json!(tool);
+            payload["official"] = json!(false);
         }
+        if p.is_local() {
+            if payload["official"] != true {
+                crate::extra_tools::configure_local(tool, &payload)?;
+            } else {
+                crate::extra_tools::select_official(tool)?;
+            }
+            return crate::local::execute_extra(p, tool, &payload).await;
+        }
+        core.call(p, scope, "configure_extra", payload, 30).await?;
         let route = core.route(p, tool).await?;
         let command = format!(
             "cd {} && python3 ~/.local/share/edge-ssh-ai/{scope}/run-extra.py {} {}",
@@ -490,6 +531,13 @@ async fn execute(
         return crate::accounts::harness_browser(&p.id).await;
     }
     if p.is_local() {
+        if action == "sync_api"
+            && v["tool"]
+                .as_str()
+                .is_some_and(|tool| ["kimi", "grok", "qwen", "copilot"].contains(&tool))
+        {
+            return configure_tool(&core, p, scope, v["tool"].as_str().unwrap()).await;
+        }
         if action == "api_test" {
             let service = v["service_id"].as_str().ok_or("请选择供应商")?;
             let key = crate::providers::service_key(&core, &p.id, service)?;
@@ -514,7 +562,8 @@ async fn execute(
         }
         if action == "auth_status" || action == "login" {
             if action == "login" {
-                crate::local::login(p, "codex", true).await?;
+                progress(app, id, "正在获取设备码，请按下方 CLI 输出在浏览器完成授权");
+                crate::local::device_login(p, app, id).await?;
             }
             let authenticated = crate::accounts::local_codex_status(&core, p)?;
             remember_auth(&core, p, authenticated, action == "login" && authenticated)?;
@@ -527,6 +576,12 @@ async fn execute(
         }
         if action == "tool_login" {
             let tool = v["tool"].as_str().ok_or("请选择工具")?;
+            if tool == "claude" {
+                crate::official_provider::apply_local(&core, p, tool)?;
+            }
+            if ["kimi", "qwen", "copilot"].contains(&tool) {
+                crate::extra_tools::select_official(tool)?;
+            }
             return crate::local::login(p, tool, false).await;
         }
         if action == "harness_account_sync" {
@@ -541,6 +596,14 @@ async fn execute(
                 .insert("harness".into(), "official".into());
             store.save_profile(current)?;
             return Ok(json!({"message":"已选择本机 DeepSeek 账号，工具沿用本机账号配置"}));
+        }
+        if (action == "codex" && p.codex_auth == "chatgpt")
+            || (action == "claude"
+                && p.tool_services
+                    .get("claude")
+                    .is_some_and(|v| v == "official"))
+        {
+            crate::official_provider::apply_local(&core, p, action)?;
         }
         return crate::local::execute(p, action).await;
     }
@@ -633,13 +696,20 @@ async fn execute(
         "tool_login" => {
             let tool = v["tool"]
                 .as_str()
-                .filter(|t| ["claude", "gemini", "opencode"].contains(t))
+                .filter(|t| ["claude", "gemini", "opencode", "kimi", "qwen", "copilot"].contains(t))
                 .ok_or("此工具不支持官方终端登录")?;
             let mut official = p.clone();
             official
                 .tool_services
                 .insert(tool.into(), "official".into());
             configure_tool(&core, &official, scope, tool).await?;
+            if ["kimi", "qwen", "copilot"].contains(&tool) {
+                core.call(p, scope, "prepare_extra_tool", json!({}), 30)
+                    .await?;
+                let args = if tool == "qwen" { "" } else { " login" };
+                console(p,Some(format!("cd {} && python3 ~/.local/share/edge-ssh-ai/{scope}/run-extra.py {} {}{args}", transport::quote(&p.project),transport::quote(tool),transport::quote(&core.route(p,tool).await?))),false).await?;
+                return Ok(json!({"message":"已打开工具官方登录终端"}));
+            }
             let args = match tool {
                 "claude" => " auth login",
                 "opencode" => " auth login",

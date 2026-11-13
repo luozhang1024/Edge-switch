@@ -126,7 +126,10 @@ export function ProviderPage({
                   key={p.id}
                   aria-pressed={preset === p.id}
                   onClick={() => {
-                    if (p.id === "official" && tool === "codex")
+                    if (
+                      p.id === "official" &&
+                      ["codex", "claude"].includes(tool)
+                    )
                       onSelect("official");
                     else onSelect({ ...p.entry, preset: p.id, scope: "cli" });
                   }}
@@ -148,7 +151,7 @@ export function ProviderPage({
                   "同一份 New API 配置可供各 CLI 工具使用；应用按工具生成请求格式，接口需支持对应工具。",
                 )
               : official
-                ? t("使用 ChatGPT 官方账号，无需填写 API Key")
+                ? t("使用工具的官方账号，无需填写 API Key")
                 : t(
                     "应用根据当前 CLI 工具自动配置接口格式，填写供应商提供的请求地址和模型名称。",
                   )}
@@ -157,7 +160,9 @@ export function ProviderPage({
             icon={icon}
             fallback={
               official
-                ? officialIcon
+                ? tool === "codex"
+                  ? officialIcon
+                  : selected.icon
                 : service
                   ? detectProvider(service).icon
                   : undefined

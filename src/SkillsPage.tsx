@@ -17,9 +17,7 @@ type Skill = {
   sha?: string;
 };
 type Library = { skills: Skill[]; candidates: Skill[]; path: string };
-const targets = tools.filter((tool) =>
-  ["codex", "claude", "gemini", "opencode"].includes(tool.id),
-);
+const targets = tools.filter((tool) => tool.id !== "harness");
 
 export function SkillsPage({
   profileId,
@@ -195,6 +193,11 @@ export function SkillsPage({
           </div>
         </div>
       </header>
+      <p className="settings-note">
+        {t(
+          "Grok 社区 CLI 的技能会在启动时合并到 GROK.md；项目级指令优先于用户级指令。",
+        )}
+      </p>
       <div className="skills-context">
         <span>
           {t("当前工作环境")} · <b>{environment}</b>
@@ -269,7 +272,7 @@ export function SkillsPage({
           <div className="skills-install-targets">
             <span>{t("安装到")}</span>
             {targets.map((tool) => (
-              <label key={tool.id}>
+              <label key={tool.id} title={tool.name}>
                 <input
                   type="checkbox"
                   checked={installTargets.includes(tool.id)}
@@ -281,7 +284,11 @@ export function SkillsPage({
                     )
                   }
                 />
-                {tool.name}
+                <img
+                  className="skill-tool-icon"
+                  src={tool.icon}
+                  alt={tool.name}
+                />
               </label>
             ))}
           </div>
@@ -328,7 +335,15 @@ export function SkillsPage({
               <tr>
                 <th>Skill</th>
                 {view === "installed" ? (
-                  targets.map((tool) => <th key={tool.id}>{tool.name}</th>)
+                  targets.map((tool) => (
+                    <th key={tool.id} title={tool.name}>
+                      <img
+                        className="skill-tool-icon"
+                        src={tool.icon}
+                        alt={tool.name}
+                      />
+                    </th>
+                  ))
                 ) : (
                   <th>{t("操作")}</th>
                 )}

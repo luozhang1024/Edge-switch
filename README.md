@@ -16,11 +16,11 @@
 
 Edge Switch 是运行在 Windows 上的远程开发工作台，使用 Tauri 2、Rust、React 和 TypeScript。AI CLI 工具安装并运行在 SSH 连接的 Linux 板卡上，应用负责安装、启动、代理转发、官方账号登录和模型 API 供应商切换。
 
-当前为 **2.0.0-alpha.7 预发布版**。已完成本地自动化与界面验证，尚未完成本版本的真实板卡及所有 Windows 环境验收。旧版 Python 桌面的说明见[历史文档](docs/历史说明.md)，迁移细节见 [Tauri 文档](docs/tauri-migration.md)。
+当前为 **2.0.0-alpha.8 预发布版**。已完成本地自动化与界面验证，尚未完成本版本的真实板卡及所有 Windows 环境验收。旧版 Python 桌面的说明见[历史文档](docs/历史说明.md)，迁移细节见 [Tauri 文档](docs/tauri-migration.md)。
 
 ## 这一版有什么变化
 
-本地开发版本为 `2.0.0-alpha.7`，本次打包不会自动发布 GitHub Release。改动与发布资产规范见 [alpha.7 发布说明](docs/releases/v2.0.0-alpha.7.md)，下方下载链接指向已发布的 alpha.6。
+本地开发版本为 `2.0.0-alpha.8`，本次打包不会自动发布 GitHub Release。改动与发布资产规范见 [alpha.7 发布说明](docs/releases/v2.0.0-alpha.8.md)，下方下载链接指向已发布的 alpha.6。
 
 - **工作环境**：内置本机 Windows 环境，新安装默认选中；升级自动补齐并保留已有环境选择。创建或编辑具体板卡时配置 SSH 和代理，工具安装使用侧边栏独立入口，支持环境拖动排序。
 - **模型服务**：各 CLI 默认显示自己的官方入口；Harness 默认提供待配置的 DeepSeek API。供应商操作悬停显示，选中后显示“使用中”，支持拖动排序。

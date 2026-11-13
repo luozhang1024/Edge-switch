@@ -32,6 +32,7 @@ import "./style.css";
 import "./studio.css";
 import { ModelServices } from "./ModelServices";
 import { ProviderPage } from "./ProviderPage";
+import { OfficialProviderEditor } from "./OfficialProviderEditor";
 import { ServiceEditor } from "./ServiceEditor";
 import { RecordPlayer } from "./RecordPlayer";
 import { WindowControls } from "./WindowControls";
@@ -150,7 +151,6 @@ export function App() {
   );
   const [service, setService] = useState<Service | null>(null);
   const [official, setOfficial] = useState<Official | null>(null);
-  const [authPath, setAuthPath] = useState("");
   const [message, setMessage] = useState("就绪");
   const [pending, setPending] = useState(false);
   const refreshInFlight = useRef(false);
@@ -352,8 +352,11 @@ export function App() {
   function selectProvider(preset: Service | "official") {
     if (preset === "official") {
       setService(null);
-      setAuthPath("");
-      setOfficial({ name: "OpenAI Official", ...data!.official[current.id] });
+      setOfficial(
+        modelTool === "claude"
+          ? { tool: "claude", name: "Claude Official" }
+          : { name: "OpenAI Official", ...data!.official[current.id] },
+      );
     } else {
       setOfficial(null);
       setService({ ...preset, id: service?.id || preset.id });
@@ -598,7 +601,6 @@ export function App() {
                   command={command}
                   run={run}
                   onOfficial={(entry) => {
-                    setAuthPath("");
                     setOfficial(entry);
                   }}
                   onEdit={() => setEditing({ ...current })}
@@ -879,7 +881,6 @@ export function App() {
                       setService(entry);
                     }}
                     onOfficial={(entry) => {
-                      setAuthPath("");
                       setOfficial(entry);
                     }}
                     onAuthenticate={() => {
@@ -1059,96 +1060,15 @@ export function App() {
         </ProviderPage>
       )}
       {official && (
-        <ProviderPage
-          tool="codex"
-          official
-          icon={official.icon}
-          onIcon={(icon) => setOfficial({ ...official, icon })}
-          onSelect={selectProvider}
+        <OfficialProviderEditor
+          profileId={current.id}
+          initial={official}
           close={() => setOfficial(null)}
-        >
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (
-                await command("save_official", {
-                  profileId: current.id,
-                  name: official.name || "",
-                  note: official.note || "",
-                  path: authPath || null,
-                  icon: official.icon || "",
-                })
-              )
-                setOfficial(null);
-            }}
-          >
-            <div className="form">
-              <label>
-                {t("账号名称")}
-                <input
-                  required
-                  value={official.name || ""}
-                  onChange={(e) =>
-                    setOfficial({ ...official, name: e.target.value })
-                  }
-                />
-              </label>
-              <label>
-                {t("备注")}
-                <input
-                  value={official.note || ""}
-                  onChange={(e) =>
-                    setOfficial({ ...official, note: e.target.value })
-                  }
-                />
-              </label>
-            </div>
-            <section className="config-previews">
-              <label>
-                config.toml (TOML)
-                <textarea
-                  readOnly
-                  aria-label="config.toml (TOML)"
-                  value={
-                    'forced_login_method = "chatgpt"\ncli_auth_credentials_store = "file"\n'
-                  }
-                  rows={3}
-                />
-              </label>
-              <b>auth.json (JSON)</b>
-              <p className="provider-help">
-                {t(
-                  "导入官方 OAuth 凭据，或在侧边栏的授权中心完成设备码登录。凭据在本机加密保存，同步时写入远程设备。",
-                )}
-              </p>
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    const path = await open({
-                      multiple: false,
-                      filters: [{ name: "JSON", extensions: ["json"] }],
-                    });
-                    if (typeof path === "string") setAuthPath(path);
-                  } catch (e) {
-                    setMessage(String(e));
-                  }
-                }}
-              >
-                {t("选择 auth.json")}
-              </button>
-              <p>{authPath || t("未选择文件，保留已有凭据")}</p>
-            </section>
-            <div className="actions">
-              <button type="button" onClick={() => setOfficial(null)}>
-                {t("取消")}
-              </button>
-              <button disabled={pending} className="primary">
-                {t("保存账号")}
-              </button>
-            </div>
-          </form>
-        </ProviderPage>
+          saved={() => {
+            setOfficial(null);
+            void load();
+          }}
+        />
       )}
       {feedback && (
         <Modal

@@ -255,28 +255,38 @@ export function SettingsPage({
               )}
             >
               <div className="setting-segments tool-visibility">
-                {tools.map((tool) => (
-                  <button
-                    key={tool.id}
-                    aria-pressed={prefs.home_tools.includes(tool.id)}
-                    disabled={
-                      busy ||
-                      (prefs.home_tools.length === 1 &&
-                        prefs.home_tools.includes(tool.id))
-                    }
-                    onClick={() =>
-                      save({
-                        ...prefs,
-                        home_tools: prefs.home_tools.includes(tool.id)
-                          ? prefs.home_tools.filter((id) => id !== tool.id)
-                          : [...prefs.home_tools, tool.id],
-                      })
-                    }
-                  >
-                    <img src={tool.icon} alt="" />
-                    {tool.name}
-                  </button>
-                ))}
+                {tools
+                  .filter((tool) =>
+                    [
+                      "codex",
+                      "claude",
+                      "harness",
+                      "gemini",
+                      "opencode",
+                    ].includes(tool.id),
+                  )
+                  .map((tool) => (
+                    <button
+                      key={tool.id}
+                      aria-pressed={prefs.home_tools.includes(tool.id)}
+                      disabled={
+                        busy ||
+                        (prefs.home_tools.length === 1 &&
+                          prefs.home_tools.includes(tool.id))
+                      }
+                      onClick={() =>
+                        save({
+                          ...prefs,
+                          home_tools: prefs.home_tools.includes(tool.id)
+                            ? prefs.home_tools.filter((id) => id !== tool.id)
+                            : [...prefs.home_tools, tool.id],
+                        })
+                      }
+                    >
+                      <img src={tool.icon} alt="" />
+                      {tool.name}
+                    </button>
+                  ))}
               </div>
             </SettingsField>
             <SettingsField
@@ -523,7 +533,7 @@ export function SettingsPage({
                           <h3>{tool.name}</h3>
                           <small>
                             {t(
-                              tool.id === "harness"
+                              tool.id === "grok"
                                 ? "API 供应商接入"
                                 : "终端授权 / API 供应商接入",
                             )}
@@ -531,7 +541,7 @@ export function SettingsPage({
                         </div>
                       </div>
                       <div className="authorization-actions">
-                        {tool.id !== "harness" && (
+                        {tool.id !== "grok" && (
                           <button
                             disabled={busy || authRunning}
                             onClick={() =>
@@ -560,7 +570,7 @@ export function SettingsPage({
                       </span>
                       <small>
                         {t(
-                          tool.id === "harness"
+                          tool.id === "grok"
                             ? "通过模型服务配置 API Key，统一供应商可供多个工具复用。"
                             : "官方账号请在板卡终端完成授权，登录状态以工具提示为准；API 供应商可在模型服务中管理。",
                         )}

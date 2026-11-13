@@ -1,10 +1,12 @@
 mod accounts;
 mod browser;
 mod editor;
+mod extra_tools;
 mod local;
 mod native_provider;
 mod native_sessions;
 mod network;
+mod official_provider;
 mod ordering;
 mod prompts;
 mod providers;
@@ -459,7 +461,7 @@ async fn activate_service(
             return Err("工具无效".into());
         }
         if service_id == "official" {
-            if ["claude", "gemini", "opencode"].contains(&tool) {
+            if ["claude", "gemini", "opencode", "kimi", "qwen", "copilot"].contains(&tool) {
                 p.tool_services.insert(tool.into(), "official".into());
             } else if tool == "codex" {
                 if !s.official_ready(&p) {
@@ -806,6 +808,7 @@ pub fn run() {
             providers::hide_default_service,
             providers::fetch_models,
             save_official,
+            official_provider::official_provider,
             delete_official,
             tasks::start_task,
             tasks::cancel_task,

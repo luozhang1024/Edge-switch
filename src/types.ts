@@ -23,7 +23,16 @@
   harness_version: string;
   hide_harness_default?: boolean;
 };
-export type ToolId = "codex" | "claude" | "harness" | "gemini" | "opencode";
+export type ToolId =
+  | "codex"
+  | "claude"
+  | "harness"
+  | "gemini"
+  | "opencode"
+  | "kimi"
+  | "grok"
+  | "qwen"
+  | "copilot";
 export type ProviderId =
   "openai" | "deepseek" | "anthropic" | "google" | "custom";
 export type Service = {
@@ -39,6 +48,7 @@ export type Service = {
   protocol: string;
 };
 export type Official = {
+  tool?: "codex" | "claude";
   remote_authenticated?: boolean;
   verified_at?: number;
   icon?: string;
@@ -56,6 +66,10 @@ export type Task = {
   started_at: number;
 };
 export type Snapshot = {
+  official_options?: Record<
+    string,
+    Partial<Record<ToolId, { name?: string; note?: string; website?: string }>>
+  >;
   list_order?: {
     quick_launch?: string[];
     profiles?: string[];

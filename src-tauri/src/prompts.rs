@@ -47,6 +47,9 @@ fn local_target(tool: &str) -> Result<PathBuf, String> {
         "gemini" => env_path("GEMINI_CLI_HOME", home.clone()).join(".gemini/GEMINI.md"),
         "harness" => env_path("DSH_HOME", home.join(".dsh")).join("AGENTS.md"),
         "opencode" => env_path("XDG_CONFIG_HOME", home.join(".config")).join("opencode/AGENTS.md"),
+        "kimi" | "grok" => crate::extra_tools::prompt_path(tool)?,
+        "qwen" => home.join(".qwen/QWEN.md"),
+        "copilot" => home.join(".copilot/copilot-instructions.md"),
         _ => return Err("工具无效".into()),
     })
 }

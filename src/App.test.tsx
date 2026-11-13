@@ -792,12 +792,14 @@ describe("桌面工作流", () => {
     await screen.findByText("C:\\test\\auth.json");
     fireEvent.submit(screen.getByText("保存账号").closest("form")!);
     await waitFor(() =>
-      expect(mocks.invoke).toHaveBeenCalledWith("save_official", {
+      expect(mocks.invoke).toHaveBeenCalledWith("official_provider", {
         profileId: data.selected_profile,
-        name: "OpenAI Official",
-        note: "",
-        path: "C:\\test\\auth.json",
-        icon: "",
+        tool: "codex",
+        action: "save",
+        payload: expect.objectContaining({
+          name: "OpenAI Official",
+          auth_path: "C:\\test\\auth.json",
+        }),
       }),
     );
   });
@@ -837,7 +839,7 @@ describe("桌面工作流", () => {
     });
     data.profiles[0].tool_services = { harness: id };
     await models();
-    expect(screen.getAllByRole("tab")).toHaveLength(5);
+    expect(screen.getAllByRole("tab")).toHaveLength(9);
     expect(screen.queryByText("Harness OpenAI", { selector: "b" })).toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: "DeepSeek Harness" }));
     expect(screen.getByText("Harness OpenAI", { selector: "b" })).toBeTruthy();
@@ -890,7 +892,7 @@ describe("桌面工作流", () => {
   it("Claude 和 Gemini 自动保存各自原生请求格式", async () => {
     await models();
     for (const [name, official, protocol] of [
-      ["Claude Code", "Claude Official", "anthropic"],
+      ["Claude Code", "Anthropic API", "anthropic"],
       ["Gemini CLI", "Gemini Official", "gemini"],
     ]) {
       fireEvent.click(screen.getByRole("tab", { name }));

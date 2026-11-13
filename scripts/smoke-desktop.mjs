@@ -86,6 +86,8 @@ await new Promise((r) => server.close(r));
 const env = {
   ...process.env,
   LOCALAPPDATA: output,
+  USERPROFILE: join(output, "native-home"),
+  HOME: join(output, "native-home"),
   CODEX_HOME: join(output, "native-home/.codex"),
   DSH_HOME: join(output, "native-home/.dsh"),
   CLAUDE_CONFIG_DIR: join(output, "native-home/.claude"),
@@ -292,6 +294,102 @@ try {
     await new Promise((resolve) => fixtureProxy.close(resolve));
   }
   const localId = snapshot.selected_profile;
+  for (const tool of ["kimi", "grok", "qwen"]) {
+    const entry = {
+      id: { kimi: "d", grok: "e", qwen: "f" }[tool].repeat(32),
+      tool,
+      provider: "custom",
+      scope: "cli",
+      name: `${tool} fixture`,
+      base_url: "https://fixture.example/v1",
+      model: "fixture-model",
+      protocol: tool === "kimi" ? "anthropic" : "chat",
+    };
+    await ipc("save_service", {
+      profileId: localId,
+      entry,
+      key: "fixture-tool-key",
+      remember: true,
+    });
+    await ipc("activate_service", {
+      profileId: localId,
+      serviceId: entry.id,
+      tool,
+    });
+    const task = await ipc("start_task", {
+      profileId: localId,
+      action: "sync_api",
+      payload: { tool },
+    });
+    await expect
+      .poll(
+        async () =>
+          (await ipc("snapshot")).tasks.find((t) => t.id === task.id)?.state,
+      )
+      .toBe("已完成");
+    const configPath = {
+      kimi: ".kimi/config.toml",
+      grok: ".grok/user-settings.json",
+      qwen: ".qwen/settings.json",
+    }[tool];
+    const config = await readFile(
+      join(output, "native-home", configPath),
+      "utf8",
+    );
+    expect(config).toContain("fixture-model");
+    expect(config).toContain("https://fixture.example/v1");
+  }
+  const nativeFile = join(output, "native-home/.codex/config.toml");
+  const nativeBefore = await readFile(nativeFile, "utf8");
+  const officialDraft = await ipc("official_provider", {
+    profileId: localId,
+    tool: "codex",
+    action: "get",
+    payload: {},
+  });
+  await ipc("official_provider", {
+    profileId: localId,
+    tool: "codex",
+    action: "save",
+    payload: {
+      ...officialDraft,
+      name: "OpenAI Official",
+      website: "https://chatgpt.com/codex",
+      note: "fixture",
+      config_text: '[mcp_servers.fixture]\ncommand="node"\n',
+      max_threads: 6,
+    },
+  });
+  expect(await readFile(nativeFile, "utf8")).toBe(nativeBefore);
+  const localProfile = (await ipc("snapshot")).profiles.find(
+    (p) => p.id === localId,
+  );
+  await ipc("save_profile", {
+    profile: { ...localProfile, codex_auth: "chatgpt" },
+  });
+  const activeDraft = await ipc("official_provider", {
+    profileId: localId,
+    tool: "codex",
+    action: "get",
+    payload: {},
+  });
+  await ipc("official_provider", {
+    profileId: localId,
+    tool: "codex",
+    action: "save",
+    payload: {
+      ...activeDraft,
+      name: "OpenAI Official",
+      config_text: '[mcp_servers.fixture]\ncommand="node"\n',
+      max_threads: 6,
+    },
+  });
+  const nativeAfter = await readFile(nativeFile, "utf8");
+  expect(nativeAfter).toContain('forced_login_method = "chatgpt"');
+  expect(nativeAfter).toContain("max_threads = 6");
+  expect(nativeAfter).toContain("model_providers.smoke-api");
+  await ipc("save_profile", { profile: localProfile });
+  await writeFile(nativeFile, nativeBefore);
   // Occupy the callback port so the real browser task can be exercised without
   // opening a sign-in page or requesting credentials from the test runner.
   const callbackBlocker = createServer();
@@ -468,6 +566,23 @@ try {
   await visibilitySwitch.click();
   await expect(visibilitySwitch).not.toBeChecked();
   await navigate("模型服务");
+  for (const name of [
+    "Kimi Code",
+    "Grok CLI",
+    "Qwen Code",
+    "GitHub Copilot CLI",
+  ]) {
+    await expect(page.getByRole("tab", { name, exact: true })).toBeVisible();
+  }
+  expect(
+    await page
+      .locator(".profile")
+      .evaluateAll((rows) =>
+        rows.every(
+          (row) => !/^\d/.test(getComputedStyle(row, "::before").content),
+        ),
+      ),
+  ).toBe(true);
   await expect(
     page.getByRole("tab", { name: "Claude Code", exact: true }),
   ).toHaveCount(0);

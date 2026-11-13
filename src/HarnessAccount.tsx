@@ -118,7 +118,7 @@ export function HarnessAccount({
               <span key={wallet.currency}>
                 {t("充值余额")}{" "}
                 <b>
-                  {wallet.balance} {wallet.currency}
+                  {Number(wallet.balance).toFixed(2)} {wallet.currency}
                 </b>
               </span>
             ))}
@@ -126,7 +126,7 @@ export function HarnessAccount({
               <span key={wallet.currency}>
                 {t("赠金余额")}{" "}
                 <b>
-                  {wallet.balance} {wallet.currency}
+                  {Number(wallet.balance).toFixed(2)} {wallet.currency}
                 </b>
               </span>
             ))}

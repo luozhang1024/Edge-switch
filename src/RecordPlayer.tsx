@@ -83,7 +83,7 @@ export function RecordPlayer({
           <span>{String(tracks.length).padStart(2, "0")} TRACKS</span>
         </div>
         <ScrollList className="launch-tracks" label={t("快速启动列表")}>
-          {tracks.map(([number, name, detail, action], index) => (
+          {tracks.map(([number, name, detail, action]) => (
             <button
               key={action}
               draggable={!busy}
@@ -113,7 +113,7 @@ export function RecordPlayer({
               onClick={() => void run(action)}
             >
               <span className="track-number" aria-hidden="true">
-                {String(index + 1).padStart(2, "0")}
+                <span className="six-dot-grip" />
               </span>
               <span
                 className={`track-art track-art-${number}`}

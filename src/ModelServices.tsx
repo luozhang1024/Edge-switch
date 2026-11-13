@@ -96,22 +96,32 @@ export function ModelServices({
     data.official[current.id]?.remote_authenticated
   );
   const services = (data.services[current.id] || []).filter(
-    (s) => s.scope === "universal" || (s.tool || "codex") === tool,
+    (s) =>
+      tool !== "copilot" &&
+      (s.scope === "universal" || (s.tool || "codex") === tool),
   );
-  const officialName = {
-    codex: "OpenAI Official",
-    claude: "Claude Official",
-    gemini: "Gemini Official",
-    opencode: "OpenCode Zen",
-    harness: "DeepSeek 账号",
-  }[tool];
+  const officialName =
+    data.official_options?.[current.id]?.[tool]?.name ||
+    {
+      codex: "OpenAI Official",
+      claude: "Claude Official",
+      gemini: "Gemini Official",
+      opencode: "OpenCode Zen",
+      harness: "DeepSeek 账号",
+      kimi: "Kimi Official",
+      grok: "xAI API",
+      qwen: "Qwen Official",
+      copilot: "GitHub Copilot",
+    }[tool];
   const rows = ordered(
     [
-      ...(tool !== "harness"
-        ? [{ id: "official" } as Service]
-        : services.length || current.hide_harness_default
-          ? []
-          : [{ id: "default-api" } as Service]),
+      ...(tool === "grok"
+        ? []
+        : tool !== "harness"
+          ? [{ id: "official" } as Service]
+          : services.length || current.hide_harness_default
+            ? []
+            : [{ id: "default-api" } as Service]),
       ...services,
     ],
     data.list_order?.services?.[current.id]?.[tool],
@@ -190,7 +200,7 @@ export function ModelServices({
           className="add-service"
           aria-label={t("添加服务")}
           title={t("添加新供应商")}
-          disabled={busy}
+          disabled={busy || tool === "copilot"}
           onClick={() =>
             onEdit({
               ...serviceTemplate(tool, "custom"),
@@ -333,7 +343,7 @@ export function ModelServices({
                   />
                 </div>
                 <div className="service-info">
-                  <b>OpenAI Official</b>
+                  <b>{data.official[current.id]?.name || "OpenAI Official"}</b>
                   <span
                     className="service-url"
                     title={t("ChatGPT 官方账号 · 无需 API Key")}
@@ -468,6 +478,18 @@ export function ModelServices({
                   </small>
                 </div>
                 <div className="service-actions">
+                  {tool === "claude" && (
+                    <button
+                      title={t("编辑官方供应商")}
+                      aria-label={t("编辑官方供应商")}
+                      disabled={busy}
+                      onClick={() =>
+                        onOfficial({ tool: "claude", name: officialName })
+                      }
+                    >
+                      <ActionIcon name="edit" />
+                    </button>
+                  )}
                   <button
                     title={
                       official ? t("已选择，登录状态未确认") : t("启用官方账号")

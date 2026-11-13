@@ -674,14 +674,15 @@ export function SessionCenter({
                 <h3>
                   {t("对话目录")} <small>{questions.length}</small>
                 </h3>
-                {questions.map(({ message, index }, number) => (
+                {questions.map(({ message, index }) => (
                   <button
                     key={index}
                     className={activeTurn === index ? "active" : ""}
                     onClick={() => jump(index)}
                   >
                     <small>
-                      {String(number + 1).padStart(2, "0")} · {t("你")}
+                      <span className="six-dot-grip" aria-hidden="true" />{" "}
+                      {t("你")}
                     </small>
                     <p>{message.content.slice(0, 180)}</p>
                     <span>

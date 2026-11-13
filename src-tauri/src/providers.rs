@@ -94,9 +94,9 @@ pub async fn duplicate_service(
 pub fn protocol_for_tool(tool: &str) -> Result<&'static str, String> {
     match tool {
         "codex" => Ok("responses"),
-        "claude" => Ok("anthropic"),
+        "claude" | "kimi" => Ok("anthropic"),
         "gemini" => Ok("gemini"),
-        "harness" | "opencode" => Ok("chat"),
+        "harness" | "opencode" | "grok" | "qwen" => Ok("chat"),
         _ => Err("工具无效".into()),
     }
 }
@@ -259,6 +259,10 @@ mod tests {
     fn universal_uses_each_tool_native_protocol_without_changing_source() {
         let entry = json!({"id":"a".repeat(32),"tool":"codex","scope":"universal","protocol":"responses","base_url":"https://example.com/v1","model":"test"});
         for tool in store::TOOLS {
+            if tool == "copilot" {
+                assert!(apply_service(&store::Profile::default(), &entry, tool).is_err());
+                continue;
+            }
             let selected = apply_service(&store::Profile::default(), &entry, tool).unwrap();
             assert_eq!(selected.protocol, protocol_for_tool(tool).unwrap());
             assert_eq!(selected.active_api, "a".repeat(32));

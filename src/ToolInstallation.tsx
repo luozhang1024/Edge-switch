@@ -19,7 +19,6 @@ type Installed = {
 };
 const catalog = [
   ...tools.map((tool) => ({ ...tool, category: "ai", description: tool.hint })),
-  ...extraCodingTools,
   {
     id: "node",
     name: "Node.js LTS",

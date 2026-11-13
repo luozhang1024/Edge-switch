@@ -1550,6 +1550,12 @@
     [src*="Codex"],
     [src*="Anthropic"],
     [src*="OpenCode"],
+    [src*="Grok"],
+    [src*="GithubCopilot"],
+    [src*="/grok.svg"],
+    [src*="/grok-"],
+    [src*="/githubcopilot.svg"],
+    [src*="/githubcopilot-"],
     [src*="/codex.svg"],
     [src*="/codex-"],
     [src*="/openai.svg"],
@@ -1953,4 +1959,27 @@
   .usage-pricing .form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+.six-dot-grip {
+  display: inline-block;
+  width: 10px;
+  height: 16px;
+  color: #93939a;
+  background: radial-gradient(circle, currentColor 1.4px, transparent 1.6px) 0
+    0 / 5px 5px;
+}
+.task-progress-log {
+  list-style: none;
+  padding-left: 0;
+}
+.task-progress-log li::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 16px;
+  margin-right: 8px;
+  vertical-align: middle;
+  color: #93939a;
+  background: radial-gradient(circle, currentColor 1.4px, transparent 1.6px) 0
+    0 / 5px 5px;
 }

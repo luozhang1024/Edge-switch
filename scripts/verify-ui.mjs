@@ -459,7 +459,7 @@ try {
     page.getByRole("tab", { name: "使用统计", exact: true }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "授权中心", exact: true }).click();
-  await expect(page.locator(".authorization-card")).toHaveCount(5);
+  await expect(page.locator(".authorization-card")).toHaveCount(9);
   await expect(
     page
       .getByRole("tabpanel", { name: "授权中心", exact: true })
@@ -490,7 +490,7 @@ try {
   });
   await page.getByRole("button", { name: "使用统计", exact: true }).click();
   await expect(page.locator(".usage-table tbody tr")).toHaveCount(12);
-  await expect(page.locator(".usage-tools img")).toHaveCount(5);
+  await expect(page.locator(".usage-tools img")).toHaveCount(9);
   await page.screenshot({ path: resolve(output, "usage-light.png") });
   await expect(page.locator(".usage-metrics")).toContainText("$0.2400");
   await expect(page.locator(".usage-cost-coverage")).toContainText("估算 12");

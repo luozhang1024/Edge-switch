@@ -8,6 +8,10 @@ export const defaultProtocol = (tool: ToolId) =>
     gemini: "gemini",
     harness: "chat",
     opencode: "chat",
+    kimi: "anthropic",
+    grok: "chat",
+    qwen: "chat",
+    copilot: "chat",
   })[tool];
 export function cliPresets(tool: ToolId) {
   const official = {
@@ -16,12 +20,24 @@ export function cliPresets(tool: ToolId) {
     gemini: ["Gemini Official", "google"],
     harness: ["DeepSeek Official", "deepseek"],
     opencode: ["OpenCode Zen", "custom"],
+    kimi: ["Kimi Official", "custom"],
+    grok: ["xAI API", "custom"],
+    qwen: ["Qwen Official", "custom"],
+    copilot: ["GitHub Copilot", "custom"],
   }[tool];
   const entry = serviceTemplate(
     tool,
     official[1] as Service["provider"] & string,
   );
   entry.name = official[0];
+  if (tool === "kimi" || tool === "grok" || tool === "qwen") {
+    entry.base_url = {
+      kimi: "https://api.kimi.com/coding",
+      grok: "https://api.x.ai/v1",
+      qwen: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    }[tool]!;
+    entry.protocol = defaultProtocol(tool);
+  }
   if (tool === "opencode") {
     entry.base_url = "https://opencode.ai/zen/v1";
     entry.protocol = "chat";
@@ -37,6 +53,15 @@ export function cliPresets(tool: ToolId) {
       },
     },
     { id: "official", name: official[0], entry },
+    ...(tool === "claude"
+      ? [
+          {
+            id: "anthropic-api",
+            name: "Anthropic API",
+            entry: { ...entry, name: "Anthropic API" },
+          },
+        ]
+      : []),
     {
       id: "openrouter",
       name: "OpenRouter",

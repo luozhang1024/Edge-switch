@@ -89,10 +89,15 @@ pub fn validate_url(value: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub const TOOLS: [&str; 5] = ["codex", "claude", "harness", "gemini", "opencode"];
+pub const TOOLS: [&str; 9] = [
+    "codex", "claude", "harness", "gemini", "opencode", "kimi", "grok", "qwen", "copilot",
+];
 pub fn validate_tool_protocol(tool: &str, protocol: &str) -> Result<(), String> {
     let supported = match tool {
         "codex" => protocol == "responses",
+        "kimi" => ["anthropic", "chat"].contains(&protocol),
+        "grok" | "qwen" => protocol == "chat",
+        "copilot" => false,
         "claude" => protocol == "anthropic",
         "gemini" => protocol == "gemini",
         "harness" => ["responses", "chat", "anthropic"].contains(&protocol),
@@ -363,6 +368,18 @@ impl Store {
             .to_string()
     }
     pub fn snapshot(&self) -> Value {
+        let mut options = self.data["official_options"].clone();
+        if let Some(profiles) = options.as_object_mut() {
+            for tools in profiles.values_mut() {
+                if let Some(tools) = tools.as_object_mut() {
+                    for entry in tools.values_mut() {
+                        if let Some(entry) = entry.as_object_mut() {
+                            entry.remove("config");
+                        }
+                    }
+                }
+            }
+        }
         let mut official = self.data["official"].clone();
         for (id, entry) in official.as_object_mut().unwrap().iter_mut() {
             if let Some(obj) = entry.as_object_mut() {
@@ -378,7 +395,7 @@ impl Store {
         }
         json!({"profiles": self.data["profiles"], "selected_profile": self.data["selected_profile"],
             "list_order":self.data["list_order"],
-            "services": self.data["services"], "official": official,
+            "services": self.data["services"], "official": official, "official_options": options,
             "saved_keys": self.data["secrets"].as_object().unwrap().keys().collect::<Vec<_>>(),
             "preferences":serde_json::from_value::<crate::settings::Preferences>(self.data["preferences"].clone()).unwrap_or_default(),
             "version":env!("CARGO_PKG_VERSION")})

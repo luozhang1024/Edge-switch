@@ -18,7 +18,10 @@ impl Default for Preferences {
         Self {
             theme: "system".into(),
             motion: true,
-            home_tools: store::TOOLS.iter().map(|s| s.to_string()).collect(),
+            home_tools: ["codex", "claude", "harness", "gemini", "opencode"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             language: "zh".into(),
             autostart: false,
             close_to_tray: true,

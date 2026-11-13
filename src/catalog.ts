@@ -6,6 +6,7 @@ import opencode from "../image/providers/opencode.svg";
 import openai from "../image/providers/openai.svg";
 import anthropic from "../image/providers/anthropic.svg";
 import google from "../image/providers/google-color.svg";
+import { extraCodingTools } from "./installableTools";
 import { ProviderId, Service, ToolId, newId } from "./types";
 
 export const tools: {
@@ -50,6 +51,13 @@ export const tools: {
     protocols: ["chat", "responses", "anthropic", "gemini"],
     hint: "为 OpenCode 配置供应商、模型与密钥，支持多种 API 协议。",
   },
+  ...extraCodingTools.map((tool) => ({
+    id: tool.id as ToolId,
+    name: tool.name,
+    icon: tool.icon,
+    protocols: tool.id === "kimi" ? ["anthropic", "chat"] : ["chat"],
+    hint: tool.description,
+  })),
 ];
 export const providers: {
   id: ProviderId;

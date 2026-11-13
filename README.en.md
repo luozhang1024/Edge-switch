@@ -18,11 +18,11 @@ Configure AI tools, proxy networking, and model APIs on Linux boards over SSH.
 
 Edge Switch is a Windows desktop built with Tauri 2, Rust, React, and TypeScript. AI CLI tools run on your SSH-connected Linux board. The desktop manages installation, launch, proxy forwarding, official account login, and model API providers.
 
-**2.0.0-alpha.7 is a prerelease.** Local automated and UI checks have passed, but this version has not completed real-board or broad Windows compatibility acceptance. See the [migration notes](docs/tauri-migration.md) and [legacy documentation](docs/历史说明.md).
+**2.0.0-alpha.8 is a prerelease.** Local automated and UI checks have passed, but this version has not completed real-board or broad Windows compatibility acceptance. See the [migration notes](docs/tauri-migration.md) and [legacy documentation](docs/历史说明.md).
 
 ## What's new
 
-The local development version is `2.0.0-alpha.7`. Packaging does not publish a GitHub Release. The download links below still point to the published alpha.6 release. See [alpha.7 changes and packaging conventions](docs/releases/v2.0.0-alpha.7.md).
+The local development version is `2.0.0-alpha.8`. Packaging does not publish a GitHub Release. The download links below still point to the published alpha.6 release. See [alpha.7 changes and packaging conventions](docs/releases/v2.0.0-alpha.8.md).
 
 - Configure SSH and proxies when creating or editing a workspace; use the sidebar's Tool installation page for deployment.
 - Each CLI starts with its official entry; Harness offers a DeepSeek API entry to configure. Hover to reveal actions; drag workspaces and providers to save your preferred order.

@@ -20,7 +20,7 @@ import urllib.parse
 
 PROXIES = ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy')
 if 'kimi_inventory' not in globals():
-    from workbench.extra_tools import kimi_inventory, manage_kimi, EXTRA_LAUNCHER
+    from workbench.extra_tools import kimi_inventory, manage_kimi, configure_extra, official_config, EXTRA_LAUNCHER
 if 'skills_target' not in globals():
     from workbench.skills import skills_target
 
@@ -425,7 +425,11 @@ def configure(p):
               '\n[model_providers.edge]\nname = "Edge Workbench"\nbase_url = ' +
               json.dumps(p.get('base_url', '')) + '\nwire_api = "responses"\nenv_key = "OPENAI_API_KEY"\n')
     if official:
-        config = 'forced_login_method = "chatgpt"\ncli_auth_credentials_store = "file"\n'
+        previous_config = root / 'codex-chatgpt-home/config.toml'
+        if p.get('official_config') is not None:
+            config = 'forced_login_method = "chatgpt"\ncli_auth_credentials_store = "file"\n' + p['official_config']
+        else:
+            config = previous_config.read_text() if previous_config.is_file() else 'forced_login_method = "chatgpt"\ncli_auth_credentials_store = "file"\n'
     current = json.loads((root / 'tools/codex/current.json').read_text())
     # Parse with the installed CLI before committing a profile, without making a model request.
     with tempfile.TemporaryDirectory(prefix='config-check-', dir=str(root)) as directory:
@@ -971,6 +975,8 @@ def configure_tool(p):
             raise ValueError('工程目录不存在')
         root = scope(p)
         (root / (tool + '-official-home')).mkdir(mode=0o700, parents=True, exist_ok=True)
+        if tool == 'claude' and p.get('official_config') is not None:
+            private_write(root / 'claude-official-home/settings.json', p['official_config'])
         if not (root / 'tools' / tool / 'current.json').is_file():
             reuse_tools(dict(p, tools=[tool]))
         private_write(root / (tool + '-api.json'), json.dumps(dict(auth_mode='official', project=p['project'], proxy=p.get('proxy', ''))))
@@ -1162,6 +1168,10 @@ def prompt_file(p):
         'gemini': ('gemini-official-home' if official else 'gemini-home') + '/.gemini/GEMINI.md',
         'harness': 'harness-home/AGENTS.md',
         'opencode': ('opencode-official-home' if official else 'opencode-home') + '/config/opencode/AGENTS.md',
+        'kimi': 'extra-kimi/AGENTS.md',
+        'grok': 'extra-grok/.grok/edge-switch-prompt.md',
+        'qwen': 'extra-qwen/.qwen/QWEN.md',
+        'copilot': 'extra-copilot/.copilot/copilot-instructions.md',
     }
     if p.get('tool') not in paths:
         raise ValueError('工具无效')
@@ -1212,6 +1222,10 @@ def main():
         result = tool_inventory(p)
     elif action == 'manage_kimi':
         result = manage_kimi(p, scope(p), command, clean_env, private_write)
+    elif action == 'configure_extra':
+        result = configure_extra(p, scope(p), private_write)
+    elif action == 'official_config':
+        result = official_config(p, scope(p), private_write)
     elif action == 'prepare_extra_tool':
         private_write(scope(p) / 'run-extra.py', EXTRA_LAUNCHER)
         result = {'message': '工具启动入口已准备'}

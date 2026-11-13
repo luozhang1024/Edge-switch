@@ -399,7 +399,7 @@ pub async fn chatgpt_browser(core: &Core, profile: &store::Profile) -> Result<Va
     )
 }
 
-fn save_local_codex(auth: &Value) -> Result<(), String> {
+pub(crate) fn save_local_codex(auth: &Value) -> Result<(), String> {
     let path = crate::native_sessions::codex_home().join("auth.json");
     let mut auth = auth.clone();
     if let Some(key) = fs::read(&path)

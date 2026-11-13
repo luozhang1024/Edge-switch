@@ -12,7 +12,9 @@ use std::{
 
 type Files = BTreeMap<String, String>;
 const MAX_BYTES: usize = 32 * 1024 * 1024;
-const TOOLS: [&str; 4] = ["codex", "claude", "gemini", "opencode"];
+const TOOLS: [&str; 8] = [
+    "codex", "claude", "gemini", "opencode", "kimi", "grok", "qwen", "copilot",
+];
 fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
@@ -45,6 +47,10 @@ fn roots() -> Result<Vec<(String, PathBuf)>, String> {
             env_dir("XDG_CONFIG_HOME", h.join(".config")).join("opencode/skills"),
         ),
         ("agents".into(), h.join(".agents/skills")),
+        ("kimi".into(), h.join(".kimi/skills")),
+        ("grok".into(), h.join(".grok/skills")),
+        ("qwen".into(), h.join(".qwen/skills")),
+        ("copilot".into(), h.join(".copilot/skills")),
     ])
 }
 fn safe_id(id: &str) -> Result<(), String> {

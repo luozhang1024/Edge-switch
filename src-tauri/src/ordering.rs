@@ -49,7 +49,7 @@ fn reorder(
                 })
                 .filter_map(|s| s["id"].as_str().map(String::from))
                 .collect();
-            if tool != "harness" {
+            if tool != "harness" && tool != "grok" {
                 allowed.insert("official".into());
             } else if allowed.is_empty()
                 && store.profile(pid)?.extra.get("hide_harness_default") != Some(&json!(true))

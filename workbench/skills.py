@@ -15,6 +15,10 @@ def skills_target(payload, managed_root=None):
         'claude': Path(os.environ.get('CLAUDE_CONFIG_DIR', home / '.claude')) / 'skills',
         'gemini': Path(os.environ.get('GEMINI_CLI_HOME', home)) / '.gemini/skills',
         'opencode': Path(os.environ.get('XDG_CONFIG_HOME', home / '.config')) / 'opencode/skills',
+        'kimi': home / '.kimi/skills',
+        'grok': home / '.grok/skills',
+        'qwen': home / '.qwen/skills',
+        'copilot': home / '.copilot/skills',
     }
     if managed_root is not None:
         root = Path(managed_root)
@@ -24,6 +28,10 @@ def skills_target(payload, managed_root=None):
             'claude': root / ('claude-official-home' if official.get('claude') else 'claude-home') / 'skills',
             'gemini': root / ('gemini-official-home' if official.get('gemini') else 'gemini-home') / '.gemini/skills',
             'opencode': root / ('opencode-official-home' if official.get('opencode') else 'opencode-home') / 'config/opencode/skills',
+            'kimi': root / 'extra-kimi/.kimi/skills',
+            'grok': root / 'extra-grok/.grok/skills',
+            'qwen': root / 'extra-qwen/.qwen/skills',
+            'copilot': root / 'extra-copilot/.copilot/skills',
         }
     operation = payload.get('operation')
     if operation == 'list':
