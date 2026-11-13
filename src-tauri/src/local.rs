@@ -236,6 +236,17 @@ pub async fn execute_extra(p: &Profile, action: &str, payload: &Value) -> Result
             c.env("EDGE_QWEN_API_KEY", key).env("OPENAI_API_KEY", key);
         }
     }
+    if action == "grok" {
+        if let (Some(key), Some(base), Some(model)) = (
+            payload["key"].as_str(),
+            payload["base_url"].as_str(),
+            payload["model"].as_str(),
+        ) {
+            c.env("GROK_API_KEY", key)
+                .env("GROK_BASE_URL", base)
+                .env("GROK_MODEL", model);
+        }
+    }
     if crate::network::configured().is_some()
         || p.uses_proxy(if action == "harness" {
             "harness"

@@ -108,7 +108,7 @@ pub fn configure_local(tool: &str, payload: &Value) -> Result<(), String> {
     if tool == "grok" {
         config["apiKey"] = json!(key);
         config["baseURL"] = json!(base);
-        config["model"] = json!(model);
+        config["defaultModel"] = json!(model);
     } else if tool == "qwen" {
         if !config["security"].is_object() {
             config["security"] = json!({});

@@ -16,6 +16,8 @@ const { version: expectedVersion } = JSON.parse(
 );
 const output = resolve("build/migration", `desktop-${Date.now()}`);
 await mkdir(output, { recursive: true });
+await mkdir(join(output, "native-home/AppData/Local"), { recursive: true });
+await mkdir(join(output, "native-home/AppData/Roaming"), { recursive: true });
 const sessionRoot = join(output, "native-home/.codex/sessions");
 await mkdir(sessionRoot, { recursive: true });
 await writeFile(
@@ -103,6 +105,9 @@ const child = spawn(exe, [], {
   stdio: ["ignore", "pipe", "pipe"],
 });
 let diagnostics = "";
+child.stdout.on("data", (d) => {
+  diagnostics += d;
+});
 child.stderr.on("data", (d) => {
   diagnostics += d;
 });
@@ -647,6 +652,27 @@ try {
     page.getByRole("region", { name: "本机 Codex 配置" }),
   ).toContainText("smoke-model");
   await checkVisuals("native-codex-config");
+  await page
+    .getByRole("button", { name: "编辑 / 导入 auth.json", exact: true })
+    .click();
+  await expect(
+    page.getByLabel("config.toml (TOML)", { exact: true }),
+  ).toBeEditable();
+  await expect(
+    page.getByLabel("子代理并发上限", { exact: true }),
+  ).toBeVisible();
+  await checkVisuals("official-codex-editor");
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await page.getByRole("tab", { name: "Claude Code", exact: true }).click();
+  await page
+    .getByRole("button", { name: "编辑官方供应商", exact: true })
+    .click();
+  await expect(
+    page.getByLabel("settings.json (JSON)", { exact: true }),
+  ).toBeEditable();
+  await checkVisuals("official-claude-editor");
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await page.getByRole("tab", { name: "Codex", exact: true }).click();
   const nativeCard = page.getByRole("region", { name: "本机 Codex 配置" });
   await expect(
     nativeCard.getByRole("button", { name: "编辑本机供应商" }),
@@ -1055,7 +1081,7 @@ try {
       .locator("dialog:not(.workspace-sheet)")
       .getByRole("button", {
         name: {
-          claude: "Claude Official",
+          claude: "Anthropic API",
           harness: "DeepSeek Official",
           gemini: "Gemini Official",
           opencode: "OpenCode Zen",
