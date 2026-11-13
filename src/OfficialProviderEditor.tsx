@@ -94,6 +94,7 @@ export function OfficialProviderEditor({
       close={close}
     >
       <form
+        className="official-provider-form"
         onSubmit={async (e) => {
           e.preventDefault();
           setBusy(true);

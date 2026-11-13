@@ -1983,3 +1983,23 @@
   background: radial-gradient(circle, currentColor 1.4px, transparent 1.6px) 0
     0 / 5px 5px;
 }
+.official-provider-form > label,
+.official-provider-form .form > label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+}
+.official-provider-form input,
+.official-provider-form select,
+.official-provider-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+.official-provider-form textarea {
+  min-height: 120px;
+  resize: vertical;
+  font-family: Consolas, monospace;
+  line-height: 1.6;
+}
