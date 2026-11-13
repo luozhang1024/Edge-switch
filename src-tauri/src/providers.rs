@@ -3,6 +3,20 @@ use base64::Engine;
 use futures_util::StreamExt;
 use serde_json::{json, Value};
 
+#[tauri::command]
+pub async fn hide_default_service(
+    state: tauri::State<'_, State>,
+    profile_id: String,
+) -> Result<(), String> {
+    let _guard = state.0.mutation.lock().await;
+    let mut store = state.0.store.lock().unwrap();
+    let mut profile = store.profile(&profile_id)?;
+    profile
+        .extra
+        .insert("hide_harness_default".into(), json!(true));
+    store.save_profile(profile)
+}
+
 pub fn validate_icon(icon: &str) -> Result<(), String> {
     if icon.is_empty() {
         return Ok(());
@@ -197,17 +211,10 @@ pub async fn fetch_models(
     } else {
         format!("{base}/models")
     };
-    let mut builder = reqwest::Client::builder()
-        .no_proxy()
+    let builder = crate::network::builder(profile.proxy, profile.proxy_port)?
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(std::time::Duration::from_secs(15))
         .timeout(std::time::Duration::from_secs(30));
-    if profile.proxy {
-        builder = builder.proxy(
-            reqwest::Proxy::all(format!("http://127.0.0.1:{}", profile.proxy_port))
-                .map_err(|_| "本机代理设置无效")?,
-        );
-    }
     let client = builder.build().map_err(|_| "无法创建模型查询连接")?;
     let req = client.get(endpoint);
     let req = match protocol.as_str() {

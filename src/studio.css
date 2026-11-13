@@ -1778,6 +1778,68 @@
   gap: 4px;
   transition: opacity 140ms;
 }
+.studio-app .service-actions {
+  opacity: 1;
+  pointer-events: auto;
+  flex-wrap: wrap;
+}
+.native-provider {
+  margin: 14px 0 22px;
+}
+.native-provider > [role="status"] {
+  font-size: 12px;
+  color: var(--muted);
+}
+.native-provider-editor {
+  padding: 16px;
+  margin-top: 12px;
+}
+.network-settings {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+}
+.network-settings form > label {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+.network-settings input {
+  width: 100%;
+}
+.network-settings > p {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.account-menu {
+  position: relative;
+}
+.account-menu summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 22px;
+  padding: 2px 12px;
+}
+.account-menu details > button {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  white-space: nowrap;
+  z-index: 4;
+  min-width: 150px;
+  box-shadow: 0 5px 20px #0002;
+  background: var(--account-menu-bg, #fff);
+}
+.login-progress {
+  padding: 16px;
+  background: #5551ff0c;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+:root[data-theme="dark"] .account-menu {
+  --account-menu-bg: #293232;
+}
 .studio-app .service-card:hover .service-actions,
 .studio-app .service-card:focus-within .service-actions,
 .studio-app .profile:hover .profile-actions,

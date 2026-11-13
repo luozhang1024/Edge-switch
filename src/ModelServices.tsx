@@ -5,6 +5,7 @@ import { ActionIcon } from "./ActionIcon";
 import { ScrollList } from "./ScrollList";
 import { ordered, moveItem } from "./listOrder";
 import { defaultProtocol } from "./providerConfig";
+import { NativeProviderRow } from "./NativeProviderRow";
 import officialIcon from "../image/providers/openai.svg";
 import addIcon from "../image/加.png";
 import { Official, Profile, Service, Snapshot, ToolId } from "./types";
@@ -47,6 +48,7 @@ export function ModelServices({
 }: Props) {
   const [dragged, setDragged] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState("");
+  const [nativeRevision, setNativeRevision] = useState(0);
   const [native, setNative] = useState<{
     detected: boolean;
     provider: string;
@@ -72,7 +74,7 @@ export function ModelServices({
       live = false;
       window.removeEventListener("focus", refresh);
     };
-  }, [current.id, current.kind, tool]);
+  }, [current.id, current.kind, tool, nativeRevision]);
   const selected = tools.find((t) => t.id === tool)!;
   const visibleTools = tools.filter(
     (item) => current.tool_visibility?.[item.id] !== false,
@@ -107,7 +109,7 @@ export function ModelServices({
     [
       ...(tool !== "harness"
         ? [{ id: "official" } as Service]
-        : services.length
+        : services.length || current.hide_harness_default
           ? []
           : [{ id: "default-api" } as Service]),
       ...services,
@@ -203,24 +205,15 @@ export function ModelServices({
         </button>
       </div>
       {tool === "codex" && native?.detected && (
-        <section
-          className="authorization-context"
-          aria-label={t("本机 Codex 配置")}
-        >
-          <img src={selected.icon} alt="" width="24" height="24" />
-          <div>
-            <b>
-              {native.name}{" "}
-              <span className="active-badge">{t("本机当前配置")}</span>
-            </b>
-            <p>{[native.model, native.endpoint].filter(Boolean).join(" · ")}</p>
-            <small>
-              {t(
-                "自动读取本机 Codex 配置；历史会话按日志记录的供应商统计用量。",
-              )}
-            </small>
-          </div>
-        </section>
+        <NativeProviderRow
+          config={native}
+          profileId={current.id}
+          busy={busy}
+          changed={() => {
+            setNativeRevision((v) => v + 1);
+            void command("snapshot");
+          }}
+        />
       )}
       {tool === "harness" && (
         <section
@@ -261,6 +254,67 @@ export function ModelServices({
           >
             <ActionIcon name="launch" />
           </button>
+          <div className="service-actions">
+            <button
+              title={t("编辑账号")}
+              aria-label={t("编辑账号")}
+              disabled={busy}
+              onClick={onAuthenticate}
+            >
+              <ActionIcon name="edit" />
+            </button>
+            <button
+              title={t("复制账号信息")}
+              aria-label={t("复制账号信息")}
+              disabled={busy}
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(
+                    "DeepSeek Harness · " + current.name,
+                  );
+                  setCopyStatus("已复制账号名称和备注");
+                } catch {
+                  setCopyStatus("复制未完成，请检查系统剪贴板权限");
+                }
+              }}
+            >
+              <ActionIcon name="copy" />
+            </button>
+            <button
+              title={t("测试账号")}
+              aria-label={t("测试账号")}
+              disabled={busy}
+              onClick={() =>
+                void invoke<{ signed_in: boolean; error?: string }>(
+                  "local_harness_account",
+                )
+                  .then((account) =>
+                    setCopyStatus(
+                      account?.signed_in && !account.error
+                        ? "账号连接测试通过"
+                        : account?.error || "尚未登录 DeepSeek Harness 账号",
+                    ),
+                  )
+                  .catch((e) => setCopyStatus(String(e)))
+              }
+            >
+              <ActionIcon name="test" />
+            </button>
+            <button
+              title={t("退出账号")}
+              aria-label={t("退出账号")}
+              disabled={busy}
+              onClick={() =>
+                void remove(
+                  "logout_account",
+                  { profileId: current.id, tool: "harness" },
+                  "退出本机 DeepSeek Harness 账号？其他配置和已经同步到板卡的账号保留。",
+                )
+              }
+            >
+              <ActionIcon name="delete" />
+            </button>
+          </div>
         </section>
       )}
       <ScrollList className="service-list" label={t("供应商列表")}>
@@ -485,6 +539,48 @@ export function ModelServices({
                     }
                   >
                     <ActionIcon name="edit" />
+                  </button>
+                  <button
+                    title={t("复制")}
+                    aria-label={t("复制")}
+                    disabled={busy}
+                    onClick={() =>
+                      onEdit({
+                        ...serviceTemplate(tool, "deepseek"),
+                        name: "DeepSeek API 副本",
+                      })
+                    }
+                  >
+                    <ActionIcon name="copy" />
+                  </button>
+                  <button
+                    title={t("测试")}
+                    aria-label={t("测试")}
+                    disabled={busy}
+                    onClick={() => {
+                      setCopyStatus("请先配置模型与 API Key，再测试供应商。");
+                      onEdit({
+                        ...serviceTemplate(tool, "deepseek"),
+                        name: "DeepSeek API",
+                        preset: "official",
+                      });
+                    }}
+                  >
+                    <ActionIcon name="test" />
+                  </button>
+                  <button
+                    title={t("删除")}
+                    aria-label={t("删除")}
+                    disabled={busy}
+                    onClick={() =>
+                      void remove(
+                        "hide_default_service",
+                        { profileId: current.id },
+                        "删除此默认 API 入口？仍可通过添加服务重新配置。",
+                      )
+                    }
+                  >
+                    <ActionIcon name="delete" />
                   </button>
                 </div>
               </article>

@@ -1,7 +1,10 @@
 mod accounts;
+mod browser;
 mod editor;
 mod local;
+mod native_provider;
 mod native_sessions;
+mod network;
 mod ordering;
 mod prompts;
 mod providers;
@@ -83,13 +86,13 @@ impl Core {
     }
     async fn route(&self, p: &Profile, tool: &str) -> Result<String, String> {
         if p.is_local() {
-            return Ok(if p.uses_proxy(tool) {
-                format!("http://127.0.0.1:{}", p.proxy_port)
+            return Ok(if p.uses_proxy(tool) || network::configured().is_some() {
+                network::url_at(network::port(p.proxy_port))
             } else {
                 String::new()
             });
         }
-        if !p.uses_proxy(tool) {
+        if !p.uses_proxy(tool) && network::configured().is_none() {
             return Ok(String::new());
         }
         let key = format!("{}:proxy", p.id);
@@ -113,8 +116,15 @@ impl Core {
                 .and_then(|s| s["port"].as_u64())
                 .filter(|n| *n <= 65535)
                 .unwrap_or(0) as u16;
-            let resource =
-                resources::Managed::start(p.clone(), p.proxy_port, port, true, true, None).await?;
+            let resource = resources::Managed::start(
+                p.clone(),
+                network::port(p.proxy_port),
+                port,
+                true,
+                true,
+                None,
+            )
+            .await?;
             let port = resource.status.lock().unwrap().remote_port;
             store::atomic_write(
                 &cache,
@@ -128,7 +138,7 @@ impl Core {
         if status.state != "已连接" {
             return Err("代理尚未恢复，请稍后重试".into());
         }
-        Ok(format!("http://127.0.0.1:{}", status.remote_port))
+        Ok(network::url_at(status.remote_port))
     }
 }
 
@@ -140,6 +150,7 @@ fn snapshot(state: tauri::State<'_, State>) -> Value {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // Preserve the existing renderer IPC while adding the calendar offset.
 async fn query_usage(
     state: tauri::State<'_, State>,
     profile_id: String,
@@ -149,12 +160,13 @@ async fn query_usage(
     provider: Option<String>,
     model: Option<String>,
     page: u32,
+    timezone_offset: Option<i32>,
 ) -> Result<Value, String> {
     if !start.is_finite()
         || !end.is_finite()
         || start < 0.0
         || end <= start
-        || end - start > 366.0 * 86400.0
+        || (start != 0.0 && end - start > 366.0 * 86400.0)
     {
         return Err("统计时间范围无效".into());
     }
@@ -167,7 +179,7 @@ async fn query_usage(
         )
     };
     if profile.is_local() {
-        let params = json!({"start":start,"end":end,"tool":tool,"provider":provider,"model":model,"page":page,"rates":rates});
+        let params = json!({"start":start,"end":end,"tool":tool,"provider":provider,"model":model,"page":page,"rates":rates,"timezone_offset":timezone_offset.unwrap_or(0)});
         return tokio::task::spawn_blocking(move || {
             let files = sessions::scan(sessions::local_roots(), None)?;
             Ok(native_sessions::aggregate(&files, &params))
@@ -182,7 +194,7 @@ async fn query_usage(
             &scope,
             "usage",
             json!({"start": start, "end": end,
-        "tool": tool, "provider": provider, "model": model, "page": page,"rates":rates}),
+        "tool": tool, "provider": provider, "model": model, "page": page,"rates":rates,"timezone_offset":timezone_offset.unwrap_or(0)}),
             60,
         )
         .await
@@ -670,6 +682,7 @@ pub fn run() {
                 .unwrap_or(app.path().app_local_data_dir()?)
                 .join("EdgeSSHAI");
             fs::create_dir_all(&directory)?;
+            network::load(&directory)?;
             let lock = fs::OpenOptions::new()
                 .read(true)
                 .write(true)
@@ -768,7 +781,11 @@ pub fn run() {
             tool_management::tool_inventory,
             tool_management::set_tool_visibility,
             native_sessions::native_tool_config,
+            native_provider::native_provider_action,
+            network::network_settings,
             accounts::local_harness_account,
+            accounts::account_login_link,
+            accounts::logout_account,
             settings::save_preferences,
             settings::autostart_status,
             settings::check_update,
@@ -786,6 +803,7 @@ pub fn run() {
             delete_service,
             providers::get_service_key,
             providers::duplicate_service,
+            providers::hide_default_service,
             providers::fetch_models,
             save_official,
             delete_official,

@@ -12,17 +12,11 @@ use std::{
 };
 
 pub fn client(proxy: bool, port: u16) -> Result<reqwest::Client, String> {
-    let mut b = reqwest::Client::builder()
-        .no_proxy()
+    let b = crate::network::builder(proxy, port)?
         .https_only(false)
         .connect_timeout(Duration::from_secs(15))
         .timeout(Duration::from_secs(45))
         .user_agent("EdgeSwitch/2.0");
-    if proxy {
-        b = b.proxy(
-            reqwest::Proxy::all(format!("http://127.0.0.1:{port}")).map_err(|e| e.to_string())?,
-        );
-    }
     b.build().map_err(|e| e.to_string())
 }
 fn directory(core: &Core) -> PathBuf {
@@ -129,6 +123,9 @@ pub async fn versions(p: &Profile) -> Result<Value, String> {
         ("claude", "@anthropic-ai%2Fclaude-code"),
         ("gemini", "@google%2Fgemini-cli"),
         ("opencode", "opencode-ai"),
+        ("grok", "@vibe-kit%2Fgrok-cli"),
+        ("qwen", "@qwen-code%2Fqwen-code"),
+        ("copilot", "@github%2Fcopilot"),
     ] {
         let data: Value = c
             .get(format!("https://registry.npmjs.org/{package}"))

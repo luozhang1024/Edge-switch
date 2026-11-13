@@ -345,10 +345,9 @@ try {
   await rows.first().hover();
   await rows.first().getByRole("button", { name: "编辑", exact: true }).click();
   const editor = page.getByRole("dialog", { name: "编辑工作环境" });
-  await editor.getByRole("tab", { name: "代理连接", exact: true }).click();
   await expect(
-    editor.getByRole("button", { name: "连接代理", exact: true }),
-  ).toBeVisible();
+    editor.getByRole("tab", { name: "代理连接", exact: true }),
+  ).toHaveCount(0);
   await editor.getByRole("button", { name: "取消", exact: true }).click();
   await page.getByRole("button", { name: "工具安装", exact: true }).click();
   await expect(
@@ -357,7 +356,7 @@ try {
   await page.screenshot({ path: resolve(output, "environment-tools.png") });
   await page.getByRole("button", { name: "模型服务", exact: true }).click();
   await page.mouse.move(0, 0);
-  await expect(page.locator(".service-actions")).toHaveCSS("opacity", "0");
+  await expect(page.locator(".service-actions")).toHaveCSS("opacity", "1");
   await page.locator(".service-card").hover();
   await expect(page.locator(".service-actions")).toHaveCSS("opacity", "1");
   await page.evaluate(async () => {

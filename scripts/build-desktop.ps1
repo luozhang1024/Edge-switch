@@ -2,7 +2,7 @@
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Push-Location $repo
 try {
-    & node (Join-Path $PSScriptRoot 'check-version.mjs')
+    & node (Join-Path $PSScriptRoot 'check-version.mjs') --release
     if ($LASTEXITCODE -ne 0) { throw 'Desktop version check failed' }
     $buildLog = Join-Path $repo 'build/tauri-build.log'
     New-Item -ItemType Directory -Force (Split-Path -Parent $buildLog) | Out-Null

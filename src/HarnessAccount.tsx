@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { t } from "./i18n";
 import deepseekIcon from "../image/providers/deepseek-color.svg";
+import { AccountMenu } from "./AccountActions";
 
 export type HarnessAccountStatus = {
   signed_in: boolean;
@@ -15,12 +16,14 @@ export type HarnessAccountStatus = {
 };
 
 export function HarnessAccount({
+  profileId,
   busy,
   active,
   refreshKey,
   run,
   onModels,
 }: {
+  profileId?: string;
   busy: boolean;
   active: boolean;
   refreshKey: string;
@@ -71,6 +74,14 @@ export function HarnessAccount({
           </div>
         </div>
         <div className="authorization-actions">
+          {profileId && account?.signed_in && (
+            <AccountMenu
+              profileId={profileId}
+              tool="harness"
+              disabled={busy}
+              onDone={() => void refresh()}
+            />
+          )}
           <button disabled={loading} onClick={() => void refresh()}>
             {loading ? t("正在检测…") : t("刷新账号")}
           </button>

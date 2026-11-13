@@ -21,6 +21,7 @@
   active_api: string;
   codex_version: string;
   harness_version: string;
+  hide_harness_default?: boolean;
 };
 export type ToolId = "codex" | "claude" | "harness" | "gemini" | "opencode";
 export type ProviderId =

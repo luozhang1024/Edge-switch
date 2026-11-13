@@ -4,6 +4,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { tools } from "./catalog";
 import chatgptIcon from "../image/providers/openai.svg";
 import { HarnessAccount } from "./HarnessAccount";
+import { AccountMenu, LoginProgress } from "./AccountActions";
+import { NetworkSettings } from "./NetworkSettings";
 import {
   defaultPreferences,
   isRunning,
@@ -366,6 +368,25 @@ export function SettingsPage({
               <b>{current.name}</b>
               <small>{t("授权成功后，前往模型服务启用对应账号。")}</small>
             </div>
+            {data.tasks
+              .filter(
+                (task) =>
+                  task.profile_id === current.id &&
+                  isRunning(task) &&
+                  ["ChatGPT 浏览器登录", "DeepSeek 账号登录"].includes(
+                    task.label,
+                  ),
+              )
+              .map((task) => (
+                <LoginProgress
+                  key={task.id}
+                  profileId={current.id}
+                  taskId={task.id}
+                  cancel={() =>
+                    void command("cancel_task", { taskId: task.id })
+                  }
+                />
+              ))}
             <section className="authorization-card" aria-label="ChatGPT">
               <header className="authorization-card-heading">
                 <div className="authorization-brand">
@@ -376,6 +397,17 @@ export function SettingsPage({
                   </div>
                 </div>
                 <div className="authorization-actions">
+                  {ready && (
+                    <AccountMenu
+                      profileId={current.id}
+                      tool="codex"
+                      disabled={busy || authRunning}
+                      onDone={() => {
+                        void command("snapshot");
+                        setAccountRefresh((v) => v + 1);
+                      }}
+                    />
+                  )}
                   <select
                     aria-label={t("ChatGPT 登录方式")}
                     value={loginMethod}
@@ -460,6 +492,7 @@ export function SettingsPage({
               </div>
             </section>
             <HarnessAccount
+              profileId={current.id}
               busy={busy || authRunning}
               active={current.tool_services?.harness === "official"}
               refreshKey={`${current.id}:${accountRefresh}:${data.tasks.map((task) => `${task.id}:${task.state}`).join(",")}`}
@@ -549,6 +582,7 @@ export function SettingsPage({
         )}
         {tab === "advanced" && (
           <>
+            <NetworkSettings />
             <SettingsField
               title={t("SSH 与工作目录")}
               description={t(

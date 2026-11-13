@@ -11,13 +11,15 @@ fn ps(script: &str) -> tokio::process::Command {
 pub async fn inventory_local() -> Result<Value, String> {
     let mut command = ps(r#"
       $OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+      $env:PATH=[Environment]::GetEnvironmentVariable('Path','User')+';'+[Environment]::GetEnvironmentVariable('Path','Machine')+';'+$env:PATH
       $rows=@(); $npmPackages=@{}
       if (Get-Command npm.cmd -ErrorAction SilentlyContinue) {
         try { $raw= & npm.cmd list -g --depth=0 --json 2>$null; $npmPackages=($raw -join "`n" | ConvertFrom-Json).dependencies } catch {}
       }
-      foreach ($item in @(@('codex','codex','@openai/codex'),@('claude','claude','@anthropic-ai/claude-code'),@('harness','dsh','@deepseek-ai/dsh'),@('gemini','gemini','@google/gemini-cli'),@('opencode','opencode','opencode-ai'),@('node','node',''),@('git','git',''),@('vscode','code',''))) {
+      foreach ($item in @(@('codex','codex','@openai/codex'),@('claude','claude','@anthropic-ai/claude-code'),@('harness','dsh','@deepseek-ai/dsh'),@('gemini','gemini','@google/gemini-cli'),@('opencode','opencode','opencode-ai'),@('grok','grok','@vibe-kit/grok-cli'),@('qwen','qwen','@qwen-code/qwen-code'),@('copilot','copilot','@github/copilot'),@('kimi','kimi',''),@('node','node',''),@('git','git',''),@('vscode','code',''))) {
         $found=Get-Command $item[1] -ErrorAction SilentlyContinue | Select-Object -First 1
         $version=''; $managed=$false
+        if ($item[0] -eq 'kimi' -and (Get-Command uv -ErrorAction SilentlyContinue)) { $managed=[bool]((& uv tool list 2>$null) -match '^kimi-cli\s') }
         if ($item[2] -and $npmPackages.($item[2])) { $version=$npmPackages.($item[2]).version; $managed=$true }
         elseif ($found) { try { $version=((& $found.Source --version 2>$null | Select-Object -First 1) -join '').Trim() } catch {} }
         $rows+=@{id=$item[0];installed=([bool]$found -or $managed);version=$version;path=if($found){$found.Source}else{''};managed=$managed;can_remove=($managed -or $item[0] -in @('node','git','vscode'));can_upgrade=($managed -or !$found -or $item[0] -in @('node','git','vscode'))}
@@ -44,6 +46,10 @@ pub async fn local_action(tool: &str, operation: &str) -> Result<Value, String> 
         "harness" => ("@deepseek-ai/dsh", ""),
         "gemini" => ("@google/gemini-cli", ""),
         "opencode" => ("opencode-ai", ""),
+        "grok" => ("@vibe-kit/grok-cli", ""),
+        "qwen" => ("@qwen-code/qwen-code", ""),
+        "copilot" => ("@github/copilot", ""),
+        "kimi" => ("kimi-cli", ""),
         "node" => ("", "OpenJS.NodeJS.LTS"),
         "git" => ("", "Git.Git"),
         "vscode" => ("", "Microsoft.VisualStudioCode"),
@@ -57,10 +63,28 @@ pub async fn local_action(tool: &str, operation: &str) -> Result<Value, String> 
             .flatten()
             .any(|v| v["id"] == tool && v["managed"] == true)
         {
-            return Err("该工具不是 npm 全局安装，请使用原安装方式管理".into());
+            return Err("该工具不是 Edge Switch 支持的包管理器安装，请使用原安装方式管理".into());
         }
     }
-    let script = if winget.is_empty() {
+    let script = if tool == "kimi" {
+        r#"
+      $ErrorActionPreference='Stop'
+      $uv=Get-Command uv -ErrorAction SilentlyContinue
+      if (!$uv) {
+        if (!(Get-Command winget.exe -ErrorAction SilentlyContinue)) { throw '请先安装 uv：winget install --id astral-sh.uv --exact' }
+        $proxyArgs=@(); if ($env:HTTPS_PROXY) { $proxyArgs=@('--proxy',$env:HTTPS_PROXY) }
+        & winget.exe install --id astral-sh.uv --exact --source winget --silent --disable-interactivity --accept-source-agreements --accept-package-agreements @proxyArgs
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+        $env:PATH=[Environment]::GetEnvironmentVariable('Path','User')+';'+[Environment]::GetEnvironmentVariable('Path','Machine')
+        $uv=Get-Command uv -ErrorAction SilentlyContinue
+        if (!$uv) { throw 'uv 安装完成，请重启应用后安装 Kimi Code' }
+      }
+      if ($env:EDGE_TOOL_OPERATION -eq 'uninstall') { & $uv.Source tool uninstall kimi-cli }
+      elseif ($env:EDGE_TOOL_OPERATION -eq 'upgrade') { & $uv.Source tool upgrade kimi-cli }
+      else { & $uv.Source tool install --python 3.13 kimi-cli; if (!$LASTEXITCODE) { & $uv.Source tool update-shell } }
+      exit $LASTEXITCODE
+    "#
+    } else if winget.is_empty() {
         r#"
       $ErrorActionPreference='Stop'
       if (!(Get-Command npm.cmd -ErrorAction SilentlyContinue)) { throw '请先安装 Node.js LTS' }
@@ -73,16 +97,24 @@ pub async fn local_action(tool: &str, operation: &str) -> Result<Value, String> 
       $ErrorActionPreference='Stop'
       if (!(Get-Command winget.exe -ErrorAction SilentlyContinue)) { throw '未找到 winget，请安装 Windows 应用安装程序' }
       $verb=$env:EDGE_TOOL_OPERATION
+      $proxyArgs=@(); if ($env:HTTPS_PROXY) { $proxyArgs=@('--proxy',$env:HTTPS_PROXY) }
       if ($verb -eq 'uninstall') { & winget.exe uninstall --id $env:EDGE_TOOL_WINGET --exact --silent --disable-interactivity }
-      else { & winget.exe $verb --id $env:EDGE_TOOL_WINGET --exact --source winget --silent --disable-interactivity --accept-source-agreements --accept-package-agreements }
+      else { & winget.exe $verb --id $env:EDGE_TOOL_WINGET --exact --source winget --silent --disable-interactivity --accept-source-agreements --accept-package-agreements @proxyArgs }
       exit $LASTEXITCODE
     "#
     };
-    let mut command = ps(script);
+    let script = format!(
+        "$env:PATH=[Environment]::GetEnvironmentVariable('Path','User')+';'+[Environment]::GetEnvironmentVariable('Path','Machine')+';'+$env:PATH\n{script}"
+    );
+    let mut command = ps(&script);
     command
         .env("EDGE_TOOL_OPERATION", operation)
         .env("EDGE_TOOL_PACKAGE", package)
         .env("EDGE_TOOL_WINGET", winget);
+    if crate::network::configured().is_some() {
+        let proxy = crate::network::url_at(crate::network::port(7890));
+        command.env("HTTP_PROXY", &proxy).env("HTTPS_PROXY", &proxy);
+    }
     let output = tokio::time::timeout(std::time::Duration::from_secs(1800), command.output())
         .await
         .map_err(|_| "工具操作超时，请刷新核对安装状态")?
@@ -147,7 +179,7 @@ mod tests {
     async fn native_inventory_has_version_and_management_metadata() {
         let result = inventory_local().await.unwrap();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 8);
+        assert_eq!(tools.len(), 12);
         for item in tools {
             assert!(item["installed"].is_boolean());
             assert!(item["version"].is_string());

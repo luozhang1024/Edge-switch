@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { createServer } from "node:net";
+import { createServer as createHttpServer } from "node:http";
 import { once } from "node:events";
 import { chromium, expect } from "@playwright/test";
 
@@ -236,6 +237,60 @@ try {
     profileId: snapshot.selected_profile,
   });
   expect(nativeConfig.provider).toBe("smoke-api");
+  const proxiedRequests = [];
+  const fixtureProxy = createHttpServer((request, response) => {
+    proxiedRequests.push({
+      url: request.url,
+      auth: request.headers.authorization,
+      proxyAuth: request.headers["proxy-authorization"],
+    });
+    response.setHeader("Content-Type", "application/json");
+    response.end(JSON.stringify({ data: [{ id: "proxy-fixture-model" }] }));
+  });
+  fixtureProxy.on("connect", (request, socket) => {
+    proxiedRequests.push({
+      url: request.url,
+      proxyAuth: request.headers["proxy-authorization"],
+    });
+    socket.end("HTTP/1.1 502 Fixture endpoint\r\nConnection: close\r\n\r\n");
+  });
+  fixtureProxy.listen(0, "127.0.0.1");
+  await once(fixtureProxy, "listening");
+  const fixtureProxyPort = fixtureProxy.address().port;
+  try {
+    const network = await ipc("network_settings", {
+      action: "save",
+      payload: {
+        endpoint: `http://127.0.0.1:${fixtureProxyPort}`,
+        username: "fixture",
+        password: "fixture-proxy-secret",
+      },
+    });
+    expect(network.has_password).toBe(true);
+    expect(JSON.stringify(network)).not.toContain("fixture-proxy-secret");
+    // Deliberately reject CONNECT: verify routing without contacting an API or
+    // weakening certificate validation to accommodate a fixture certificate.
+    await expect(
+      ipc("fetch_models", {
+        profileId: snapshot.selected_profile,
+        serviceId: null,
+        baseUrl: "https://models.fixture.invalid/v1",
+        protocol: "responses",
+        key: "fixture-api-key",
+      }),
+    ).rejects.toBeTruthy();
+    expect(proxiedRequests[0].url).toContain("models.fixture.invalid");
+    expect(proxiedRequests[0].proxyAuth).toMatch(/^Basic /);
+    expect(
+      await readFile(join(output, "EdgeSSHAI/network.json"), "utf8"),
+    ).not.toContain("fixture-proxy-secret");
+  } finally {
+    await ipc("network_settings", {
+      action: "save",
+      payload: { endpoint: "", username: "", password: "" },
+    });
+    await new Promise((resolve) => fixtureProxy.close(resolve));
+  }
   const localId = snapshot.selected_profile;
   // Occupy the callback port so the real browser task can be exercised without
   // opening a sign-in page or requesting credentials from the test runner.
@@ -281,6 +336,39 @@ try {
     )
     .toBe("已完成");
   const skillsArgs = { profileId: localId, payload: {} };
+  const authFixture = join(output, "native-home/.codex/auth.json");
+  await writeFile(
+    authFixture,
+    JSON.stringify({
+      OPENAI_API_KEY: "fixture-api-key",
+      tokens: { access_token: "fixture-token" },
+      auth_mode: "chatgpt",
+      last_refresh: "2026-11-13",
+    }),
+  );
+  await ipc("logout_account", { profileId: localId, tool: "codex" });
+  expect(JSON.parse(await readFile(authFixture, "utf8"))).toEqual({
+    OPENAI_API_KEY: "fixture-api-key",
+  });
+  const harnessHome = join(output, "native-home/.dsh");
+  await mkdir(harnessHome, { recursive: true });
+  const harnessFixture = join(harnessHome, ".credentials.yaml");
+  await writeFile(
+    harnessFixture,
+    JSON.stringify({
+      version: 1,
+      records: {
+        "deepseek-account-platform/default": { kind: "grant", payload: {} },
+        "unrelated-account": { kind: "fixture", payload: { keep: true } },
+      },
+    }),
+  );
+  await ipc("logout_account", { profileId: localId, tool: "harness" });
+  const remainingCredentials = await readFile(harnessFixture, "utf8");
+  expect(remainingCredentials).not.toContain(
+    "deepseek-account-platform/default",
+  );
+  expect(remainingCredentials).toContain("unrelated-account");
   let skillList = await ipc("skills_request", {
     ...skillsArgs,
     action: "list",
@@ -365,14 +453,14 @@ try {
   expect(nativeSessions.sessions[0].provider).toBe("smoke-api");
   expect(nativeSessions.sessions[0].usage.requests).toBe(1);
   await navigate("工具安装");
-  await expect(page.locator(".ti-row")).toHaveCount(8);
+  await expect(page.locator(".ti-row")).toHaveCount(12);
   await expect(page.locator(".ti-page")).toHaveAttribute("aria-busy", "false", {
     timeout: 95000,
   });
   await page
     .getByRole("combobox", { name: "工具分类", exact: true })
     .selectOption("ai");
-  await expect(page.locator(".ti-row")).toHaveCount(5);
+  await expect(page.locator(".ti-row")).toHaveCount(9);
   const visibilitySwitch = page.getByRole("switch", {
     name: "在模型服务中显示 Claude Code",
     exact: true,
@@ -444,6 +532,60 @@ try {
     page.getByRole("region", { name: "本机 Codex 配置" }),
   ).toContainText("smoke-model");
   await checkVisuals("native-codex-config");
+  const nativeCard = page.getByRole("region", { name: "本机 Codex 配置" });
+  await expect(
+    nativeCard.getByRole("button", { name: "编辑本机供应商" }),
+  ).toBeVisible();
+  await nativeCard.getByRole("button", { name: "编辑本机供应商" }).click();
+  await page
+    .getByRole("textbox", { name: "名称", exact: true })
+    .fill("Smoke API Edited");
+  await nativeCard.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(nativeCard).toContainText("Smoke API Edited");
+  expect(
+    await readFile(join(output, "native-home/.codex/config.toml"), "utf8"),
+  ).toContain("Smoke API Edited");
+  // The remaining source/session checks continue using the same provider id.
+  await ipc("native_provider_action", {
+    profileId: localId,
+    action: "duplicate",
+    payload: { provider: "smoke-api" },
+  });
+  expect(
+    (await ipc("snapshot")).services[localId].some(
+      (s) => s.name === "Smoke API Edited 副本",
+    ),
+  ).toBe(true);
+  await navigate("使用统计");
+  await page
+    .getByRole("combobox", { name: "统计时间范围" })
+    .selectOption("all");
+  await expect(
+    page.getByRole("region", { name: "全部用量热力图" }),
+  ).toBeVisible();
+  expect(await page.locator(".heatmap-cell").count()).toBeGreaterThanOrEqual(
+    365,
+  );
+  await checkVisuals("usage-all-heatmap");
+  await navigate("工具安装");
+  for (const name of [
+    "Kimi Code",
+    "Grok CLI",
+    "Qwen Code",
+    "GitHub Copilot CLI",
+  ])
+    await expect(
+      page.locator(".ti-row").filter({ hasText: name }),
+    ).toBeVisible();
+  await checkVisuals("coding-tool-catalog");
+  await page.getByRole("button", { name: "← 返回唱片台" }).click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByRole("tab", { name: "高级", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "全局出站代理" }),
+  ).toBeVisible();
+  await checkVisuals("global-network-settings");
+  await page.keyboard.press("Escape");
   await navigate("会话中心");
   await expect(page.locator(".sc-session-row")).toContainText("120 Tokens");
   await page.getByRole("button", { name: /桌面会话验证/ }).click();
@@ -684,7 +826,7 @@ try {
     .locator(".service-card")
     .filter({ has: page.getByText("冒烟 API", { exact: true }) });
   await page.mouse.move(0, 0);
-  await expect(row.locator(".service-actions")).toHaveCSS("opacity", "0");
+  await expect(row.locator(".service-actions")).toHaveCSS("opacity", "1");
   await row.hover();
   await expect(row.locator(".service-actions")).toHaveCSS("opacity", "1");
   await expect(
@@ -908,11 +1050,10 @@ try {
     .first()
     .getByRole("button", { name: "编辑", exact: true })
     .click();
-  await page.getByRole("tab", { name: "代理连接", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "连接代理", exact: true }),
-  ).toBeVisible();
-  await checkVisuals("proxy");
+    page.getByRole("tab", { name: "代理连接", exact: true }),
+  ).toHaveCount(0);
+  await checkVisuals("environment-editor");
   await page.getByRole("button", { name: "取消", exact: true }).click();
   await navigate("工具安装");
   await expect(

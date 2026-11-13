@@ -19,6 +19,10 @@ import urllib.parse
 
 
 PROXIES = ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy')
+if 'kimi_inventory' not in globals():
+    from workbench.extra_tools import kimi_inventory, manage_kimi, EXTRA_LAUNCHER
+if 'skills_target' not in globals():
+    from workbench.skills import skills_target
 
 
 TOOL_PACKAGES = {
@@ -27,6 +31,9 @@ TOOL_PACKAGES = {
     'claude': ('@anthropic-ai/claude-code', 'claude'),
     'gemini': ('@google/gemini-cli', 'gemini'),
     'opencode': ('opencode-ai', 'opencode'),
+    'grok': ('@vibe-kit/grok-cli', 'grok'),
+    'qwen': ('@qwen-code/qwen-code', 'qwen'),
+    'copilot': ('@github/copilot', 'copilot'),
 }
 
 
@@ -1113,6 +1120,7 @@ def tool_inventory(p):
                 version = '版本未知'
         rows.append(dict(id=tool, installed=bool(binary), version=version, path=binary or '',
                          managed=bool(own and own.is_file()), can_remove=False, can_upgrade=False))
+    rows.append(kimi_inventory(root))
     return dict(tools=rows, runtime_ready=(root / 'runtime/bin/node').is_file())
 
 
@@ -1202,8 +1210,24 @@ def main():
                    harness_status=harness_status, harness_stop=harness_stop)
     if action == 'tool_inventory':
         result = tool_inventory(p)
+    elif action == 'manage_kimi':
+        result = manage_kimi(p, scope(p), command, clean_env, private_write)
+    elif action == 'prepare_extra_tool':
+        private_write(scope(p) / 'run-extra.py', EXTRA_LAUNCHER)
+        result = {'message': '工具启动入口已准备'}
     elif action == 'uninstall_tool':
-        result = uninstall_tool(p)
+        if p.get('tool') == 'kimi':
+            result = manage_kimi(dict(p, operation='uninstall'), scope(p), command, clean_env, private_write)
+        else:
+            result = uninstall_tool(p)
+    elif action == 'logout_codex':
+        path = scope(p) / 'codex-chatgpt-home/auth.json'
+        if path.exists():
+            auth = json.loads(path.read_text())
+            for key in ('tokens', 'auth_mode', 'last_refresh'):
+                auth.pop(key, None)
+            private_write(path, json.dumps(auth))
+        result = {'message': '已退出当前环境的 Codex 账号'}
     elif action == 'skills_target':
         result = skills_target(p, scope(p))
     elif action == 'prompt_file':

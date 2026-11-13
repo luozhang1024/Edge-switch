@@ -4,6 +4,7 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Value};
 
 fn powershell(script: &str) -> tokio::process::Command {
+    let script = format!("$env:PATH=[Environment]::GetEnvironmentVariable('Path','User')+';'+[Environment]::GetEnvironmentVariable('Path','Machine')+';'+$env:PATH; {script}");
     let bytes: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
     let mut c = transport::command("powershell.exe");
     c.args(["-NoProfile", "-EncodedCommand", &STANDARD.encode(bytes)]);
@@ -36,8 +37,8 @@ pub async fn login(p: &Profile, tool: &str, wait: bool) -> Result<Value, String>
     command
         .env("EDGE_LOCAL_TOOL", tool)
         .env("EDGE_LOCAL_PROJECT", &p.project);
-    if p.uses_proxy(tool) {
-        let proxy = format!("http://127.0.0.1:{}", p.proxy_port);
+    if p.uses_proxy(tool) || crate::network::configured().is_some() {
+        let proxy = crate::network::url_at(crate::network::port(p.proxy_port));
         command.env("HTTP_PROXY", &proxy).env("HTTPS_PROXY", &proxy);
     }
     if !wait {
@@ -88,7 +89,7 @@ pub async fn execute(p: &Profile, action: &str) -> Result<Value, String> {
     }
     let tool = match action {
         "ssh_console" => "",
-        "codex" | "claude" | "gemini" | "opencode" => action,
+        "codex" | "claude" | "gemini" | "opencode" | "kimi" | "grok" | "qwen" | "copilot" => action,
         "harness" => "dsh",
         "vscode" => "code",
         _ => return Err(
@@ -116,12 +117,14 @@ pub async fn execute(p: &Profile, action: &str) -> Result<Value, String> {
     c.arg("-NoExit");
     c.env("EDGE_LOCAL_PROJECT", &p.project)
         .env("EDGE_LOCAL_TOOL", tool);
-    if p.uses_proxy(if action == "harness" {
-        "harness"
-    } else {
-        "codex"
-    }) {
-        let proxy = format!("http://127.0.0.1:{}", p.proxy_port);
+    if crate::network::configured().is_some()
+        || p.uses_proxy(if action == "harness" {
+            "harness"
+        } else {
+            "codex"
+        })
+    {
+        let proxy = crate::network::url_at(crate::network::port(p.proxy_port));
         c.env("HTTP_PROXY", &proxy).env("HTTPS_PROXY", &proxy);
     }
     #[cfg(windows)]

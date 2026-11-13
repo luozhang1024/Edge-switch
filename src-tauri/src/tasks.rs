@@ -53,6 +53,7 @@ pub async fn start_task(
         "install_runtime" => "安装独立 Node.js",
         "install_tool" => "安装工具",
         "manage_tool" => "管理工具安装",
+        "launch_coding_tool" => "启动编程工具",
         "reuse_tools" => "接入已有工具",
         "sync_api" => "同步模型服务",
         "api_test" => "测试 API",
@@ -175,6 +176,19 @@ pub async fn start_task(
 fn redact(core: &Core, p: &Profile, text: &str) -> String {
     let s = core.store.lock().unwrap();
     let mut result = text.to_string();
+    result = regex::Regex::new(r"(https?://)[^\s/@]+:[^\s/@]+@")
+        .unwrap()
+        .replace_all(&result, "$1[已隐藏]@")
+        .into_owned();
+    if let Some(network) = crate::network::configured() {
+        if !network.password.is_empty() {
+            result = result.replace(&network.password, "[已隐藏]");
+        }
+        result = result.replace(
+            &crate::network::url_at(crate::network::port(p.proxy_port)),
+            "[代理地址]",
+        );
+    }
     if let Ok(key) = s.key(p) {
         if !key.is_empty() {
             result = result.replace(&key, "[已隐藏]");
@@ -399,6 +413,26 @@ async fn execute(
     action: &str,
     v: Value,
 ) -> Result<Value, String> {
+    if action == "launch_coding_tool" {
+        let tool = v["tool"]
+            .as_str()
+            .filter(|s| ["kimi", "grok", "qwen", "copilot"].contains(s))
+            .ok_or("工具无效")?;
+        if p.is_local() {
+            return crate::local::execute(p, tool).await;
+        }
+        let route = core.route(p, tool).await?;
+        let command = format!(
+            "cd {} && python3 ~/.local/share/edge-ssh-ai/{scope}/run-extra.py {} {}",
+            transport::quote(&p.project),
+            transport::quote(tool),
+            transport::quote(&route)
+        );
+        core.call(p, scope, "prepare_extra_tool", json!({}), 30)
+            .await?;
+        console(p, Some(command), false).await?;
+        return Ok(json!({"message":"已打开编程工具终端，请按工具提示配置账号或 API"}));
+    }
     if action == "manage_tool" {
         let tool = v["tool"].as_str().ok_or("请选择工具")?;
         let operation = v["operation"].as_str().ok_or("请选择操作")?;
@@ -416,7 +450,18 @@ async fn execute(
         if tool == "node" {
             return crate::editor::install_runtime(&core, app, id, p, scope).await;
         }
-        if !store::TOOLS.contains(&tool) {
+        if tool == "kimi" {
+            return core
+                .call(
+                    p,
+                    scope,
+                    "manage_kimi",
+                    json!({"operation":operation,"proxy":core.route(p,tool).await?}),
+                    1860,
+                )
+                .await;
+        }
+        if !store::TOOLS.contains(&tool) && !["grok", "qwen", "copilot"].contains(&tool) {
             return Err("远程仅支持受管 AI 工具与 Node.js 安装".into());
         }
         let versions = crate::editor::versions(p).await?;
@@ -442,9 +487,31 @@ async fn execute(
         return crate::accounts::chatgpt_browser(&core, p).await;
     }
     if action == "harness_login" {
-        return crate::accounts::harness_browser().await;
+        return crate::accounts::harness_browser(&p.id).await;
     }
     if p.is_local() {
+        if action == "api_test" {
+            let service = v["service_id"].as_str().ok_or("请选择供应商")?;
+            let key = crate::providers::service_key(&core, &p.id, service)?;
+            let entry = {
+                let s = core.store.lock().unwrap();
+                s.data["services"][&p.id]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|e| e["id"] == service)
+                    .cloned()
+                    .ok_or("供应商不存在")?
+            };
+            return crate::native_provider::test(
+                entry["base_url"].as_str().ok_or("地址缺失")?,
+                entry["protocol"].as_str().unwrap_or("responses"),
+                &key,
+                p.proxy,
+                p.proxy_port,
+            )
+            .await;
+        }
         if action == "auth_status" || action == "login" {
             if action == "login" {
                 crate::local::login(p, "codex", true).await?;
@@ -479,7 +546,7 @@ async fn execute(
     }
     match action {
         "login_browser" => crate::accounts::chatgpt_browser(&core, p).await,
-        "harness_login" => crate::accounts::harness_browser().await,
+        "harness_login" => crate::accounts::harness_browser(&p.id).await,
         "harness_account_sync" => crate::accounts::sync_harness(&core, p, scope).await,
         "diagnose" => core.call(p, scope, "diagnose", json!({}), 60).await,
         "versions" => crate::editor::versions(p).await,
@@ -591,7 +658,13 @@ async fn execute(
             )
         }
         "ssh_console" => {
-            console(p, None, false).await?;
+            let proxy = core.route(p, "codex").await?;
+            let command = if proxy.is_empty() {
+                None
+            } else {
+                Some(format!("cd {}; export HTTP_PROXY={} HTTPS_PROXY={} http_proxy={} https_proxy={}; exec bash -i", transport::quote(&p.project), transport::quote(&proxy), transport::quote(&proxy), transport::quote(&proxy), transport::quote(&proxy)))
+            };
+            console(p, command, false).await?;
             Ok(json!({"message":"已打开 SSH 终端"}))
         }
         "claude" | "gemini" | "opencode" => {
@@ -838,10 +911,7 @@ fn open_url(url: &str) -> Result<(), String> {
     }
     #[cfg(windows)]
     {
-        std::process::Command::new("explorer.exe")
-            .arg(url)
-            .spawn()
-            .map_err(|e| e.to_string())?;
+        crate::browser::open(url)?;
     }
     Ok(())
 }

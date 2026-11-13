@@ -2,12 +2,14 @@
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Push-Location $repo
 try {
+    & node (Join-Path $PSScriptRoot 'check-version.mjs') --release
+    if ($LASTEXITCODE -ne 0) { throw 'Release metadata check failed' }
     $version = (Get-Content -Raw package.json | ConvertFrom-Json).version
     $binary = Get-Item -LiteralPath 'src-tauri/target/release/edge-switch.exe'
     if ($binary.VersionInfo.ProductVersion -ne $version) {
         throw "Executable version $($binary.VersionInfo.ProductVersion) does not match $version; rebuild before packaging"
     }
-    $output = Join-Path $repo 'dist/tauri'
+    $output = Join-Path $repo ("dist/tauri/v$version")
     $portable = Join-Path $repo ('build/tauri/portable-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force $output | Out-Null
     New-Item -ItemType Directory -Force $portable | Out-Null
@@ -39,6 +41,9 @@ try {
     $installer = Join-Path $repo "src-tauri/target/release/bundle/nsis/Edge Switch_${version}_x64-setup.exe"
     if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) { throw "Current-version installer not found: $installer" }
     Copy-Item -LiteralPath $installer -Destination $output -Force
+    $sourceZip = Join-Path $output "EdgeSwitch-$version-source.zip"
+    & git archive --format=zip --prefix="EdgeSwitch-$version/" -o $sourceZip HEAD
+    if ($LASTEXITCODE -ne 0) { throw 'Source archive failed' }
     $zip = Join-Path $output "EdgeSwitch-$version-Windows-x64.zip"
     for ($attempt = 0; $attempt -lt 8; $attempt++) {
         try {

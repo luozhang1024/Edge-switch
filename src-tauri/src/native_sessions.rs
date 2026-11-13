@@ -335,7 +335,16 @@ pub fn aggregate(files: &Value, params: &Value) -> Value {
     } else {
         86400.0
     };
-    let mut trend = vec![0u64; ((end - start) / bucket).ceil() as usize];
+    let mut trend = vec![
+        0u64;
+        if start == 0.0 {
+            0
+        } else {
+            ((end - start) / bucket).ceil() as usize
+        }
+    ];
+    let offset = params["timezone_offset"].as_i64().unwrap_or(0) as f64;
+    let mut daily: BTreeMap<String, Value> = BTreeMap::new();
     let mut groups: BTreeMap<(String, String), (u64, u64)> = BTreeMap::new();
     for r in &rows {
         let tokens = ["input", "output", "cached", "write"]
@@ -343,6 +352,16 @@ pub fn aggregate(files: &Value, params: &Value) -> Value {
             .map(|k| number(&r[k]))
             .sum::<u64>();
         let index = ((r["timestamp"].as_f64().unwrap() - start) / bucket) as usize;
+        if let Some(date) =
+            chrono::DateTime::from_timestamp((r["timestamp"].as_f64().unwrap() + offset) as i64, 0)
+        {
+            let day = date.format("%Y-%m-%d").to_string();
+            let entry = daily
+                .entry(day.clone())
+                .or_insert(json!({"date":day,"tokens":0,"requests":0}));
+            entry["tokens"] = json!(entry["tokens"].as_u64().unwrap() + tokens);
+            entry["requests"] = json!(entry["requests"].as_u64().unwrap() + 1);
+        }
         if let Some(n) = trend.get_mut(index) {
             *n += tokens;
         }
@@ -363,6 +382,7 @@ pub fn aggregate(files: &Value, params: &Value) -> Value {
     });
     let page = params["page"].as_u64().unwrap_or(0) as usize;
     json!({"totals":totals,"options":options,"rows":rows.into_iter().skip(page.saturating_mul(50)).take(50).collect::<Vec<_>>(),"warnings":files["warnings"],
+        "daily":daily.into_values().collect::<Vec<_>>(),
         "trend":trend.into_iter().enumerate().map(|(index,tokens)|json!({"index":index,"tokens":tokens})).collect::<Vec<_>>(),
         "groups":groups.into_iter().map(|((provider,model),(requests,tokens))|json!({"provider":provider,"model":model,"requests":requests,"tokens":tokens})).collect::<Vec<_>>()})
 }
@@ -370,6 +390,20 @@ pub fn aggregate(files: &Value, params: &Value) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn all_time_heatmap_keeps_all_records_and_uses_calendar_offset() {
+        let rows = json!([{"id":"old","tool":"codex","timestamp":1704065400.0,"provider":"test","model":"test","input":10,"output":2,"cached":0,"write":0,"cost":null}, {"id":"new","tool":"codex","timestamp":1794528000.0,"provider":"test","model":"test","input":30,"output":4,"cached":0,"write":0,"cost":null}]);
+        let result = aggregate(
+            &json!({"files":[{"usageRows":rows}],"warnings":[]}),
+            &json!({"start":0.0,"end":1800000000.0,"timezone_offset":28800}),
+        );
+        assert_eq!(result["totals"]["requests"], 2);
+        assert_eq!(result["totals"]["input"], 40);
+        assert_eq!(result["daily"][0]["date"], "2024-01-01");
+        assert_eq!(result["daily"][0]["tokens"], 12);
+        assert_eq!(result["daily"].as_array().unwrap().len(), 2);
+        assert!(result["trend"].as_array().unwrap().is_empty());
+    }
     #[test]
     fn codex_counts_deltas_cache_and_duplicate_events() {
         let events = vec![

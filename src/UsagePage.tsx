@@ -4,6 +4,7 @@ import { tools } from "./catalog";
 import { ActionIcon } from "./ActionIcon";
 import { t } from "./i18n";
 import { UsagePricing } from "./UsagePricing";
+import { UsageHeatmap } from "./UsageHeatmap";
 
 type UsageRow = {
   id: string;
@@ -19,6 +20,7 @@ type UsageRow = {
   cost_source?: "recorded" | "estimated" | "unknown";
 };
 export type UsageResult = {
+  daily?: { date: string; tokens: number; requests: number }[];
   totals: Omit<UsageRow, "id" | "tool" | "timestamp" | "provider" | "model"> & {
     requests: number;
     priced: number;
@@ -84,7 +86,7 @@ export function UsagePage({
             : 0),
   );
   if (range === "yesterday") endDate.setDate(endDate.getDate() - 1);
-  const start = startDate.getTime() / 1000;
+  const start = range === "all" ? 0 : startDate.getTime() / 1000;
   const end = endDate.getTime() / 1000;
   useEffect(() => {
     const request = ++sequence.current;
@@ -99,6 +101,7 @@ export function UsagePage({
       provider: provider || null,
       model: model || null,
       page,
+      timezoneOffset: -now.getTimezoneOffset() * 60,
     })
       .then((data) => {
         if (sequence.current === request) setResult(data);
@@ -182,6 +185,7 @@ export function UsagePage({
           <option value="yesterday">{t("昨天")}</option>
           <option value="week">{t("最近 7 天")}</option>
           <option value="month">{t("最近 30 天")}</option>
+          <option value="all">{t("全部时间")}</option>
         </select>
         <div className="usage-tools" role="group" aria-label={t("筛选工具")}>
           <button
@@ -255,51 +259,63 @@ export function UsagePage({
             </div>
           ))}
         </div>
-        <div className="usage-chart-heading">
-          <b>
-            {t(
-              range === "today" || range === "yesterday"
-                ? "Tokens · 按小时"
-                : "Tokens · 按天",
-            )}
-          </b>
-          <small>{totals ? `${compact(tokens)} Tokens` : "—"}</small>
-        </div>
-        <div
-          className="usage-chart"
-          role="img"
-          aria-label={t("Token 使用趋势")}
-        >
-          {result?.trend.map((item) => {
-            const date = new Date(
-              (start + item.index * (end - start <= 86400 ? 3600 : 86400)) *
-                1000,
-            );
-            const label =
-              end - start <= 86400
-                ? `${String(date.getHours()).padStart(2, "0")}:00`
-                : `${date.getMonth() + 1}/${date.getDate()}`;
-            return (
-              <div
-                className="usage-chart-column"
-                key={item.index}
-                title={`${label} · ${item.tokens.toLocaleString()} Tokens`}
-              >
-                <div className="usage-chart-track">
-                  <i style={{ height: `${(item.tokens / maximum) * 100}%` }} />
-                </div>
-                <small>
-                  {item.index %
-                    (range === "month" ? 3 : end - start <= 86400 ? 3 : 1) ===
-                  0
-                    ? label
-                    : ""}
-                </small>
-              </div>
-            );
-          })}
-          {!result && <span className="usage-chart-placeholder">—</span>}
-        </div>
+        {range === "all" ? (
+          <UsageHeatmap daily={result?.daily || []} />
+        ) : (
+          <>
+            <div className="usage-chart-heading">
+              <b>
+                {t(
+                  range === "today" || range === "yesterday"
+                    ? "Tokens · 按小时"
+                    : "Tokens · 按天",
+                )}
+              </b>
+              <small>{totals ? `${compact(tokens)} Tokens` : "—"}</small>
+            </div>
+            <div
+              className="usage-chart"
+              role="img"
+              aria-label={t("Token 使用趋势")}
+            >
+              {result?.trend.map((item) => {
+                const date = new Date(
+                  (start + item.index * (end - start <= 86400 ? 3600 : 86400)) *
+                    1000,
+                );
+                const label =
+                  end - start <= 86400
+                    ? `${String(date.getHours()).padStart(2, "0")}:00`
+                    : `${date.getMonth() + 1}/${date.getDate()}`;
+                return (
+                  <div
+                    className="usage-chart-column"
+                    key={item.index}
+                    title={`${label} · ${item.tokens.toLocaleString()} Tokens`}
+                  >
+                    <div className="usage-chart-track">
+                      <i
+                        style={{ height: `${(item.tokens / maximum) * 100}%` }}
+                      />
+                    </div>
+                    <small>
+                      {item.index %
+                        (range === "month"
+                          ? 3
+                          : end - start <= 86400
+                            ? 3
+                            : 1) ===
+                      0
+                        ? label
+                        : ""}
+                    </small>
+                  </div>
+                );
+              })}
+              {!result && <span className="usage-chart-placeholder">—</span>}
+            </div>
+          </>
+        )}
       </div>
       {totals && (
         <p className="usage-cost-coverage" role="status">

@@ -9,6 +9,12 @@ from workbench import usage
 
 
 class UsageTests(unittest.TestCase):
+    def test_all_time_daily_heatmap_keeps_old_records_and_calendar_offset(self):
+        self.write('claude-home/projects/test/session.jsonl', [dict(type='assistant', timestamp=1704065400000, message=dict(id='old', model='test', usage=dict(input_tokens=10, output_tokens=2)))])
+        result = usage.query(self.root, dict(start=0, end=1800000000, timezone_offset=28800))
+        self.assertEqual(result['totals']['requests'], 1)
+        self.assertEqual(result['daily'], [dict(date='2024-01-01', tokens=12, requests=1)])
+        self.assertEqual(result['trend'], [])
     def test_costs_use_configured_prices_and_total_all_pages(self):
         self.write('claude-home/projects/test/session.jsonl', [
             dict(type='assistant', timestamp=1794358800000 + index,

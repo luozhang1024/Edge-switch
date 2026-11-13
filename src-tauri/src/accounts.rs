@@ -18,9 +18,38 @@ use tokio::{
 const PLATFORM: &str = "https://platform.deepseek.com";
 const RECORD: &str = "deepseek-account-platform/default";
 const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
+static LOGIN_LINKS: std::sync::Mutex<Vec<(String, String)>> = std::sync::Mutex::new(Vec::new());
+struct LoginLink(String);
+impl Drop for LoginLink {
+    fn drop(&mut self) {
+        LOGIN_LINKS
+            .lock()
+            .unwrap()
+            .retain(|(key, _)| key != &self.0);
+    }
+}
+fn pending_link(profile: &str, url: &str) -> LoginLink {
+    let mut links = LOGIN_LINKS.lock().unwrap();
+    links.retain(|(key, _)| key != profile);
+    links.push((profile.into(), url.into()));
+    LoginLink(profile.into())
+}
+#[tauri::command]
+pub fn account_login_link(profile_id: String, reopen: bool) -> Result<Value, String> {
+    let url = LOGIN_LINKS
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|(key, _)| key == &profile_id)
+        .map(|(_, url)| url.clone());
+    if reopen {
+        crate::browser::open(url.as_deref().ok_or("当前没有等待中的浏览器授权")?)?;
+    }
+    Ok(json!({"url":url}))
+}
 
 fn client() -> Result<reqwest::Client, String> {
-    reqwest::Client::builder()
+    crate::network::builder(false, 7890)?
         .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(20))
         .build()
@@ -273,10 +302,7 @@ fn open_authorization(url: &str, origin: &str, path: &str) -> Result<(), String>
     }
     #[cfg(windows)]
     {
-        std::process::Command::new("explorer.exe")
-            .arg(url)
-            .spawn()
-            .map_err(|_| "无法打开浏览器")?;
+        crate::browser::open(url)?;
     }
     #[cfg(not(windows))]
     {
@@ -309,6 +335,7 @@ pub async fn chatgpt_browser(core: &Core, profile: &store::Profile) -> Result<Va
         ("codex_cli_simplified_flow", "true"),
         ("originator", "codex_cli_rs"),
     ]);
+    let _pending = pending_link(&profile.id, url.as_str());
     open_authorization(url.as_str(), "https://auth.openai.com", "/oauth/authorize")?;
     let code = tokio::time::timeout(
         Duration::from_secs(900),
@@ -374,6 +401,14 @@ pub async fn chatgpt_browser(core: &Core, profile: &store::Profile) -> Result<Va
 
 fn save_local_codex(auth: &Value) -> Result<(), String> {
     let path = crate::native_sessions::codex_home().join("auth.json");
+    let mut auth = auth.clone();
+    if let Some(key) = fs::read(&path)
+        .ok()
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+        .and_then(|v| v["OPENAI_API_KEY"].as_str().map(str::to_string))
+    {
+        auth["OPENAI_API_KEY"] = json!(key);
+    }
     if path.exists() {
         let backup = path.with_file_name(format!("auth.edge-switch-{}.bak", store::new_id()));
         fs::copy(&path, backup).map_err(|_| "无法备份本机 Codex 凭据，原文件已保留")?;
@@ -409,6 +444,65 @@ pub fn local_codex_status(core: &Core, profile: &store::Profile) -> Result<bool,
     *live = next;
     Ok(signed_in)
 }
+
+#[tauri::command]
+pub async fn logout_account(
+    state: tauri::State<'_, crate::State>,
+    profile_id: String,
+    tool: String,
+) -> Result<(), String> {
+    let core = &state.0;
+    let _guard = core.mutation.lock().await;
+    if core.active.lock().unwrap().contains_key(&profile_id) {
+        return Err("请先取消或完成当前授权任务".into());
+    }
+    let (p, scope) = {
+        let s = core.store.lock().unwrap();
+        (s.profile(&profile_id)?, s.scope(&profile_id))
+    };
+    match tool.as_str() {
+        "harness" => {
+            let path = dsh_path()?;
+            let _lock = native_lock(&path)?;
+            let mut doc = read_native(&path)?;
+            if let Some(records) = doc["records"].as_object_mut() {
+                records.remove(RECORD);
+            }
+            store::atomic_write(
+                &path,
+                serde_yaml::to_string(&doc)
+                    .map_err(|_| "无法保存退出状态")?
+                    .as_bytes(),
+            )?;
+        }
+        "codex" => {
+            if p.is_local() {
+                let path = crate::native_sessions::codex_home().join("auth.json");
+                if path.exists() {
+                    let mut auth: Value =
+                        serde_json::from_slice(&fs::read(&path).map_err(|_| "无法读取凭据")?)
+                            .map_err(|_| "凭据格式无效，已保留原文件")?;
+                    if let Some(object) = auth.as_object_mut() {
+                        for key in ["tokens", "auth_mode", "last_refresh"] {
+                            object.remove(key);
+                        }
+                    }
+                    store::atomic_write(&path, auth.to_string().as_bytes())?;
+                }
+            } else {
+                core.call(&p, &scope, "logout_codex", json!({}), 30).await?;
+            }
+            let mut s = core.store.lock().unwrap();
+            s.data["official"]
+                .as_object_mut()
+                .unwrap()
+                .remove(&profile_id);
+            s.save()?;
+        }
+        _ => return Err("此工具请使用官方终端退出账号".into()),
+    }
+    Ok(())
+}
 async fn platform_call(method: &str, value: Value) -> Result<Value, String> {
     platform_response(identity(
         client()?
@@ -432,7 +526,7 @@ impl Drop for PendingDeepSeek {
         }
     }
 }
-pub async fn harness_browser() -> Result<Value, String> {
+pub async fn harness_browser(profile_id: &str) -> Result<Value, String> {
     static LOGIN: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
     let _login = LOGIN
         .try_lock()
@@ -460,6 +554,7 @@ pub async fn harness_browser() -> Result<Value, String> {
     let url = init["authorize_url"]
         .as_str()
         .ok_or("DeepSeek 未返回授权地址")?;
+    let _pending = pending_link(profile_id, url);
     open_authorization(url, PLATFORM, "/dsh/authorize")?;
     let code = tokio::time::timeout(
         Duration::from_secs(600),
@@ -529,6 +624,17 @@ pub async fn sync_harness(core: &Core, p: &store::Profile, scope: &str) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn pending_login_link_is_removed_when_authorization_is_cancelled() {
+        let profile = store::new_id();
+        let pending = pending_link(
+            &profile,
+            "https://auth.openai.com/oauth/authorize?state=test",
+        );
+        assert!(account_login_link(profile.clone(), false).unwrap()["url"].is_string());
+        drop(pending);
+        assert!(account_login_link(profile, false).unwrap()["url"].is_null());
+    }
     #[tokio::test]
     #[ignore = "Manual read-only check of the current user's native Harness account"]
     async fn installed_harness_account_is_detected() {

@@ -389,8 +389,8 @@ describe("桌面工作流", () => {
     ]);
     expect(screen.queryByRole("tab", { name: "AI 工具" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "编辑" }));
-    fireEvent.click(screen.getByRole("tab", { name: "代理连接" }));
-    expect(screen.getByRole("button", { name: "连接代理" })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "代理连接" })).toBeNull();
+    expect(screen.queryByLabelText("电脑代理端口")).toBeNull();
     expect(screen.queryByRole("tab", { name: "AI 工具" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "取消" }));
     fireEvent.click(screen.getByRole("button", { name: "工具安装" }));

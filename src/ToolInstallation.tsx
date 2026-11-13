@@ -6,6 +6,7 @@ import { Profile, ToolId } from "./types";
 import { t } from "./i18n";
 import { ActionIcon } from "./ActionIcon";
 import "./tool-installation.css";
+import { extraCodingTools } from "./installableTools";
 
 type Installed = {
   id: string;
@@ -18,6 +19,7 @@ type Installed = {
 };
 const catalog = [
   ...tools.map((tool) => ({ ...tool, category: "ai", description: tool.hint })),
+  ...extraCodingTools,
   {
     id: "node",
     name: "Node.js LTS",
@@ -154,7 +156,7 @@ export function ToolInstallation({
       <p className="ti-note">
         {t(
           current.kind === "local"
-            ? "AI 工具通过 npm 全局安装，Node.js、Git 和 VS Code 通过 winget 管理。非 npm 安装的 AI 工具请使用原安装方式升级或卸载。"
+            ? "Kimi Code 通过 uv 安装，其他 AI 工具通过 npm 安装；Node.js、Git 和 VS Code 通过 winget 管理。已有工具按检测到的安装方式管理。"
             : "AI 工具安装到当前环境专属目录，首次自动准备 Node.js。系统工具仅检测；卸载受管入口时保留配置与会话。",
         )}
       </p>
@@ -198,7 +200,7 @@ export function ToolInstallation({
                         {t(info?.managed ? "受管安装" : "系统或外部安装")}
                       </small>
                     )}
-                    {ai && (
+                    {ai && tools.some((tool) => tool.id === item.id) && (
                       <label className="ti-visibility">
                         <input
                           type="checkbox"
@@ -222,6 +224,18 @@ export function ToolInstallation({
                     )}
                   </div>
                   <div className="ti-actions">
+                    {ai &&
+                      extraCodingTools.some((tool) => tool.id === item.id) &&
+                      installed && (
+                        <button
+                          disabled={!ready}
+                          onClick={() =>
+                            void run("launch_coding_tool", { tool: item.id })
+                          }
+                        >
+                          {t("启动")}
+                        </button>
+                      )}
                     {installed ? (
                       <>
                         <button

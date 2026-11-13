@@ -271,7 +271,7 @@ fn repo_parts(repo: &str) -> Result<(&str, &str), String> {
     Ok((owner, name))
 }
 async fn download(url: &str) -> Result<Vec<u8>, String> {
-    let mut response = reqwest::Client::builder()
+    let mut response = crate::network::builder(false, 7890)?
         .user_agent("Edge-Switch")
         .timeout(std::time::Duration::from_secs(90))
         .build()

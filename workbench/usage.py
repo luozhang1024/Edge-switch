@@ -217,13 +217,17 @@ def query(root, params):
                   estimated=sum(row['cost_source'] == 'estimated' for row in selected),
                   recorded=sum(row['cost_source'] == 'recorded' for row in selected), unpriced=len(selected) - len(known))
     bucket = 3600 if end - start <= 86400 else 86400
-    trend, groups = defaultdict(int), {}
+    trend, groups, daily = defaultdict(int), {}, {}
     for row in selected:
         tokens = sum(row[key] for key in ('input', 'output', 'cached', 'write'))
         trend[int((row['timestamp'] - start) // bucket)] += tokens
+        date = __import__('datetime').datetime.fromtimestamp(row['timestamp'] + number(params.get('timezone_offset')), __import__('datetime').timezone.utc).strftime('%Y-%m-%d')
+        day = daily.setdefault(date, dict(date=date, tokens=0, requests=0))
+        day['tokens'] += tokens
+        day['requests'] += 1
         group = groups.setdefault((row['provider'], row['model']), dict(provider=row['provider'], model=row['model'], requests=0, tokens=0))
         group['requests'] += 1; group['tokens'] += tokens
     selected.sort(key=lambda row: row['timestamp'], reverse=True)
     page = max(0, int(number(params.get('page'))))
-    return dict(totals=totals, options=options, trend=[dict(index=i, tokens=trend[i]) for i in range(math.ceil((end - start) / bucket))],
+    return dict(totals=totals, options=options, daily=sorted(daily.values(), key=lambda d: d['date']), trend=[] if start == 0 else [dict(index=i, tokens=trend[i]) for i in range(math.ceil((end - start) / bucket))],
                 groups=list(groups.values()), rows=selected[page * 50:(page + 1) * 50], warnings=warnings)

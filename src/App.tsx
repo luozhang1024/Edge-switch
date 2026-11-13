@@ -148,8 +148,6 @@ export function App() {
   const [taskProgress, setTaskProgress] = useState<Record<string, string[]>>(
     {},
   );
-  const [editorTab, setEditorTab] = useState("connection");
-  useEffect(() => setEditorTab("connection"), [editing?.id]);
   const [service, setService] = useState<Service | null>(null);
   const [official, setOfficial] = useState<Official | null>(null);
   const [authPath, setAuthPath] = useState("");
@@ -219,11 +217,15 @@ export function App() {
     };
   }, [load]);
   async function command(name: string, args: Record<string, unknown> = {}) {
+    const inlineAuth =
+      name === "start_task" &&
+      ["login_browser", "harness_login"].includes(String(args.action));
     setPending(true);
     try {
-      if (name === "start_task") setFeedback({ title: "正在提交任务…" });
+      if (name === "start_task" && !inlineAuth)
+        setFeedback({ title: "正在提交任务…" });
       const result = await invoke<Task | null>(name, args);
-      if (name === "start_task")
+      if (name === "start_task" && !inlineAuth)
         setFeedback({ id: result?.id, title: result?.label || "任务进度" });
       setMessage("操作已提交");
       await load();
@@ -860,7 +862,7 @@ export function App() {
                   {current.kind === "local" && (
                     <p role="note">
                       {t(
-                        "本机工具沿用 Windows 配置；可在工具安装页安装，在授权中心登录，模型配置使用本机工具设置。",
+                        "本机工具沿用 Windows 配置；可在工具安装页安装，在授权中心登录，在此管理已识别的 Codex 供应商。",
                       )}
                     </p>
                   )}
@@ -895,7 +897,7 @@ export function App() {
         <Modal title={t("编辑工作环境")} close={() => setEditing(null)}>
           <p>
             {t(
-              "本机工具沿用 Windows 配置；可在工具安装页安装，在授权中心登录，模型配置使用本机工具设置。",
+              "本机工具沿用 Windows 配置；可在工具安装页安装，在授权中心登录，在此管理已识别的 Codex 供应商。",
             )}
           </p>
           <form
@@ -933,72 +935,6 @@ export function App() {
       )}
       {editing && editing.kind !== "local" && (
         <Modal title={t("编辑工作环境")} close={() => setEditing(null)}>
-          <div
-            className="environment-tabs"
-            role="tablist"
-            aria-label={t("编辑环境配置")}
-          >
-            {[
-              ["connection", "SSH 与网络"],
-              ["network", "代理连接"],
-            ].map(([id, label]) => (
-              <button
-                key={id}
-                role="tab"
-                aria-selected={editorTab === id}
-                onClick={() => setEditorTab(id)}
-              >
-                {t(label)}
-              </button>
-            ))}
-          </div>
-          <div hidden={editorTab !== "network"}>
-            {" "}
-            <section className="panel">
-              <h2>{t("代理网络")}</h2>
-              <p>
-                {t("电脑下载：")}
-                {editing.proxy
-                  ? t(`127.0.0.1:${editing.proxy_port}`)
-                  : t("直连")}
-                ；Codex：
-                {(editing.codex_proxy ?? editing.proxy)
-                  ? t("电脑代理")
-                  : t("板卡直连")}
-                ；Harness：
-                {(editing.harness_proxy ?? editing.proxy)
-                  ? t("电脑代理")
-                  : t("板卡直连")}
-                。
-              </p>
-              <p>
-                {t(
-                  "电脑代理通过 SSH 反向转发到板卡，中断后自动尝试重连。修改设置前先断开本地连接。",
-                )}
-              </p>
-              <div className="buttons">
-                {editorButton("连接代理", "proxy_start")}
-                {editorButton("断开本地连接", "disconnect")}
-              </div>
-              {Object.entries(connections)
-                .filter(([id]) => id.startsWith(`${editing.id}:`))
-                .map(([id, c]) => (
-                  <div className="profile" key={id}>
-                    <b>
-                      {c.kind === "proxy" ? t("代理隧道") : t("Harness 网页")}
-                    </b>
-                    <span>
-                      {t(c.state)}
-                      {t(" · 电脑")}
-                      {c.local_port}
-                      {t(" ↔ 板卡")}
-                      {c.remote_port}
-                    </span>
-                  </div>
-                ))}
-            </section>
-          </div>
-
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -1006,7 +942,7 @@ export function App() {
                 setEditing(null);
             }}
           >
-            <div className="form" hidden={editorTab !== "connection"}>
+            <div className="form">
               {(["name", "host", "user", "project"] as const).map(
                 (field, i) => (
                   <label key={field}>
@@ -1021,24 +957,19 @@ export function App() {
                   </label>
                 ),
               )}
-              {(["port", "proxy_port"] as const).map((field, i) => (
-                <label key={field}>
-                  {t(["SSH 端口", "电脑代理端口"][i])}
-                  <input
-                    required
-                    type="number"
-                    min="1"
-                    max="65535"
-                    value={editing[field]}
-                    onChange={(e) =>
-                      setEditing({
-                        ...editing,
-                        [field]: Number(e.target.value),
-                      })
-                    }
-                  />
-                </label>
-              ))}
+              <label>
+                {t("SSH 端口")}
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  max="65535"
+                  value={editing.port}
+                  onChange={(e) =>
+                    setEditing({ ...editing, port: Number(e.target.value) })
+                  }
+                />
+              </label>
               <label className="wide">
                 {t("SSH 私钥（空值使用系统身份）")}
                 <input
@@ -1065,43 +996,6 @@ export function App() {
                   {t("选择私钥")}
                 </button>
               </label>
-              <label>
-                {t("电脑下载线路")}
-                <select
-                  value={String(editing.proxy)}
-                  onChange={(e) =>
-                    setEditing({ ...editing, proxy: e.target.value === "true" })
-                  }
-                >
-                  <option value="false">{t("直连")}</option>
-                  <option value="true">{t("电脑代理")}</option>
-                </select>
-              </label>
-              {(["codex_proxy", "harness_proxy"] as const).map((field, i) => (
-                <label key={field}>
-                  {t(["Codex 线路", "Harness 线路"][i])}
-                  <select
-                    value={
-                      editing[field] == null
-                        ? "inherit"
-                        : String(editing[field])
-                    }
-                    onChange={(e) =>
-                      setEditing({
-                        ...editing,
-                        [field]:
-                          e.target.value === "inherit"
-                            ? null
-                            : e.target.value === "true",
-                      })
-                    }
-                  >
-                    <option value="inherit">{t("跟随电脑下载线路")}</option>
-                    <option value="false">{t("板卡直连")}</option>
-                    <option value="true">{t("电脑代理")}</option>
-                  </select>
-                </label>
-              ))}
               <label>
                 {t("退出策略")}
                 <select

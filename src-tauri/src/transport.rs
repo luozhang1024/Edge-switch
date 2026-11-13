@@ -81,7 +81,7 @@ pub async fn output(mut c: Command, seconds: u64) -> Result<String, String> {
 pub(crate) fn bootstrap_source() -> Result<String, String> {
     let source=format!("import base64\nns={{'__name__':'edge_remote','SERVICE_SOURCE':base64.b64decode('{}')}}\nexec(compile(base64.b64decode('{}'),'edge-agent','exec'),ns)\nexec(compile(base64.b64decode('{}'),'edge-rpc','exec'))\nserve(ns)\n",
         STANDARD.encode(include_bytes!("../../workbench/harness_service.py")),
-        STANDARD.encode([include_bytes!("../../workbench/usage.py").as_slice(), b"\nusage_query = query\n", include_bytes!("../../workbench/sessions.py").as_slice(), b"\n", include_bytes!("../../workbench/skills.py").as_slice(), b"\n", include_bytes!("../../workbench/remote_agent.py").as_slice()].concat()),
+        STANDARD.encode([include_bytes!("../../workbench/usage.py").as_slice(), b"\nusage_query = query\n", include_bytes!("../../workbench/sessions.py").as_slice(), b"\n", include_bytes!("../../workbench/skills.py").as_slice(), b"\n", include_bytes!("../../workbench/extra_tools.py").as_slice(), b"\n", include_bytes!("../../workbench/remote_agent.py").as_slice()].concat()),
         STANDARD.encode(include_bytes!("agent_rpc.py")));
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
     encoder

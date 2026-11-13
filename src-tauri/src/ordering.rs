@@ -51,7 +51,9 @@ fn reorder(
                 .collect();
             if tool != "harness" {
                 allowed.insert("official".into());
-            } else if allowed.is_empty() {
+            } else if allowed.is_empty()
+                && store.profile(pid)?.extra.get("hide_harness_default") != Some(&json!(true))
+            {
                 allowed.insert("default-api".into());
             }
             (allowed, vec!["services".into(), pid.into(), tool.into()])

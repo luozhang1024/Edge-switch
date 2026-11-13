@@ -562,6 +562,6 @@
   "已加入技能库，可在已安装中调整工具开关。": "Added to the library. Adjust tool switches under Installed.",
   "已跳过同名技能": "Skipped existing skills",
   "请使用工具开关启用。": "Use tool switches to enable.",
-  "本机工具沿用 Windows 配置；可在工具安装页安装，在授权中心登录，模型配置使用本机工具设置。": "Local tools use Windows configuration. Install tools on the Tool Installation page, sign in through Authorization Center, and configure models in the tool settings.",
+  "本机工具沿用 Windows 配置；可在工具安装页安装，在授权中心登录，在此管理已识别的 Codex 供应商。": "Local tools use Windows configuration. Install tools on the Tool Installation page, sign in through Authorization Center, and manage detected Codex providers here.",
   "浏览器登录在本机打开官方授权网页，完成后保存到本机 Codex，并在当前环境加密记录；设备码登录会打开本机终端。": "Browser login opens the official authorization page and saves credentials to local Codex and encrypted workspace storage. Device-code login opens a local terminal."
 }

@@ -135,11 +135,7 @@ pub fn autostart_status() -> Result<bool, String> {
 const RELEASES_URL: &str = "https://github.com/luozhang1024/Edge-switch/releases";
 #[tauri::command]
 pub fn open_project_page() -> Result<(), String> {
-    std::process::Command::new("explorer.exe")
-        .arg("https://github.com/luozhang1024/Edge-switch")
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    crate::browser::open("https://github.com/luozhang1024/Edge-switch")
 }
 fn release_info(releases: &[Value], current: &str) -> Result<Value, String> {
     let current = semver::Version::parse(current).map_err(|_| "当前版本格式无效")?;
@@ -163,7 +159,7 @@ fn release_info(releases: &[Value], current: &str) -> Result<Value, String> {
 }
 #[tauri::command]
 pub async fn check_update() -> Result<Value, String> {
-    let client = reqwest::Client::builder()
+    let client = crate::network::builder(false, 7890)?
         .timeout(Duration::from_secs(20))
         .user_agent("Edge-Switch-update-check")
         .build()
@@ -188,11 +184,7 @@ pub async fn check_update() -> Result<Value, String> {
 pub fn open_release_page() -> Result<(), String> {
     #[cfg(windows)]
     {
-        std::process::Command::new("explorer.exe")
-            .arg(RELEASES_URL)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-        Ok(())
+        crate::browser::open(RELEASES_URL)
     }
     #[cfg(not(windows))]
     {

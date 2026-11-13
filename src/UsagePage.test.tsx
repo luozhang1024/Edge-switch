@@ -49,6 +49,36 @@ const fixture: UsageResult = {
 };
 
 describe("远程用量统计", () => {
+  it("全部时间查询无起始日期限制，并按年份显示每日热力图", async () => {
+    invoke.mockResolvedValue({
+      ...fixture,
+      daily: [
+        { date: "2024-01-01", tokens: 100, requests: 2 },
+        { date: "2026-11-13", tokens: 400, requests: 3 },
+      ],
+    });
+    render(<UsagePage profileId="board" environment="Board" />);
+    await screen.findByText("90.0%");
+    fireEvent.change(screen.getByRole("combobox", { name: "统计时间范围" }), {
+      target: { value: "all" },
+    });
+    await waitFor(() =>
+      expect(invoke).toHaveBeenLastCalledWith(
+        "query_usage",
+        expect.objectContaining({
+          start: 0,
+          timezoneOffset: expect.any(Number),
+        }),
+      ),
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "热力图年份" }), {
+      target: { value: "2024" },
+    });
+    expect(
+      screen.getByRole("button", { name: "2024-01-01 · 100 Tokens · 2 请求" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("img", { name: "Token 使用趋势" })).toBeNull();
+  });
   it("查询当前环境，按工具、供应商、模型筛选并分页", async () => {
     invoke.mockResolvedValue(fixture);
     render(<UsagePage profileId="board-a" environment="Board" />);

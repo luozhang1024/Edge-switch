@@ -98,7 +98,7 @@ pub(crate) fn scan(roots: Vec<(&str, PathBuf)>, key: Option<&str>) -> Result<Val
                         continue;
                     }
                 }
-                match native_file(&real, *tool, &source, key.is_some(), &meta) {
+                match native_file(&real, tool, &source, key.is_some(), &meta) {
                     Ok(mut file) => {
                         if *tool == "codex" {
                             if let Some(title) =
